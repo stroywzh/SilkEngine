@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 
 namespace ProjectEngine;
 
@@ -9,7 +10,21 @@ public abstract class Object
     public string Name { get; set; } = "";
     public int GetInstanceID() => _id;
     public static event Action<Object, float>? DestroyHandler;
-    public static void Destroy(Object obj, float delay = 0f) => DestroyHandler?.Invoke(obj, delay);
+    public static void Destroy(Object obj, float delay = 0f)
+    {
+        if (obj is GameObject go)
+            DestroyRecursive(go);
+        DestroyHandler?.Invoke(obj, delay);
+    }
+
+    private static void DestroyRecursive(GameObject go)
+    {
+        foreach (var child in go.Transform.Children.ToArray())
+            DestroyRecursive(child.GameObject!);
+        go.IsActive = false;
+        foreach (var c in go._components)
+            c.Enabled = false;
+    }
 
     public static Object Instantiate(Object original)
     {

@@ -66,4 +66,50 @@ public class SceneManagerTests
     public void LateTick_CallsLateTick() { /* skip for brevity - covered by LogicLoop tests */ }
     [Fact]
     public void PostRender_CallsPostRender() { /* skip for brevity */ }
+
+    [Fact]
+    public void Destroy_GameObject_RecursivelyDestroysChildren()
+    {
+        var s = new Scene("T");
+        var parent = new GameObject("P");
+        var child = new GameObject("C");
+        child.Transform.SetParent(parent.Transform);
+        var c = child.AddComponent<Tracker>();
+        s.AddRootObject(parent);
+        SceneManager.LoadScene(s);
+
+        Object.Destroy(parent);
+        Assert.False(child.IsActive);
+        Assert.False(c.Enabled);
+    }
+
+    [Fact]
+    public void Destroy_AfterProcessDestroys_RemovesFromScene()
+    {
+        var s = new Scene("T");
+        var go = new GameObject();
+        var c = go.AddComponent<Tracker>();
+        s.AddRootObject(go);
+        SceneManager.LoadScene(s);
+
+        Object.Destroy(go);
+        SceneManager.ProcessDestroys(0.1f);
+        Assert.True(c.Destroy);
+        Assert.Empty(s.GetRootGameObjects());
+    }
+
+    [Fact]
+    public void Destroy_Delayed_NotRemovedImmediately()
+    {
+        var s = new Scene("T");
+        var go = new GameObject();
+        s.AddRootObject(go);
+        SceneManager.LoadScene(s);
+
+        Object.Destroy(go, 1f);
+        SceneManager.ProcessDestroys(0.5f);
+        Assert.Single(s.GetRootGameObjects());
+        SceneManager.ProcessDestroys(0.6f);
+        Assert.Empty(s.GetRootGameObjects());
+    }
 }

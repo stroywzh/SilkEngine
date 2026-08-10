@@ -116,6 +116,12 @@ public static class SceneManager
             {
                 if (e.Target is MonoBehaviour mb)
                     mb.OnDestroy();
+                if (e.Target is GameObject go)
+                {
+                    InvokeRecursive(go, c => (c as MonoBehaviour)?.OnDestroy());
+                    if (ActiveScene != null)
+                        ActiveScene._rootObjects.Remove(go);
+                }
                 _destroyQueue.RemoveAt(i);
             }
             else
