@@ -1,27 +1,35 @@
-using ProjectEngine.Abstraction;
-using ProjectEngine.Render;
+using System;
 
-namespace ProjectEngine.EngineThreads;
+namespace ProjectEngine;
 
 public class MainLoop : IDisposable
 {
-    private bool _isRunning = false;
-    private bool _stopRequested = false;
-    public bool IsRunning => _isRunning;
+    private float _accumulator;
+    private float _fixedDt = 0.02f;
 
-    public void Tick(double deltaTime)
+    public float FixedDeltaTime
     {
-        _isRunning = true;
-        _stopRequested = false;
-        _isRunning = false;
+        get => _fixedDt;
+        set { _fixedDt = value; Time.FixedDeltaTime = value; }
     }
 
-    public void LateTick() { }
+    public MainLoop() => Time.FixedDeltaTime = _fixedDt;
 
+    public void Tick(float deltaTime)
+    {
+        _accumulator += deltaTime;
+        while (_accumulator >= _fixedDt)
+        {
+            SceneManager.FixedTick(_fixedDt);
+            _accumulator -= _fixedDt;
+        }
+        SceneManager.Tick(deltaTime);
+        SceneManager.LateTick();
+        SceneManager.ProcessDestroys(deltaTime);
+    }
+
+    public void LateTick(float deltaTime) => SceneManager.PostRender();
+
+    public void Stop() { }
     public void Dispose() { }
-
-    public void Stop()
-    {
-        Console.WriteLine("MainLoop Stop");
-    }
 }

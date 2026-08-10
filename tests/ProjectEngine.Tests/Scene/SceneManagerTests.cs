@@ -3,6 +3,7 @@ using ProjectEngine;
 namespace ProjectEngine.Tests.Scene;
 using Scene = ProjectEngine.Scene;
 
+[Collection("SceneManager")]
 public class SceneManagerTests
 {
     private class Tracker : MonoBehaviour

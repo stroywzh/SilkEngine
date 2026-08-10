@@ -1,82 +1,78 @@
-using ProjectEngine.Abstraction;
-using ProjectEngine.EngineThreads;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using ProjectEngine.Render;
 
 namespace ProjectEngine;
 
-/// <summary>
-/// MainLoop的HeartBeat，为后续WPF嵌入Editor提供支持
-/// </summary>
 public class EngineLoop : IDisposable
 {
-    private MainLoop _mainLoop;
-    public bool IsRunning => _mainLoop.IsRunning;
-
     private readonly IRenderBackend _backend;
     private readonly IRenderPipeline _pipeline;
+    private readonly MainLoop _mainLoop;
+    private DateTime _lastTime;
+    private volatile bool _stopRequested, _paused, _disposed;
 
-    private bool shouldStop = false;
-
-    /// <summary>
-    /// 渲染后端
-    /// </summary>
     public IRenderBackend Backend => _backend;
-
-    /// <summary>
-    /// 渲染管线
-    /// </summary>
     public IRenderPipeline Pipeline => _pipeline;
+    public MainLoop MainLoop => _mainLoop;
+    public bool Embedded { get; set; }
+    public bool Paused { get => _paused; set => _paused = value; }
 
     public EngineLoop(IRenderBackend backend, IRenderPipeline pipeline)
     {
         _backend = backend;
         _pipeline = pipeline;
         _mainLoop = new MainLoop();
+        _pipeline.Initialize(backend);
+        _lastTime = DateTime.UtcNow;
     }
 
     public void Run()
     {
-        while (!shouldStop)
+        _backend.Initialize(IntPtr.Zero);
+        _stopRequested = false;
+        _lastTime = DateTime.UtcNow;
+
+        while (!_backend.ShouldClose && !_stopRequested)
         {
-            _mainLoop.Tick(0);
-            _backend.WaitForFrame();
-            _mainLoop.LateTick();
+            if (!Embedded) _backend.ProcessWindowEvents();
+            if (_paused) { Thread.Sleep(16); _lastTime = DateTime.UtcNow; continue; }
+
+            float dt = GetDeltaTime();
+            Time.UnscaledDeltaTime = dt;
+            Time.DeltaTime = dt * Time.TimeScale;
+            Time.FrameCount++;
+
+            _mainLoop.Tick(Time.DeltaTime);
+            OnRender();
+            _mainLoop.LateTick(Time.DeltaTime);
         }
     }
 
-    /// <summary>
-    /// 每帧在 LateUpdate 之后调用
-    /// <br/>从活动场景收集所有 MeshRenderer，转换为 DrawCommand 列表并提交给渲染管线
-    /// </summary>
+    protected virtual float GetDeltaTime()
+    {
+        var now = DateTime.UtcNow;
+        float dt = (float)(now - _lastTime).TotalSeconds;
+        _lastTime = now;
+        return System.Math.Min(dt, 0.1f);
+    }
+
     protected virtual void OnRender()
     {
-        // var renderers = new List<Mesh>();
-        // var drawCommands = new List<DrawCommand>();
-        // foreach (var mr in renderers)
-        // {
-        //     drawCommands.Add(
-        //         new SingleDrawCommand
-        //         {
-        //             Shader = mr.Shader,
-        //             Mesh = mr.Mesh,
-        //             Material = mr.Material,
-        //             Enabled = mr.Enabled,
-        //         }
-        //     );
-        // }
-        // _pipeline.Render(drawCommands);
+        var drawCommands = new List<DrawCommand>();
+        _pipeline.Render(drawCommands);
     }
 
-    public void Pause() { }
-
-    public void Stop()
-    {
-        _mainLoop.Stop();
-        Dispose();
-    }
+    public void Stop() => _stopRequested = true;
 
     public void Dispose()
     {
+        if (_disposed) return;
+        _disposed = true;
+        _stopRequested = true;
+        _backend.Dispose();
+        _pipeline.Dispose();
         _mainLoop.Dispose();
     }
 }
