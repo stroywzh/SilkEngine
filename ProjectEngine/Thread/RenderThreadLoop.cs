@@ -27,6 +27,7 @@ public class RenderThreadLoop : IDisposable
         _renderThread = ThreadFactory.CreateThread(RenderLoop, "RenderThread");
         _rendering = true;
         _renderThread.Start();
+        Log.Info("[RenderThread] RenderThread Initialize Finished");
     }
 
     public void PumpEvents() => _backend.PumpWindowEvents();

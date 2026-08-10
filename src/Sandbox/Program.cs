@@ -6,7 +6,7 @@ using ProjectEngine.Render.OpenGL;
 var backend = new OpenGLRenderBackend();
 var engine = new EngineLoop(backend);
 
-engine.Run();
+engine.Initialize().Run();
 
 
 
@@ -18,7 +18,7 @@ class DEBUG_SCRIPTS : MonoBehaviour
     public override void OnAwake()
     {
         Transform.LocalPosition = Vector3.Zero;
-        Console.WriteLine("DEBUG_SCTIPT OnAwake");
+        Log.Info("DEBUG_SCRIPT: Awake");
     }
 
     Vector3 vector = new Vector3(0, 1, 0);
@@ -29,6 +29,6 @@ class DEBUG_SCRIPTS : MonoBehaviour
             Transform.LocalPosition += vector;
         else
             Transform.LocalPosition = Vector3.Zero;
-        Console.WriteLine(this.Transform.Position);
+        Log.Info(this.Transform.Position);
     }
 }
