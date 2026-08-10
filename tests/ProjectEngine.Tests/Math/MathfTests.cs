@@ -1,0 +1,64 @@
+namespace ProjectEngine.Tests.Math;
+
+public class MathfTests
+{
+    [Fact]
+    public void Deg2Rad_ConvertsCorrectly()
+    {
+        Assert.Equal(MathF.PI, 180f * ProjectEngine.Math.Mathf.Deg2Rad, 1e-5f);
+    }
+
+    [Fact]
+    public void Rad2Deg_ConvertsCorrectly()
+    {
+        Assert.Equal(180f, MathF.PI * ProjectEngine.Math.Mathf.Rad2Deg, 1e-5f);
+    }
+
+    [Fact]
+    public void Clamp_ValueWithinRange_ReturnsValue()
+    {
+        Assert.Equal(5f, ProjectEngine.Math.Mathf.Clamp(5f, 0f, 10f));
+    }
+
+    [Fact]
+    public void Clamp_ValueBelowMin_ReturnsMin()
+    {
+        Assert.Equal(0f, ProjectEngine.Math.Mathf.Clamp(-5f, 0f, 10f));
+    }
+
+    [Fact]
+    public void Clamp_ValueAboveMax_ReturnsMax()
+    {
+        Assert.Equal(10f, ProjectEngine.Math.Mathf.Clamp(15f, 0f, 10f));
+    }
+
+    [Fact]
+    public void Lerp_T0_ReturnsA()
+    {
+        Assert.Equal(2f, ProjectEngine.Math.Mathf.Lerp(2f, 8f, 0f));
+    }
+
+    [Fact]
+    public void Lerp_T1_ReturnsB()
+    {
+        Assert.Equal(8f, ProjectEngine.Math.Mathf.Lerp(2f, 8f, 1f));
+    }
+
+    [Fact]
+    public void Lerp_THalf_ReturnsMidpoint()
+    {
+        Assert.Equal(5f, ProjectEngine.Math.Mathf.Lerp(2f, 8f, 0.5f));
+    }
+
+    [Fact]
+    public void Abs_Negative_ReturnsPositive()
+    {
+        Assert.Equal(3.5f, ProjectEngine.Math.Mathf.Abs(-3.5f));
+    }
+
+    [Fact]
+    public void Abs_Positive_ReturnsSame()
+    {
+        Assert.Equal(3.5f, ProjectEngine.Math.Mathf.Abs(3.5f));
+    }
+}
