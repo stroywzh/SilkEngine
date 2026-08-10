@@ -2,12 +2,18 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace ProjectEngine.Threading;
 
-public enum WorkPriority { Low, Normal, High }
+public enum WorkPriority
+{
+    Low,
+    Normal,
+    High,
+}
 
-public class EngineThreadPool : IDisposable
+public class EngineThreadPool : IWorkerScheduler, IDisposable
 {
     private readonly ConcurrentQueue<WorkItem> _high = new();
     private readonly ConcurrentQueue<WorkItem> _normal = new();
@@ -17,11 +23,11 @@ public class EngineThreadPool : IDisposable
 
     private struct WorkItem
     {
-        public Action? Action;
+        public Func<Task>? Work;
         public CancellationToken Token;
     }
 
-    public EngineThreadPool(int workerCount = 1)
+    public EngineThreadPool(int workerCount = 3)
     {
         _running = true;
         for (int i = 0; i < workerCount; i++)
@@ -32,19 +38,29 @@ public class EngineThreadPool : IDisposable
         }
     }
 
-    public void EnqueueWork(Action work,
+    public void EnqueueWork(
+        Func<Task> work,
         WorkPriority priority = WorkPriority.Normal,
-        CancellationToken token = default)
+        CancellationToken token = default
+    )
     {
-        if (token.IsCancellationRequested) return;
-        var item = new WorkItem { Action = work, Token = token };
-        (priority switch
-        {
-            WorkPriority.High => _high,
-            WorkPriority.Low => _low,
-            _ => _normal
-        }).Enqueue(item);
+        if (token.IsCancellationRequested)
+            return;
+        var item = new WorkItem { Work = work, Token = token };
+        (
+            priority switch
+            {
+                WorkPriority.High => _high,
+                WorkPriority.Low => _low,
+                _ => _normal,
+            }
+        ).Enqueue(item);
     }
+
+    public void Schedule(Func<Task> work,
+        WorkPriority priority = WorkPriority.Normal,
+        CancellationToken ct = default) =>
+        EnqueueWork(work, priority, ct);
 
     private void WorkerLoop()
     {
@@ -55,17 +71,22 @@ public class EngineThreadPool : IDisposable
             {
                 spin.Reset();
                 if (!item.Token.IsCancellationRequested)
-                    item.Action?.Invoke();
+                {
+                    try { item.Work?.Invoke().GetAwaiter().GetResult(); }
+                    catch (Exception ex) { Log.Error($"[PoolWorker] Task failed: {ex.Message}"); }
+                }
             }
             else
             {
                 spin.SpinOnce();
-                if (spin.Count > 1000) Thread.Sleep(1);
+                if (spin.Count > 1000)
+                    Thread.Sleep(1);
             }
         }
         while (TryDequeue(out var item))
             if (!item.Token.IsCancellationRequested)
-                item.Action?.Invoke();
+                try { item.Work?.Invoke().GetAwaiter().GetResult(); }
+                catch (Exception ex) { Log.Error($"[PoolWorker] Drain failed: {ex.Message}"); }
     }
 
     private bool TryDequeue(out WorkItem item) =>
@@ -74,7 +95,8 @@ public class EngineThreadPool : IDisposable
     public void Shutdown()
     {
         _running = false;
-        foreach (var t in _workers) t.Join();
+        foreach (var t in _workers)
+            t.Join();
     }
 
     public void Dispose() => Shutdown();

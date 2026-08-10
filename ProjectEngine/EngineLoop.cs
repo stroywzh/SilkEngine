@@ -9,6 +9,7 @@ public class EngineLoop : IDisposable
 {
     private readonly RenderThreadLoop _renderThreadLoop;
     private readonly LogicLoop _logicLoop;
+    private readonly EngineThreadPool _workerPool = new(2);
     private DateTime _lastTime;
     private volatile bool _stopRequested,
         _paused,
@@ -17,6 +18,7 @@ public class EngineLoop : IDisposable
 
     public RenderThreadLoop Render => _renderThreadLoop;
     public LogicLoop Logic => _logicLoop;
+    public IWorkerScheduler Workers => _workerPool;
     public bool Embedded { get; set; }
     public bool Paused
     {
@@ -105,7 +107,6 @@ public class EngineLoop : IDisposable
         {
             if (mr.Material != null && cam != null)
             {
-                mr.Material.SetMatrix4x4("uModel", mr.Transform.LocalToWorldMatrix);
                 mr.Material.SetMatrix4x4("uView", cam.ViewMatrix);
                 mr.Material.SetMatrix4x4("uProjection", cam.ProjectionMatrix);
             }
@@ -116,6 +117,7 @@ public class EngineLoop : IDisposable
                     Mesh = mr.Mesh,
                     Material = mr.Material,
                     Enabled = mr.Enabled,
+                    ModelMatrix = mr.Transform.LocalToWorldMatrix,
                 }
             );
         }
@@ -130,6 +132,7 @@ public class EngineLoop : IDisposable
             return;
         _disposed = true;
         _stopRequested = true;
+        _workerPool.Dispose();
         _renderThreadLoop.Dispose();
         _logicLoop.Dispose();
     }

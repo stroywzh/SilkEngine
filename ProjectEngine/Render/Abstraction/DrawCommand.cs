@@ -30,7 +30,10 @@ public abstract class DrawCommand
 /// <summary>
 /// 绘制单个网格实例
 /// </summary>
-public sealed class SingleDrawCommand : DrawCommand { }
+public sealed class SingleDrawCommand : DrawCommand
+{
+    public Math.Matrix4x4? ModelMatrix { get; init; }
+}
 
 /// <summary>
 /// 在一次 GPU 调用中绘制多个网格实例

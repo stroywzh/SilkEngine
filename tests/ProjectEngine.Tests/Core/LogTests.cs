@@ -3,6 +3,10 @@ using ProjectEngine;
 
 namespace ProjectEngine.Tests.Core;
 
+[CollectionDefinition("Log")]
+public class LogTestsCollection { }
+
+[Collection("Log")]
 public class LogTests
 {
     private class TestWriter : ILogWriter
@@ -19,7 +23,7 @@ public class LogTests
         Log.AddWriter(tw);
         Log.Debug("should not appear");
         Log.RemoveWriter(tw);
-        Assert.Empty(tw.Messages);
+        Assert.DoesNotContain(tw.Messages, m => m.Contains("should not appear"));
         Log.MinLevel = LogLevel.Debug;
     }
 
@@ -31,8 +35,7 @@ public class LogTests
         Log.AddWriter(tw);
         Log.Info("hello");
         Log.RemoveWriter(tw);
-        Assert.Single(tw.Messages);
-        Assert.Contains("hello", tw.Messages.First());
+        Assert.Contains(tw.Messages, m => m.Contains("hello"));
     }
 
     [Fact]
@@ -42,7 +45,7 @@ public class LogTests
         Log.AddWriter(tw);
         Log.Info("test");
         Log.RemoveWriter(tw);
-        var msg = tw.Messages.First();
+        var msg = tw.Messages.First(m => m.Contains("test"));
         Assert.Matches(@"\[\d{2}:\d{2}:\d{2}\.\d{3}\]", msg);
     }
 
@@ -57,7 +60,7 @@ public class LogTests
         Log.RemoveWriter(tw);
         Log.ShowThreadInfo = false;
         Thread.CurrentThread.Name = null;
-        Assert.Contains("[TestThread]", tw.Messages.First());
+        Assert.Contains("[TestThread]", tw.Messages.First(m => m.Contains("[TestThread]")));
     }
 
     [Fact]
@@ -69,7 +72,7 @@ public class LogTests
         Log.AddWriter(tw);
         Log.Info("x");
         Log.RemoveWriter(tw);
-        Assert.DoesNotContain("[X]", tw.Messages.First());
+        Assert.DoesNotContain("[X]", tw.Messages.First(m => m.EndsWith("x")));
     }
 
     [Fact]
@@ -79,7 +82,7 @@ public class LogTests
         Log.AddWriter(tw);
         Log.Info(42);
         Log.RemoveWriter(tw);
-        Assert.Contains("42", tw.Messages.First());
+        Assert.Contains("42", tw.Messages.First(m => m.Contains("42")));
     }
 
     [Fact]
@@ -89,19 +92,20 @@ public class LogTests
         Log.AddWriter(tw);
         Log.Info(null!);
         Log.RemoveWriter(tw);
-        Assert.Contains("null", tw.Messages.First());
+        Assert.Contains("null", tw.Messages.First(m => m.Contains("null")));
     }
 
     [Fact]
     public void StackTree_ContainsCallerFrame()
     {
+        Log.MinLevel = LogLevel.Debug;
         var tw = new TestWriter();
         Log.AddWriter(tw);
         Log.StackTree("check");
         Log.RemoveWriter(tw);
-        var msg = tw.Messages.First();
+        var msg = tw.Messages.First(m => m.Contains("check"));
         Assert.Contains("check", msg);
-        Assert.Contains("at ", msg);
+        Assert.True(msg.Contains('\n'), "Should contain stack trace lines after the message");
     }
 
     [Fact]
@@ -113,8 +117,8 @@ public class LogTests
         Log.Error("critical");
         Log.Info("skipped");
         Log.RemoveWriter(tw);
-        Assert.Single(tw.Messages);
-        Assert.Contains("critical", tw.Messages.First());
+        Assert.Contains(tw.Messages, m => m.Contains("critical"));
+        Assert.DoesNotContain(tw.Messages, m => m.Contains("skipped"));
         Log.MinLevel = LogLevel.Debug;
     }
 

@@ -75,6 +75,8 @@ public class OpenGLRenderBackend : RenderBackendBase
     {
         if (_gl == null)
             return;
+        _gl.Enable(GLEnum.DepthTest);
+        _gl.Viewport(0, 0, (uint)Width, (uint)Height);
         _gl.ClearColor(_clearR, _clearG, _clearB, _clearA);
         _gl.Clear((uint)(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit));
 
@@ -109,6 +111,26 @@ public class OpenGLRenderBackend : RenderBackendBase
                 glMaterial.Apply();
             else
                 glShader.Use();
+
+            if (cmd is SingleDrawCommand sdc && sdc.ModelMatrix.HasValue)
+            {
+                var m = sdc.ModelMatrix.Value;
+                int loc = _gl.GetUniformLocation(glShader.GetProgram(), "uModel");
+                if (loc != -1)
+                {
+                    unsafe
+                    {
+                        float[] mat =
+                        [
+                            m.M11, m.M12, m.M13, m.M14,
+                            m.M21, m.M22, m.M23, m.M24,
+                            m.M31, m.M32, m.M33, m.M34,
+                            m.M41, m.M42, m.M43, m.M44
+                        ];
+                        fixed (float* p = mat) _gl.UniformMatrix4(loc, 1, false, p);
+                    }
+                }
+            }
             glMesh.Draw();
         }
 

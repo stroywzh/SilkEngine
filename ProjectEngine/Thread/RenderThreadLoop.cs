@@ -48,7 +48,14 @@ public class RenderThreadLoop : IDisposable
             _commandsReady.Wait();
             _commandsReady.Reset();
             if (!_rendering) break;
-            _backend.ExecuteFrame(_pendingCommands!);
+            try
+            {
+                _backend.ExecuteFrame(_pendingCommands!);
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"[RenderThread] ExecuteFrame failed: {ex}");
+            }
             _frameDone.Set();
         }
         _backend.ClearContext();
