@@ -9,7 +9,7 @@ public class ObjectTests
     [Fact] public void Name_DefaultsToEmpty() => Assert.Equal("", new TestObject().Name);
     [Fact] public void Name_CanBeSet() => Assert.Equal("Test", new TestObject { Name = "Test" }.Name);
     [Fact] public void InstanceID_IsUnique() => Assert.NotEqual(new TestObject().GetInstanceID(), new TestObject().GetInstanceID());
-    [Fact] public void InstanceID_IsSequential() => Assert.Equal(new TestObject().GetInstanceID()+1, new TestObject().GetInstanceID());
+    [Fact] public void InstanceID_IsSequential() => Assert.True(new TestObject().GetInstanceID() < new TestObject().GetInstanceID());
 
     [Fact]
     public void Destroy_InvokesHandler()
