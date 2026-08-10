@@ -31,8 +31,24 @@ public class OpenGLMaterial : IMaterial
         foreach (var kv in _data.Floats)
         {
             int loc = _gl.GetUniformLocation(_shader.GetProgram(), kv.Key);
-            if (loc != -1)
-                _gl.Uniform1(loc, kv.Value);
+            if (loc != -1) _gl.Uniform1(loc, kv.Value);
+        }
+        foreach (var kv in _data.Vectors)
+        {
+            int loc = _gl.GetUniformLocation(_shader.GetProgram(), kv.Key);
+            if (loc != -1) _gl.Uniform3(loc, kv.Value.X, kv.Value.Y, kv.Value.Z);
+        }
+        unsafe
+        {
+            foreach (var kv in _data.Matrices)
+            {
+                int loc = _gl.GetUniformLocation(_shader.GetProgram(), kv.Key);
+                if (loc != -1)
+                {
+                    fixed (float* ptr = kv.Value)
+                        _gl.UniformMatrix4(loc, 1, false, ptr);
+                }
+            }
         }
     }
 

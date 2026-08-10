@@ -132,6 +132,7 @@ public class OpenGLRenderBackend : RenderBackendBase
             glMesh.Draw();
         }
 
+        _pendingCommands = null;
         _window!.SwapBuffers();
     }
 
@@ -150,9 +151,6 @@ public class OpenGLRenderBackend : RenderBackendBase
 
         _window?.Dispose();
         _gl?.Dispose();
-        _commandsReady.Dispose();
-        _frameDone.Dispose();
-
         base.Dispose();
     }
 }
