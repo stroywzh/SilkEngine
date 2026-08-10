@@ -1,34 +1,15 @@
 using System;
 using System.Collections.Generic;
-using System.Threading;
 
 namespace ProjectEngine.Render;
 
 /// <summary>
 /// 渲染后端抽象基类
-/// <br/>为 OpenGL、Vulkan 等后端提供共享的渲染线程管理、命令队列和同步信号。
-/// 子类实现 Initialize / ProcessWindowEvents / ExecuteFrame 和窗口属性。
+/// <br/>为 OpenGL、Vulkan 等后端提供共享的缓冲区句柄管理与释放状态。
+/// 子类实现 InitWindow / MakeContextCurrent / ClearContext / PumpWindowEvents / ExecuteFrame 和窗口属性。
 /// </summary>
 public abstract class RenderBackendBase : IRenderBackend
 {
-    /// <summary>渲染线程是否应继续运行</summary>
-    protected volatile bool _rendering;
-
-    /// <summary>专用渲染线程</summary>
-    protected Thread? _renderThread;
-
-    /// <summary>命令队列锁</summary>
-    protected readonly object _commandLock = new();
-
-    /// <summary>待处理的绘制命令批次</summary>
-    protected IReadOnlyList<DrawCommand>? _pendingCommands;
-
-    /// <summary>命令就绪信号（主线程 → 渲染线程）</summary>
-    protected readonly ManualResetEventSlim _commandsReady = new(false);
-
-    /// <summary>帧完成信号（渲染线程 → 主线程）</summary>
-    protected readonly ManualResetEventSlim _frameDone = new(false);
-
     /// <summary>是否已释放</summary>
     protected bool _disposed;
 
@@ -45,30 +26,19 @@ public abstract class RenderBackendBase : IRenderBackend
     public abstract int Height { get; }
 
     /// <inheritdoc />
-    public abstract void Initialize(IntPtr windowHandle);
+    public abstract void InitWindow();
 
     /// <inheritdoc />
-    public abstract void ProcessWindowEvents();
+    public abstract void MakeContextCurrent();
 
     /// <inheritdoc />
-    public abstract void ExecuteFrame();
+    public abstract void ClearContext();
 
     /// <inheritdoc />
-    public void SubmitCommands(IReadOnlyList<DrawCommand> commands)
-    {
-        lock (_commandLock)
-        {
-            _pendingCommands = commands;
-        }
-        _commandsReady.Set();
-    }
+    public abstract void PumpWindowEvents();
 
     /// <inheritdoc />
-    public void WaitForFrame()
-    {
-        _frameDone.Wait();
-        _frameDone.Reset();
-    }
+    public abstract void ExecuteFrame(IReadOnlyList<DrawCommand> commands);
 
     /// <inheritdoc />
     public IntPtr CreateBuffer(int sizeBytes) => (IntPtr)(_bufferCounter++);
@@ -82,10 +52,5 @@ public abstract class RenderBackendBase : IRenderBackend
         if (_disposed)
             return;
         _disposed = true;
-        _rendering = false;
-        _commandsReady.Set();
-        _renderThread?.Join(2000);
-        _commandsReady.Dispose();
-        _frameDone.Dispose();
     }
 }

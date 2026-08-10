@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Threading;
 using Silk.NET.OpenGL;
 using Silk.NET.Windowing;
 
@@ -8,8 +7,7 @@ namespace ProjectEngine.Render.OpenGL;
 
 /// <summary>
 /// OpenGL渲染后端
-/// <br/>管理专用渲染线程（持有 GL 上下文），在渲染线程上缓存 GPU 资源。
-/// <br/>当 parentHandle 非零时，将窗口嵌入为子窗口。
+/// <br/>仅负责窗口创建、上下文切换与一帧的绘制执行，线程调度由外部 RenderThreadLoop 管理。
 /// </summary>
 public class OpenGLRenderBackend : RenderBackendBase
 {
@@ -53,7 +51,7 @@ public class OpenGLRenderBackend : RenderBackendBase
     }
 
     /// <inheritdoc />
-    public override void Initialize(IntPtr parentHandle)
+    public override void InitWindow()
     {
         _window = Silk.NET.Windowing.Window.Create(DefaultWindowOption.DefaultOpenGLOption);
         _window.Initialize();
@@ -61,47 +59,26 @@ public class OpenGLRenderBackend : RenderBackendBase
 
         _window.IsContextControlDisabled = true;
         _window.ClearContext();
-
-        _renderThread = new Thread(RenderLoop) { Name = "RenderThread", IsBackground = true };
-        _rendering = true;
-        _renderThread.Start();
-    }
-
-    /// <summary>渲染线程主循环</summary>
-    private void RenderLoop()
-    {
-        _window!.MakeCurrent();
-        while (_rendering)
-        {
-            _commandsReady.Wait();
-            _commandsReady.Reset();
-            if (!_rendering)
-                break;
-            ExecuteFrame();
-            _frameDone.Set();
-        }
-        _window!.ClearContext();
     }
 
     /// <inheritdoc />
-    public override void ProcessWindowEvents() => _window?.DoEvents();
+    public override void MakeContextCurrent() => _window!.MakeCurrent();
 
     /// <inheritdoc />
-    public override void ExecuteFrame()
+    public override void ClearContext() => _window!.ClearContext();
+
+    /// <inheritdoc />
+    public override void PumpWindowEvents() => _window?.DoEvents();
+
+    /// <inheritdoc />
+    public override void ExecuteFrame(IReadOnlyList<DrawCommand> commands)
     {
         if (_gl == null)
             return;
         _gl.ClearColor(_clearR, _clearG, _clearB, _clearA);
         _gl.Clear((uint)(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit));
 
-        var cmds = _pendingCommands;
-        if (cmds == null)
-        {
-            _window!.SwapBuffers();
-            return;
-        }
-
-        foreach (var cmd in cmds)
+        foreach (var cmd in commands)
         {
             if (cmd.Shader == null || cmd.Mesh == null)
                 continue;
@@ -135,7 +112,6 @@ public class OpenGLRenderBackend : RenderBackendBase
             glMesh.Draw();
         }
 
-        _pendingCommands = null;
         _window!.SwapBuffers();
     }
 

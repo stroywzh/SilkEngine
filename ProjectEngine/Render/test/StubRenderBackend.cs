@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace ProjectEngine.Render;
 
-/// <summary>用于单元测试的无 GPU 渲染后端。记录提交的命令并跟踪帧执行计数。</summary>
+/// <summary>用于单元测试的无 GPU 渲染后端。记录执行帧时收到的命令并跟踪帧执行计数。</summary>
 public class StubRenderBackend : IRenderBackend
 {
     private bool _disposed;
@@ -12,7 +12,7 @@ public class StubRenderBackend : IRenderBackend
     /// <summary>已执行的帧总数。</summary>
     public int ExecuteFrameCount { get; private set; }
 
-    /// <summary>所有已提交的命令批次。</summary>
+    /// <summary>所有已执行的命令批次。</summary>
     public List<IReadOnlyList<DrawCommand>> SubmittedCommandBatches { get; } = new();
 
     /// <summary>窗口是否已请求关闭。</summary>
@@ -25,32 +25,23 @@ public class StubRenderBackend : IRenderBackend
     public int Height { get; private set; } = 600;
 
     /// <inheritdoc />
-    public void Initialize(IntPtr windowHandle)
-    {
-        if (windowHandle != IntPtr.Zero)
-        {
-            Width = 1024;
-            Height = 768;
-        }
-    }
+    public void InitWindow() { }
 
     /// <inheritdoc />
-    public void ProcessWindowEvents() { }
+    public void MakeContextCurrent() { }
 
     /// <inheritdoc />
-    public void SubmitCommands(IReadOnlyList<DrawCommand> commands)
+    public void ClearContext() { }
+
+    /// <inheritdoc />
+    public void PumpWindowEvents() { }
+
+    /// <inheritdoc />
+    public void ExecuteFrame(IReadOnlyList<DrawCommand> commands)
     {
         SubmittedCommandBatches.Add(commands);
-    }
-
-    /// <inheritdoc />
-    public void ExecuteFrame()
-    {
         ExecuteFrameCount++;
     }
-
-    /// <inheritdoc />
-    public void WaitForFrame() { }
 
     /// <inheritdoc />
     public IntPtr CreateBuffer(int sizeBytes) => (IntPtr)(_bufferCounter++);
