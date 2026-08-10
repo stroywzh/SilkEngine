@@ -60,7 +60,29 @@ public class EngineLoop : IDisposable
 
     protected virtual void OnRender()
     {
+        Camera? cam = null;
+        SceneManager.ForEachComponent<Camera>(c => { if (c.GameObject.IsActive) cam ??= c; });
+        if (cam == null) return;
+
+        float aspect = (float)_backend.Width / _backend.Height;
+        cam.UpdateMatrices(aspect);
+
+        var renderers = new List<MeshRenderer>();
+        SceneManager.ForEachComponent<MeshRenderer>(r => { if (r.Enabled && r.GameObject.IsActive) renderers.Add(r); });
+
         var drawCommands = new List<DrawCommand>();
+        foreach (var mr in renderers)
+        {
+            if (mr.Material != null)
+            {
+                mr.Material.SetMatrix4x4("uView", cam.ViewMatrix);
+                mr.Material.SetMatrix4x4("uProjection", cam.ProjectionMatrix);
+            }
+            drawCommands.Add(new SingleDrawCommand
+            {
+                Shader = mr.Shader, Mesh = mr.Mesh, Material = mr.Material, Enabled = mr.Enabled
+            });
+        }
         _pipeline.Render(drawCommands);
     }
 
