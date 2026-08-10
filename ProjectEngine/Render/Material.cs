@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using ProjectEngine.Math;
 
 namespace ProjectEngine.Render;
@@ -28,6 +29,34 @@ public class Material
     public void SetMatrix4x4(string name, Matrix4x4 value) =>
         Matrices[name] = [value.M11, value.M12, value.M13, value.M14, value.M21, value.M22, value.M23, value.M24, value.M31, value.M32, value.M33, value.M34, value.M41, value.M42, value.M43, value.M44];
 
-    public override int GetHashCode() => Name.GetHashCode();
-    public override bool Equals(object? obj) => obj is Material m && m.Name == Name;
+    private int? _hash;
+
+    public override int GetHashCode()
+    {
+        if (_hash == null)
+        {
+            var h = new HashCode();
+            h.Add(Name);
+            foreach (var kv in Floats) { h.Add(kv.Key); h.Add(kv.Value); }
+            foreach (var kv in Vectors) { h.Add(kv.Key); h.Add(kv.Value.GetHashCode()); }
+            h.Add(Matrices.Count);
+            _hash = h.ToHashCode();
+        }
+        return _hash.Value;
+    }
+
+    public override bool Equals(object? obj)
+    {
+        if (obj is not Material m) return false;
+        if (Name != m.Name || Floats.Count != m.Floats.Count
+            || Vectors.Count != m.Vectors.Count || Matrices.Count != m.Matrices.Count)
+            return false;
+        foreach (var kv in Floats)
+            if (!m.Floats.TryGetValue(kv.Key, out var v) || kv.Value != v) return false;
+        foreach (var kv in Vectors)
+            if (!m.Vectors.TryGetValue(kv.Key, out var v) || kv.Value != v) return false;
+        foreach (var kv in Matrices)
+            if (!m.Matrices.TryGetValue(kv.Key, out var a) || kv.Value.Length != a.Length) return false;
+        return true;
+    }
 }
