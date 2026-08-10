@@ -35,4 +35,22 @@ public static class MeshFactory
             Indices = [0,1,2, 0,2,3]
         };
     }
+
+    public static Mesh CreateQuad(float width = 2f, float height = 2f)
+    {
+        float hw = width * 0.5f, hh = height * 0.5f;
+        return new Mesh
+        {
+            Name = "Quad",
+            Layout = [3, 2],
+            Vertices =
+            [
+                -hw, -hh, 0f, 0f, 0f,
+                 hw, -hh, 0f, 1f, 0f,
+                 hw,  hh, 0f, 1f, 1f,
+                -hw,  hh, 0f, 0f, 1f,
+            ],
+            Indices = [0, 1, 2, 0, 2, 3]
+        };
+    }
 }

@@ -63,7 +63,7 @@ public class SceneManagerTests
     }
 
     [Fact]
-    public void LateTick_CallsLateTick() { /* skip for brevity - covered by MainLoop tests */ }
+    public void LateTick_CallsLateTick() { /* skip for brevity - covered by LogicLoop tests */ }
     [Fact]
     public void PostRender_CallsPostRender() { /* skip for brevity */ }
 }

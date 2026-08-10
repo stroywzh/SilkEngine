@@ -128,7 +128,10 @@ public class OpenGLRenderBackend : RenderBackendBase
                 }
             }
 
-            glMaterial?.Apply();
+            if (glMaterial != null)
+                glMaterial.Apply();
+            else
+                glShader.Use();
             glMesh.Draw();
         }
 

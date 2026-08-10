@@ -1,10 +1,11 @@
 using ProjectEngine;
+using ProjectEngine.Threading;
 
 namespace ProjectEngine.Tests;
 using EngineScene = ProjectEngine.Scene;
 
 [Collection("SceneManager")]
-public class MainLoopTests
+public class LogicLoopTests
 {
     private class Counter : MonoBehaviour
     {
@@ -20,7 +21,7 @@ public class MainLoopTests
     {
         var s = new EngineScene("T"); var go = new GameObject(); var c = go.AddComponent<Counter>(); s.AddRootObject(go);
         SceneManager.LoadScene(s);
-        var ml = new MainLoop();
+        var ml = new LogicLoop();
         ml.Tick(0.016f);
         Assert.Equal(1, c.Tick);
     }
@@ -30,7 +31,7 @@ public class MainLoopTests
     {
         var s = new EngineScene("T"); var go = new GameObject(); var c = go.AddComponent<Counter>(); s.AddRootObject(go);
         SceneManager.LoadScene(s);
-        var ml = new MainLoop();
+        var ml = new LogicLoop();
         ml.FixedDeltaTime = 0.02f;
         ml.Tick(0.05f);
         Assert.True(c.Fixed >= 2);
@@ -41,7 +42,7 @@ public class MainLoopTests
     {
         var s = new EngineScene("T"); var go = new GameObject(); var c = go.AddComponent<Counter>(); s.AddRootObject(go);
         SceneManager.LoadScene(s);
-        var ml = new MainLoop();
+        var ml = new LogicLoop();
         ml.Tick(0.016f);
         ml.LateTick(0.016f);
         Assert.Equal(1, c.Late);

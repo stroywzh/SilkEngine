@@ -7,30 +7,29 @@ var backend = new OpenGLRenderBackend();
 var pipeline = new ForwardRenderPipeline();
 var engine = new EngineLoop(backend, pipeline);
 
-var scene = new Scene("Demo");
-SceneManager.LoadScene(scene);
-
-var shader = new Shader
-{
-    Name = "Standard",
-    VertexSource = File.ReadAllText("shader.vert"),
-    FragmentSource = File.ReadAllText("shader.frag")
-};
-
-var material = new Material { Name = "CubeMat" };
-
-var cube = new GameObject("Cube");
-cube.Transform.LocalPosition = new Vector3(0, 0, 3);
-var cubeRenderer = cube.AddComponent<MeshRenderer>();
-cubeRenderer.Shader = shader;
-cubeRenderer.Mesh = MeshFactory.CreateCube(1f);
-cubeRenderer.Material = material;
-scene.AddRootObject(cube);
-
-var cameraObj = new GameObject("MainCamera");
-cameraObj.Transform.LocalPosition = new Vector3(0, 0, -2);
-cameraObj.AddComponent<Camera>();
-scene.AddRootObject(cameraObj);
-
-Console.WriteLine("Setup Finished");
 engine.Run();
+
+
+
+// ======================== 测试方法 ========================
+
+//测试移动
+class DEBUG_SCRIPTS : MonoBehaviour
+{
+    public override void OnAwake()
+    {
+        Transform.LocalPosition = Vector3.Zero;
+        Console.WriteLine("DEBUG_SCTIPT OnAwake");
+    }
+
+    Vector3 vector = new Vector3(0, 1, 0);
+
+    public override void OnFixedTick(float deltaTime)
+    {
+        if (Transform.Position.Y < 10)
+            Transform.LocalPosition += vector;
+        else
+            Transform.LocalPosition = Vector3.Zero;
+        Console.WriteLine(this.Transform.Position);
+    }
+}

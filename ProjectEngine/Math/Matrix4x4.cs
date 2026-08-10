@@ -50,6 +50,20 @@ public struct Matrix4x4 : IEquatable<Matrix4x4>
         };
     }
 
+    public static Matrix4x4 CreateOrthographic(float width, float height, float near, float far)
+    {
+        float r = 1f / (far - near);
+        return new Matrix4x4
+        {
+            M11 = 2f / width, M22 = 2f / height,
+            M33 = r, M34 = 0f,
+            M43 = -near * r, M44 = 1f
+        };
+    }
+
+    public static Matrix4x4 CreateTRS(Vector3 pos, Quaternion rot, Vector3 scale) =>
+        CreateTranslation(pos) * CreateRotation(rot) * CreateScale(scale);
+
     public static Matrix4x4 CreateLookAt(Vector3 eye, Vector3 target, Vector3 up)
     {
         Vector3 fwd = (target - eye).Normalized;
@@ -60,7 +74,9 @@ public struct Matrix4x4 : IEquatable<Matrix4x4>
             M11 = right.X, M12 = u.X, M13 = fwd.X,
             M21 = right.Y, M22 = u.Y, M23 = fwd.Y,
             M31 = right.Z, M32 = u.Z, M33 = fwd.Z,
-            M41 = -Vector3.Dot(right, eye), M42 = -Vector3.Dot(u, eye), M43 = -Vector3.Dot(fwd, eye),
+            M14 = -Vector3.Dot(right, eye),
+            M24 = -Vector3.Dot(u, eye),
+            M34 = -Vector3.Dot(fwd, eye),
             M44 = 1
         };
     }

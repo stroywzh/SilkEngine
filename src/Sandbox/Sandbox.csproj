@@ -8,12 +8,4 @@
     <ItemGroup>
       <ProjectReference Include="..\..\ProjectEngine\ProjectEngine.csproj" />
     </ItemGroup>
-    <ItemGroup>
-      <None Update="shader.vert">
-        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      </None>
-      <None Update="shader.frag">
-        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      </None>
-    </ItemGroup>
 </Project>

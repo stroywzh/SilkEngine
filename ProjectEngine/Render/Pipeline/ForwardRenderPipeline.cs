@@ -27,7 +27,7 @@ public class ForwardRenderPipeline : IRenderPipeline
 
         if (_passes.Count == 0)
         {
-            _backend.SubmitCommands([]);
+            _backend.SubmitCommands(commands);
             _backend.WaitForFrame();
             return;
         }

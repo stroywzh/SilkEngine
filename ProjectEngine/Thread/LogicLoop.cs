@@ -1,8 +1,8 @@
 using System;
 
-namespace ProjectEngine;
+namespace ProjectEngine.Threading;
 
-public class MainLoop : IDisposable
+public class LogicLoop : IDisposable
 {
     private float _accumulator;
     private float _fixedDt = 0.02f;
@@ -10,10 +10,14 @@ public class MainLoop : IDisposable
     public float FixedDeltaTime
     {
         get => _fixedDt;
-        set { _fixedDt = value; Time.FixedDeltaTime = value; }
+        set
+        {
+            _fixedDt = value;
+            Time.FixedDeltaTime = value;
+        }
     }
 
-    public MainLoop() => Time.FixedDeltaTime = _fixedDt;
+    public LogicLoop() => Time.FixedDeltaTime = _fixedDt;
 
     public void Tick(float deltaTime)
     {
@@ -31,5 +35,6 @@ public class MainLoop : IDisposable
     public void LateTick(float deltaTime) => SceneManager.PostRender();
 
     public void Stop() { }
+
     public void Dispose() { }
 }

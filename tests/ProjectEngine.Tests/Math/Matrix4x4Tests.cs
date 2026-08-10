@@ -31,7 +31,7 @@ public class Matrix4x4Tests
     {
         var view = Matrix4x4.CreateLookAt(new Vector3(0, 0, -10), Vector3.Zero, Vector3.Up);
         var result = view * new Vector3(0, 0, -10);
-        Assert.True(result.Z > 0);
+        Assert.Equal(Vector3.Zero, result);
     }
 
     [Fact]
