@@ -5,6 +5,7 @@ namespace ProjectEngine;
 
 public sealed class Transform
 {
+    public GameObject? GameObject { get; internal set; }
     private Vector3 _localPosition, _localScale = Vector3.One;
     private Quaternion _localRotation = Quaternion.Identity;
     private Transform? _parent;
