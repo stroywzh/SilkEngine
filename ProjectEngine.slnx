@@ -1,3 +1,5 @@
 <Solution>
   <Project Path="ProjectEngine/ProjectEngine.csproj" />
+  <Project Path="src/Sandbox/Sandbox.csproj" />
+  <Project Path="tests/ProjectEngine.Tests/ProjectEngine.Tests.csproj" />
 </Solution>
