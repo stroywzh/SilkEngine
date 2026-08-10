@@ -8,8 +8,11 @@ public abstract class Object
     private static int _nextID = 0;
     private readonly int _id = Interlocked.Increment(ref _nextID);
     public string Name { get; set; } = "";
+
     public int GetInstanceID() => _id;
+
     public static event Action<Object, float>? DestroyHandler;
+
     public static void Destroy(Object obj, float delay = 0f)
     {
         if (obj is GameObject go)
@@ -42,3 +45,4 @@ public abstract class Object
         throw new NotSupportedException($"Instantiate not supported for {original.GetType()}");
     }
 }
+

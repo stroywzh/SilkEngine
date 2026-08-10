@@ -50,7 +50,8 @@ public class EngineLoop : IDisposable
             Log.Warn("[EngineLoop]: Invaild Operation,EngineLoop haven't Initialzed yet.");
             return;
         }
-            
+
+        Log.Info($"[EngineLoop] Started. Managed threads: Main(heartbeat) + {_workerPool} + RenderThread. Unnamed threads likely from GLFW/.NET runtime.");
 
         while (!_renderThreadLoop.ShouldClose && !_stopRequested)
         {

@@ -47,7 +47,8 @@ public class RenderThreadLoop : IDisposable
         {
             _commandsReady.Wait();
             _commandsReady.Reset();
-            if (!_rendering) break;
+            if (!_rendering)
+                break;
             try
             {
                 _backend.ExecuteFrame(_pendingCommands!);
@@ -63,7 +64,8 @@ public class RenderThreadLoop : IDisposable
 
     public void Dispose()
     {
-        if (_disposed) return;
+        if (_disposed)
+            return;
         _disposed = true;
         _rendering = false;
         _commandsReady.Set();
