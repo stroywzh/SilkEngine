@@ -39,7 +39,7 @@ public static class SceneManager
                 go,
                 c =>
                 {
-                    if (c is MonoBehaviour mb && mb.GameObject.IsActive)
+                    if (c is MonoBehaviour mb && mb.GameObject.IsActive && mb.Enabled)
                         mb.OnTick(dt);
                 }
             );
@@ -54,7 +54,7 @@ public static class SceneManager
                 go,
                 c =>
                 {
-                    if (c is MonoBehaviour mb && mb.GameObject.IsActive)
+                    if (c is MonoBehaviour mb && mb.GameObject.IsActive && mb.Enabled)
                         mb.OnFixedTick(fdt);
                 }
             );
@@ -69,7 +69,7 @@ public static class SceneManager
                 go,
                 c =>
                 {
-                    if (c is MonoBehaviour mb && mb.GameObject.IsActive)
+                    if (c is MonoBehaviour mb && mb.GameObject.IsActive && mb.Enabled)
                         mb.OnLateTick();
                 }
             );
@@ -84,7 +84,7 @@ public static class SceneManager
                 go,
                 c =>
                 {
-                    if (c is MonoBehaviour mb && mb.GameObject.IsActive)
+                    if (c is MonoBehaviour mb && mb.GameObject.IsActive && mb.Enabled)
                         mb.OnPostRender();
                 }
             );

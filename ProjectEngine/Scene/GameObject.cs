@@ -19,6 +19,7 @@ public sealed class GameObject : Object
         var c = new T();
         c.GameObject = this;
         _components.Add(c);
+        (c as MonoBehaviour)?.OnEnable();
         return c;
     }
 

@@ -1,0 +1,56 @@
+using ProjectEngine;
+using ProjectEngine.Threading;
+
+namespace ProjectEngine.Tests.Scene;
+using Scene = ProjectEngine.Scene;
+
+[Collection("SceneManager")]
+public class ComponentTests
+{
+    private class EnabledTracker : MonoBehaviour
+    {
+        public bool EnabledCalled, DisabledCalled, TickCalled;
+        public override void OnEnable() => EnabledCalled = true;
+        public override void OnDisable() => DisabledCalled = true;
+        public override void OnTick(float dt) => TickCalled = true;
+    }
+
+    [Fact]
+    public void AddComponent_CallsOnEnable()
+    {
+        var go = new GameObject();
+        var c = go.AddComponent<EnabledTracker>();
+        Assert.True(c.EnabledCalled);
+    }
+
+    [Fact]
+    public void SetEnabledFalse_CallsOnDisable()
+    {
+        var go = new GameObject();
+        var c = go.AddComponent<EnabledTracker>();
+        c.Enabled = false;
+        Assert.True(c.DisabledCalled);
+    }
+
+    [Fact]
+    public void SetEnabledTrue_CallsOnEnable()
+    {
+        var go = new GameObject();
+        var c = go.AddComponent<EnabledTracker>();
+        c.Enabled = false;
+        c.EnabledCalled = false;
+        c.Enabled = true;
+        Assert.True(c.EnabledCalled);
+    }
+
+    [Fact]
+    public void DisabledComponent_SkippedByTick()
+    {
+        var s = new Scene("T"); var go = new GameObject(); var c = go.AddComponent<EnabledTracker>();
+        s.AddRootObject(go); SceneManager.LoadScene(s);
+        c.Enabled = false;
+        var ml = new LogicLoop();
+        ml.Tick(0.016f);
+        Assert.False(c.TickCalled);
+    }
+}
