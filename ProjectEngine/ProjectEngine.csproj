@@ -8,4 +8,7 @@
     <ItemGroup>
       <PackageReference Include="Silk.NET" Version="2.23.0" />
     </ItemGroup>
+    <ItemGroup>
+      <InternalsVisibleTo Include="ProjectEngine.Tests" />
+    </ItemGroup>
 </Project>
