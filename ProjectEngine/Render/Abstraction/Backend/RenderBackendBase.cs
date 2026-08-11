@@ -17,6 +17,9 @@ public abstract class RenderBackendBase : IRenderBackend
     protected int _bufferCounter = 1;
 
     /// <inheritdoc />
+    public virtual Silk.NET.Windowing.IWindow? NativeWindow => null;
+
+    /// <inheritdoc />
     public abstract bool ShouldClose { get; }
 
     /// <inheritdoc />

@@ -33,6 +33,9 @@ public class OpenGLRenderBackend : RenderBackendBase
     public IntPtr WindowHandle => _window?.Native?.Win32?.Hwnd ?? IntPtr.Zero;
 
     /// <inheritdoc />
+    public override Silk.NET.Windowing.IWindow? NativeWindow => _window;
+
+    /// <inheritdoc />
     public override bool ShouldClose => _window?.IsClosing ?? false;
 
     /// <inheritdoc />

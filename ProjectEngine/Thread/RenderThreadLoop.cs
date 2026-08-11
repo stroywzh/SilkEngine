@@ -19,6 +19,9 @@ public class RenderThreadLoop : IDisposable
     public int Width => _backend.Width;
     public int Height => _backend.Height;
 
+    /// <summary>渲染后端实例</summary>
+    public IRenderBackend Backend => _backend;
+
     public RenderThreadLoop(IRenderBackend backend) => _backend = backend;
 
     public void Initialize()

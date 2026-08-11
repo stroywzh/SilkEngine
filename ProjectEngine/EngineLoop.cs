@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using ProjectEngine.Input;
 using ProjectEngine.Render;
 using ProjectEngine.Threading;
 
@@ -37,6 +38,14 @@ public class EngineLoop : IDisposable
     public EngineLoop Initialize()
     {
         _renderThreadLoop.Initialize();
+
+        if (Render.Backend.NativeWindow is { } win)
+        {
+            var inputProvider = new SilkInputProvider();
+            inputProvider.Initialize(win);
+            ProjectEngine.Input.Input.SetProvider(inputProvider);
+        }
+
         _stopRequested = false;
         _lastTime = DateTime.UtcNow;
         _canStart = true;
@@ -73,6 +82,8 @@ public class EngineLoop : IDisposable
             Time.UnscaledDeltaTime = dt;
             Time.DeltaTime = dt * Time.TimeScale;
             Time.FrameCount++;
+
+            ProjectEngine.Input.Input.Update();
 
             _logicLoop.Tick(Time.DeltaTime);
             OnRender();

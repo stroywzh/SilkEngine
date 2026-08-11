@@ -15,4 +15,7 @@ public interface IRenderBackend : IDisposable
     bool ShouldClose { get; }
     int Width { get; }
     int Height { get; }
+
+    /// <summary>原生窗口对象（供 Input 等子系统绑定事件源），无窗口时返回 null</summary>
+    Silk.NET.Windowing.IWindow? NativeWindow { get; }
 }

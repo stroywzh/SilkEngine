@@ -12,6 +12,7 @@ public class RenderThreadLoopTests
         public bool ShouldClose => ShouldCloseVal;
         public int Width => 800;
         public int Height => 600;
+        public Silk.NET.Windowing.IWindow? NativeWindow => null;
         public void InitWindow() { }
         public void MakeContextCurrent() { }
         public void ClearContext() { }
