@@ -21,6 +21,15 @@ public class EngineThreadPool : IWorkerScheduler, IDisposable
     private readonly List<Thread> _workers = new();
     private volatile bool _running;
 
+    public int WorkerThreadCount => _workers.Count;
+
+    public int TotalWorkItemCount =>
+        HighLevelWorkItemCount + NormalLevelWorkItemCount + LowLevelWorkItemCount;
+
+    public int HighLevelWorkItemCount => _high.Count;
+    public int NormalLevelWorkItemCount => _normal.Count;
+    public int LowLevelWorkItemCount => _low.Count;
+
     private struct WorkItem
     {
         public Func<Task>? Work;
@@ -57,10 +66,11 @@ public class EngineThreadPool : IWorkerScheduler, IDisposable
         ).Enqueue(item);
     }
 
-    public void Schedule(Func<Task> work,
+    public void Schedule(
+        Func<Task> work,
         WorkPriority priority = WorkPriority.Normal,
-        CancellationToken ct = default) =>
-        EnqueueWork(work, priority, ct);
+        CancellationToken ct = default
+    ) => EnqueueWork(work, priority, ct);
 
     private void WorkerLoop()
     {
@@ -72,8 +82,14 @@ public class EngineThreadPool : IWorkerScheduler, IDisposable
                 spin.Reset();
                 if (!item.Token.IsCancellationRequested)
                 {
-                    try { item.Work?.Invoke().GetAwaiter().GetResult(); }
-                    catch (Exception ex) { Log.Error($"[PoolWorker] Task failed: {ex.Message}"); }
+                    try
+                    {
+                        item.Work?.Invoke().GetAwaiter().GetResult();
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Error($"[PoolWorker] Task failed: {ex.Message}");
+                    }
                 }
             }
             else
@@ -85,8 +101,14 @@ public class EngineThreadPool : IWorkerScheduler, IDisposable
         }
         while (TryDequeue(out var item))
             if (!item.Token.IsCancellationRequested)
-                try { item.Work?.Invoke().GetAwaiter().GetResult(); }
-                catch (Exception ex) { Log.Error($"[PoolWorker] Drain failed: {ex.Message}"); }
+                try
+                {
+                    item.Work?.Invoke().GetAwaiter().GetResult();
+                }
+                catch (Exception ex)
+                {
+                    Log.Error($"[PoolWorker] Drain failed: {ex.Message}");
+                }
     }
 
     private bool TryDequeue(out WorkItem item) =>

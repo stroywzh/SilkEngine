@@ -1,5 +1,5 @@
 using ProjectEngine;
-using ProjectEngine.Input;
+using ProjectEngine.InputSystem;
 
 namespace ProjectEngine.Tests.Input;
 

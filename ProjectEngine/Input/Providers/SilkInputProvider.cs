@@ -5,7 +5,7 @@ using Silk.NET.Windowing;
 using ProjectEngine;
 using ProjectEngine.Math;
 
-namespace ProjectEngine.Input;
+namespace ProjectEngine.InputSystem;
 
 public class SilkInputProvider : IInputProvider
 {

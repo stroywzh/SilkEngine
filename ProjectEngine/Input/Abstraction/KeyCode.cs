@@ -1,4 +1,4 @@
-namespace ProjectEngine.Input;
+namespace ProjectEngine.InputSystem;
 
 public enum KeyCode
 {

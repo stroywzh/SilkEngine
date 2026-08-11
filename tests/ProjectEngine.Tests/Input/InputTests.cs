@@ -1,7 +1,7 @@
 namespace ProjectEngine.Tests.Input
 {
     using ProjectEngine;
-    using ProjectEngine.Input;
+    using ProjectEngine.InputSystem;
     using ProjectEngine.Math;
 
     public class InputTests

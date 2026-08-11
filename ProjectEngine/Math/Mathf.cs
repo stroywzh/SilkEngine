@@ -17,4 +17,6 @@ public static class Mathf
     public static float Lerp(float a, float b, float t) => a + (b - a) * t;
 
     public static float Abs(float v) => v < 0 ? -v : v;
+
+    public static float Sign(float v) => v > 0 ? 1f : v < 0 ? -1f : 0f;
 }

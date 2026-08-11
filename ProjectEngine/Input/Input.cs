@@ -1,7 +1,7 @@
 using ProjectEngine;
 using ProjectEngine.Math;
 
-namespace ProjectEngine.Input;
+namespace ProjectEngine.InputSystem;
 
 public static class Input
 {
@@ -12,12 +12,16 @@ public static class Input
 
     public static KeyboardState Keyboard => _keyboard;
     public static MouseState Mouse => _mouse;
+    public static bool EnableLog { get; set; }
 
     public static void SetProvider(IInputProvider provider) => _provider = provider;
 
     public static bool GetKey(KeyCode key) => _keyboard.GetKey(key);
+
     public static bool GetKeyDown(KeyCode key) => _keyboard.GetKeyDown(key);
+
     public static bool GetKeyUp(KeyCode key) => _keyboard.GetKeyUp(key);
+
     public static Vector2 MousePosition => _mouse.Position;
 
     public static float GetAxis(string name)
@@ -33,25 +37,47 @@ public static class Input
         Time.DeltaTime = Time.DeltaTime > 0 ? Time.DeltaTime : 0.016f;
         _provider?.UpdateInput(_keyboard, _mouse);
 
-        foreach (var axis in DefaultAxisMapping.DefaultAxes)
+        if (EnableLog)
         {
+            foreach (KeyCode kc in Enum.GetValues<KeyCode>())
+            {
+                if (kc == KeyCode.None)
+                    continue;
+                if (_keyboard.GetKeyDown(kc))
+                    Log.Debug($"[Input] KeyDown: {kc}");
+                else if (_keyboard.GetKeyUp(kc))
+                    Log.Debug($"[Input] KeyUp: {kc}");
+            }
+            if (_mouse.ScrollDelta != 0)
+                Log.Debug($"[Input] Scroll: {_mouse.ScrollDelta:F2}");
+            if (_mouse.MoveVector != Vector2.Zero)
+                Log.Debug(
+                    $"[Input] Mouse: {_mouse.Position}, delta=({_mouse.MoveVector.X:F0},{_mouse.MoveVector.Y:F0})"
+                );
+        }
+
+        for (int i = 0; i < DefaultAxisMapping.DefaultAxes.Length; i++)
+        {
+            var axis = DefaultAxisMapping.DefaultAxes[i];
             float target = 0;
-            if (_keyboard.GetKey(axis.Positive)) target += 1;
-            if (_keyboard.GetKey(axis.Negative)) target -= 1;
+            if (_keyboard.GetKey(axis.Positive))
+                target += 1;
+            if (_keyboard.GetKey(axis.Negative))
+                target -= 1;
 
             float current = _axes.GetValueOrDefault(axis.Name, 0);
             if (MathF.Abs(target) > 0.01f)
-                current = Math.Clamp(current + target * axis.Sensitivity * Time.DeltaTime, -1f, 1f);
+                current = Mathf.Clamp(
+                    current + target * axis.Sensitivity * Time.DeltaTime,
+                    -1f,
+                    1f
+                );
             else
-                current = MathF.Abs(current) < 0.01f ? 0
-                    : current - MathF.Sign(current) * axis.Gravity * Time.DeltaTime;
-            _axes[axis.Name] = Math.Clamp(current, -1f, 1f);
+                current =
+                    MathF.Abs(current) < 0.01f
+                        ? 0
+                        : current - Mathf.Sign(current) * axis.Gravity * Time.DeltaTime;
+            _axes[axis.Name] = Mathf.Clamp(current, -1f, 1f);
         }
-    }
-
-    private static class Math
-    {
-        public static float Clamp(float v, float min, float max) =>
-            v < min ? min : v > max ? max : v;
     }
 }

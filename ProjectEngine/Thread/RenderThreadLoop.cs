@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading;
 using ProjectEngine.Render;
 
@@ -18,6 +19,8 @@ public class RenderThreadLoop : IDisposable
     public bool ShouldClose => _backend.ShouldClose;
     public int Width => _backend.Width;
     public int Height => _backend.Height;
+
+    public int PID =>Process.GetCurrentProcess().Id;
 
     /// <summary>渲染后端实例</summary>
     public IRenderBackend Backend => _backend;

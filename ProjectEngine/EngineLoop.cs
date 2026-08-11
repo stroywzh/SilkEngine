@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
-using ProjectEngine.Input;
+using System.Diagnostics;
+using ProjectEngine.InputSystem;
 using ProjectEngine.Render;
 using ProjectEngine.Threading;
 
@@ -8,6 +9,7 @@ namespace ProjectEngine;
 
 public class EngineLoop : IDisposable
 {
+    private int pid => Process.GetCurrentProcess().Id;
     private readonly RenderThreadLoop _renderThreadLoop;
     private readonly LogicLoop _logicLoop;
     private readonly EngineThreadPool _workerPool = new(2);
@@ -39,11 +41,12 @@ public class EngineLoop : IDisposable
     {
         _renderThreadLoop.Initialize();
 
+        //TODO:初始化逻辑后面要改，改成基于Editor启动和游戏启动
         if (Render.Backend.NativeWindow is { } win)
         {
             var inputProvider = new SilkInputProvider();
             inputProvider.Initialize(win);
-            ProjectEngine.Input.Input.SetProvider(inputProvider);
+            Input.SetProvider(inputProvider);
         }
 
         _stopRequested = false;
@@ -61,7 +64,7 @@ public class EngineLoop : IDisposable
         }
 
         Log.Info(
-            $"[EngineLoop]: EngineLoop Started. Managed threads: Main(heartbeat) + {_workerPool} + RenderThread."
+            $"[EngineLoop]: EngineLoop Started. Managed threads: \nMain(heartbeat):PID{pid}\nWorkerThreadCount:{_workerPool.WorkerThreadCount}\nRenderThread:PID{_renderThreadLoop.PID}."
         );
 
         while (!_renderThreadLoop.ShouldClose && !_stopRequested)
@@ -83,7 +86,7 @@ public class EngineLoop : IDisposable
             Time.DeltaTime = dt * Time.TimeScale;
             Time.FrameCount++;
 
-            ProjectEngine.Input.Input.Update();
+            Input.Update();
 
             _logicLoop.Tick(Time.DeltaTime);
             OnRender();
