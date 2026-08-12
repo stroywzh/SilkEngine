@@ -16,8 +16,9 @@ class Program
 
         // -------------------- 逐个取消注释测试 --------------------
 
-        TestNDCTriangle();
+        TestThirdPerson3D();
 
+        // TestNDCTriangle();
         // TestNDCQuad();
         // TestCameraOrtho();
         // TestCameraPerspective();
@@ -194,6 +195,65 @@ void main() { FragColor = vec4(abs(vNormal), 1.0); }",
             camObj.Transform.LocalPosition = new Vector3(0, 0, -2);
             var cam = camObj.AddComponent<Camera>();
             cam.Orthographic = false;
+            scene.AddRootObject(camObj);
+        }
+
+        void TestThirdPerson3D()
+        {
+            var scene = new Scene("ThirdPerson3D");
+            SceneManager.Instance.LoadScene(scene);
+
+            var shader = new Shader
+            {
+                Name = "Lit",
+                VertexSource =
+                    @"#version 460 core
+layout(location = 0) in vec3 aPos;
+layout(location = 1) in vec3 aNormal;
+layout(location = 2) in vec2 aTexCoord;
+uniform mat4 uModel;
+uniform mat4 uView;
+uniform mat4 uProjection;
+out vec3 vNormal;
+void main() { gl_Position = uProjection * uView * uModel * vec4(aPos, 1.0); vNormal = aNormal; }",
+                FragmentSource =
+                    @"#version 460 core
+in vec3 vNormal;
+out vec4 FragColor;
+void main() { FragColor = vec4(abs(vNormal), 1.0); }",
+            };
+
+            var ground = new GameObject("Ground");
+            ground.Transform.LocalScale = new Vector3(20, 1, 20);
+            var groundMr = ground.AddComponent<MeshRenderer>();
+            groundMr.Shader = shader;
+            groundMr.Mesh = MeshFactory.CreateCube(1f);
+            scene.AddRootObject(ground);
+
+            for (int i = 0; i < 5; i++)
+            for (int j = 0; j < 5; j++)
+            {
+                var cube = new GameObject($"Cube_{i}_{j}");
+                cube.Transform.LocalPosition = new Vector3(i * 3 - 6, 0.5f, j * 3 - 6);
+                var mr = cube.AddComponent<MeshRenderer>();
+                mr.Shader = shader;
+                mr.Mesh = MeshFactory.CreateCube(1f);
+                scene.AddRootObject(cube);
+            }
+
+            var player = new GameObject("Player");
+            player.Transform.LocalPosition = new Vector3(0, 0.5f, 0);
+            var playerMr = player.AddComponent<MeshRenderer>();
+            playerMr.Shader = shader;
+            playerMr.Mesh = MeshFactory.CreateCube(1f);
+            var controller = player.AddComponent<PlayerController>();
+            scene.AddRootObject(player);
+
+            var camObj = new GameObject("FollowCam");
+            var cam = camObj.AddComponent<Camera>();
+            var follow = camObj.AddComponent<CameraFollow>();
+            follow.Target = player;
+            controller.Camera = follow;
             scene.AddRootObject(camObj);
         }
     }
