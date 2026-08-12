@@ -287,4 +287,78 @@ public class SceneManagerTests
         public int AwakeCount;
         public override void OnAwake() => AwakeCount++;
     }
+
+    [Fact]
+    public void LoadScene_SingleArg_SwitchesScenes()
+    {
+        var reg = new ComponentRegistry();
+        SceneManager.ActiveRegistry = reg;
+        try
+        {
+            var s1 = new Scene("A");
+            var go1 = new GameObject();
+            var c1 = go1.AddComponent<Tracker>();
+            s1.AddRootObject(go1);
+            SceneManager.Instance.LoadScene(s1);
+
+            var s2 = new Scene("B");
+            var go2 = new GameObject();
+            var c2 = go2.AddComponent<Tracker>();
+            s2.AddRootObject(go2);
+            SceneManager.Instance.LoadScene(s2);
+
+            Assert.True(c1.Destroy);
+            var all = reg.GetOfType<Tracker>();
+            Assert.Single(all);
+            Assert.Same(c2, all[0]);
+        }
+        finally
+        {
+            SceneManager.ActiveRegistry = null;
+        }
+    }
+
+    private class DestroyCounter : MonoBehaviour
+    {
+        public int DestroyCount;
+        public override void OnDestroy() => DestroyCount++;
+    }
+
+    [Fact]
+    public void Destroy_ComponentThenGameObject_OnDestroyOnce()
+    {
+        SceneManager.Instance._destroyQueue.Clear();
+        var reg = new ComponentRegistry();
+        var mgr = new FrameSnapshotManager();
+        var scene = new Scene("T");
+        var go = new GameObject();
+        var c = go.AddComponent<DestroyCounter>(reg);
+        scene.AddRootObject(go);
+        reg.ApplyPending();
+        mgr.CommitPending(reg, SceneManager.Instance._destroyQueue, scene, 0f);
+
+        Object.Destroy(c);
+        Object.Destroy(go);
+        mgr.CommitPending(reg, SceneManager.Instance._destroyQueue, scene, 0f);
+        Assert.Equal(1, c.DestroyCount);
+    }
+
+    [Fact]
+    public void ReloadSameScene_ComponentsNotZombie()
+    {
+        var reg = new ComponentRegistry();
+        var mgr = new FrameSnapshotManager();
+        var s = new Scene("T");
+        var go = new GameObject();
+        var c = go.AddComponent<DestroyCounter>();
+        s.AddRootObject(go);
+        SceneManager.Instance.LoadScene(s, reg);
+        SceneManager.Instance.LoadScene(s, reg);   // 重载
+
+        Assert.Equal(1, c.DestroyCount);           // 卸载时 OnDestroy 一次
+
+        Object.Destroy(c);
+        mgr.CommitPending(reg, SceneManager.Instance._destroyQueue, s, 0f);
+        Assert.Equal(2, c.DestroyCount);           // 显式销毁仍有效（非僵尸）
+    }
 }

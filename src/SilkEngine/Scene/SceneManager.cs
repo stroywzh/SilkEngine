@@ -28,10 +28,7 @@ public class SceneManager
 
     public static Scene? ActiveScene { get; internal set; }
 
-    public void LoadScene(Scene scene)
-    {
-        ActiveScene = scene;
-    }
+    public void LoadScene(Scene scene) => LoadScene(scene, ActiveRegistry);
 
     public void LoadScene(Scene scene, ComponentRegistry? registry = null)
     {
@@ -41,7 +38,6 @@ public class SceneManager
                 InvokeRecursive(go, c =>
                 {
                     registry.Unregister(c);
-                    c._destroyed = true;
                     c.OnDestroy();
                 });
         }
