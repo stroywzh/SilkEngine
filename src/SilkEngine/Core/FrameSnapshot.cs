@@ -51,7 +51,7 @@ public sealed class FrameSnapshotManager
                 continue;
             }
 
-            if (e.Target is Component c)
+            if (e.Target is Component c && !c._destroyed)
             {
                 c.OnDestroy();
                 c._destroyed = true;
