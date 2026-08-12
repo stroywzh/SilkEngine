@@ -48,4 +48,22 @@ public class LogicLoopTests
         Assert.Equal(1, c.Late);
         Assert.Equal(1, c.Post);
     }
+
+    [Fact]
+    public void TickWithSnapshot_DrivesRegistryComponents()
+    {
+        var reg = new ComponentRegistry();
+        var mgr = new FrameSnapshotManager();
+        var s = new EngineScene("T");
+        var go = new GameObject();
+        var c = go.AddComponent<Counter>(reg);
+        s.AddRootObject(go);
+
+        reg.ApplyPending();
+        mgr.CommitPending(reg, new List<SceneManager.DestroyEntry>(), s, 0f);
+
+        var ml = new LogicLoop();
+        ml.TickWithSnapshot(0.016f, mgr.Current, reg);
+        Assert.Equal(1, c.Tick);
+    }
 }
