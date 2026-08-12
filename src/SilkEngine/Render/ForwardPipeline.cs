@@ -15,9 +15,6 @@ public sealed class ForwardPipeline : IRenderPipeline
                 if (mr.Shader == null || mr.Mesh == null)
                     continue;
 
-                mr.Material?.SetMatrix4x4("uView", camera.ViewMatrix);
-                mr.Material?.SetMatrix4x4("uProjection", camera.ProjectionMatrix);
-
                 commands.Add(new SingleDrawCommand
                 {
                     Shader = mr.Shader,
@@ -25,6 +22,8 @@ public sealed class ForwardPipeline : IRenderPipeline
                     Material = mr.Material,
                     Enabled = mr.Enabled,
                     ModelMatrix = mr.Transform.LocalToWorldMatrix,
+                    ViewMatrix = camera.ViewMatrix,
+                    ProjectionMatrix = camera.ProjectionMatrix,
                 });
             }
         }

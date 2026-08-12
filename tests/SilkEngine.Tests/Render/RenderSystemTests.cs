@@ -1,4 +1,5 @@
 using SilkEngine;
+using SilkEngine.Math;
 using SilkEngine.Render;
 
 namespace SilkEngine.Tests.Render;
@@ -107,6 +108,48 @@ public class ForwardPipelineTests
         Assert.Single(passes);
         Assert.NotEmpty(passes[0].Commands);
         Assert.IsType<SingleDrawCommand>(passes[0].Commands[0]);
+    }
+
+    [Fact]
+    public void ForwardPipeline_Build_CommandsCarryCameraMatrices()
+    {
+        var pipeline = new ForwardPipeline();
+        var camGo = new GameObject();
+        var cam = camGo.AddComponent<Camera>();
+        cam.Orthographic = true;
+        camGo.Transform.LocalPosition = new Vector3(0, 0, -5);
+        cam.UpdateMatrices(800f / 600f);
+
+        var mr = new GameObject().AddComponent<MeshRenderer>();
+        mr.Mesh = new Mesh { Name = "Test", Layout = [] };
+        mr.Shader = new Shader { Name = "S" };
+        var batches = new List<RenderBatch> { new() { Camera = cam, Renderers = [mr] } };
+
+        var passes = pipeline.Build(cam, batches);
+        var cmd = Assert.IsType<SingleDrawCommand>(passes[0].Commands[0]);
+        Assert.NotNull(cmd.ViewMatrix);
+        Assert.NotNull(cmd.ProjectionMatrix);
+        Assert.Equal(cam.ViewMatrix.M11, cmd.ViewMatrix!.Value.M11);
+        Assert.Equal(cam.ProjectionMatrix.M11, cmd.ProjectionMatrix!.Value.M11);
+    }
+
+    [Fact]
+    public void ForwardPipeline_Build_DoesNotMutateMaterial()
+    {
+        var pipeline = new ForwardPipeline();
+        var camGo = new GameObject();
+        var cam = camGo.AddComponent<Camera>();
+        camGo.Transform.LocalPosition = new Vector3(0, 0, -5);
+        cam.UpdateMatrices(1f);
+
+        var mr = new GameObject().AddComponent<MeshRenderer>();
+        mr.Mesh = new Mesh { Name = "Test", Layout = [] };
+        mr.Shader = new Shader { Name = "S" };
+        mr.Material = new Material { Name = "M" };
+        var batches = new List<RenderBatch> { new() { Camera = cam, Renderers = [mr] } };
+
+        pipeline.Build(cam, batches);
+        Assert.Empty(mr.Material.Matrices);
     }
 }
 

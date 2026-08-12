@@ -33,6 +33,12 @@ public abstract class DrawCommand
 public sealed class SingleDrawCommand : DrawCommand
 {
     public Math.Matrix4x4? ModelMatrix { get; init; }
+
+    /// <summary>本命令的视图矩阵（渲染状态，非材质属性）</summary>
+    public Math.Matrix4x4? ViewMatrix { get; init; }
+
+    /// <summary>本命令的投影矩阵（渲染状态，非材质属性）</summary>
+    public Math.Matrix4x4? ProjectionMatrix { get; init; }
 }
 
 /// <summary>

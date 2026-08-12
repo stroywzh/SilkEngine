@@ -127,39 +127,38 @@ public class OpenGLRenderBackend : RenderBackendBase
 
             if (cmd is SingleDrawCommand sdc && sdc.ModelMatrix.HasValue)
             {
-                var m = sdc.ModelMatrix.Value;
-                int loc = _gl.GetUniformLocation(glShader.GetProgram(), "uModel");
-                if (loc != -1)
-                {
-                    unsafe
-                    {
-                        float[] mat =
-                        [
-                            m.M11,
-                            m.M12,
-                            m.M13,
-                            m.M14,
-                            m.M21,
-                            m.M22,
-                            m.M23,
-                            m.M24,
-                            m.M31,
-                            m.M32,
-                            m.M33,
-                            m.M34,
-                            m.M41,
-                            m.M42,
-                            m.M43,
-                            m.M44,
-                        ];
-                        fixed (float* p = mat)
-                        {
-                            _gl.UniformMatrix4(loc, 1, false, p);
-                        }
-                    }
-                }
+                UploadMatrix(glShader, "uModel", sdc.ModelMatrix.Value);
+            }
+            if (cmd is SingleDrawCommand sdc2 && sdc2.ViewMatrix.HasValue)
+            {
+                UploadMatrix(glShader, "uView", sdc2.ViewMatrix.Value);
+            }
+            if (cmd is SingleDrawCommand sdc3 && sdc3.ProjectionMatrix.HasValue)
+            {
+                UploadMatrix(glShader, "uProjection", sdc3.ProjectionMatrix.Value);
             }
             glMesh.Draw();
+        }
+    }
+
+    private void UploadMatrix(OpenGLShader glShader, string name, Math.Matrix4x4 m)
+    {
+        int loc = _gl!.GetUniformLocation(glShader.GetProgram(), name);
+        if (loc == -1)
+            return;
+        unsafe
+        {
+            float[] mat =
+            [
+                m.M11, m.M12, m.M13, m.M14,
+                m.M21, m.M22, m.M23, m.M24,
+                m.M31, m.M32, m.M33, m.M34,
+                m.M41, m.M42, m.M43, m.M44,
+            ];
+            fixed (float* p = mat)
+            {
+                _gl.UniformMatrix4(loc, 1, false, p);
+            }
         }
     }
 
