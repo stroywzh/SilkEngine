@@ -106,7 +106,6 @@ public class EngineLoop : IDisposable
             OnRender();
             _logicLoop.LateTick(Time.DeltaTime, _snapshotManager.Current);
 
-
             // 帧末尾，记录快照
             _snapshotManager.CommitPending(
                 _registry,

@@ -1,7 +1,10 @@
 using System;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace SilkEngine.Math;
 
+[StructLayout(LayoutKind.Sequential)]
 public struct Vector2 : IEquatable<Vector2>
 {
     public float X,
@@ -29,4 +32,10 @@ public struct Vector2 : IEquatable<Vector2>
     public override int GetHashCode() => HashCode.Combine(X, Y);
 
     public override string ToString() => $"({X}, {Y})";
+
+    public static implicit operator System.Numerics.Vector2(Vector2 v) =>
+        Unsafe.As<Vector2, System.Numerics.Vector2>(ref v);
+
+    public static implicit operator Vector2(System.Numerics.Vector2 v) =>
+        Unsafe.As<System.Numerics.Vector2, Vector2>(ref v);
 }
