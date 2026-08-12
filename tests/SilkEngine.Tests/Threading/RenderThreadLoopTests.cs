@@ -18,13 +18,6 @@ public class RenderThreadLoopTests
         public void ClearContext() { }
         public void PumpWindowEvents() { }
 
-        public void ExecuteFrame(IReadOnlyList<DrawCommand> commands)
-        {
-            Frames.Add(commands);
-            if (commands.Count > 0 && commands[0] is SingleDrawCommand sdc && sdc.Mesh?.Name == "Crash")
-                throw new InvalidOperationException("simulated crash");
-        }
-
         public void ExecutePass(IReadOnlyList<DrawCommand> commands)
         {
             Frames.Add(commands);
@@ -46,7 +39,7 @@ public class RenderThreadLoopTests
         var rtl = new RenderThreadLoop(fake);
         rtl.Initialize();
         var cmd = new SingleDrawCommand { Enabled = true };
-        rtl.SubmitFrame([cmd]);
+        rtl.SubmitFrame([new RenderPass { Commands = [cmd] }]);
         Assert.Single(fake.Frames);
         Assert.Same(cmd, fake.Frames[0][0]);
     }
@@ -73,15 +66,15 @@ public class RenderThreadLoopTests
     }
 
     [Fact]
-    public void ExceptionInExecuteFrame_DoesNotHangSubmitFrame()
+    public void ExceptionInExecutePass_DoesNotHangSubmitFrame()
     {
         using var fake = new FakeBackend();
         var rtl = new RenderThreadLoop(fake);
         rtl.Initialize();
         var badCmd = new SingleDrawCommand { Mesh = new Mesh { Name = "Crash", Vertices = [], Layout = [] } };
-        rtl.SubmitFrame([badCmd]); // 不应挂起
+        rtl.SubmitFrame([new RenderPass { Commands = [badCmd] }]); // 不应挂起
         var goodCmd = new SingleDrawCommand { Enabled = true };
-        rtl.SubmitFrame([goodCmd]);
+        rtl.SubmitFrame([new RenderPass { Commands = [goodCmd] }]);
         Assert.True(fake.Frames.Count >= 1);
     }
 }

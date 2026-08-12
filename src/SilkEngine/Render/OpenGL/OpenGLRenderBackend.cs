@@ -74,13 +74,6 @@ public class OpenGLRenderBackend : RenderBackendBase
     public override void PumpWindowEvents() => _window?.DoEvents();
 
     /// <inheritdoc />
-    public override void ExecuteFrame(IReadOnlyList<DrawCommand> commands)
-    {
-        ExecuteCommands(commands);
-        _window!.SwapBuffers();
-    }
-
-    /// <inheritdoc />
     public override void ExecutePass(IReadOnlyList<DrawCommand> commands) => ExecuteCommands(commands);
 
     /// <inheritdoc />

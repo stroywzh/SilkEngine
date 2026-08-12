@@ -11,6 +11,11 @@ public sealed class ComponentRegistry
 
     public void Register(Component c)
     {
+        if (_pendingAdds.Contains(c))
+            return;
+        var t = c.GetType();
+        if (_typeMap.TryGetValue(t, out var list) && list.Contains(c))
+            return;
         _pendingAdds.Add(c);
     }
 

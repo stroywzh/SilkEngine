@@ -9,7 +9,6 @@ public interface IRenderBackend : IDisposable
     void MakeContextCurrent();
     void ClearContext();
     void PumpWindowEvents();
-    void ExecuteFrame(IReadOnlyList<DrawCommand> commands);
     void ExecutePass(IReadOnlyList<DrawCommand> commands);
     void Present();
     IntPtr CreateBuffer(int sizeBytes);

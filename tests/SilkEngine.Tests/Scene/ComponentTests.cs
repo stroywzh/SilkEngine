@@ -47,10 +47,14 @@ public class ComponentTests
     public void DisabledComponent_SkippedByTick()
     {
         var s = new Scene("T"); var go = new GameObject(); var c = go.AddComponent<EnabledTracker>();
-        s.AddRootObject(go); SceneManager.Instance.LoadScene(s);
+        s.AddRootObject(go);
+        var reg = new ComponentRegistry();
+        var mgr = new FrameSnapshotManager();
+        SceneManager.Instance.LoadScene(s, reg);
+        mgr.CommitPending(reg, new List<SceneManager.DestroyEntry>(), s, 0f);
         c.Enabled = false;
         var ml = new LogicLoop();
-        ml.Tick(0.016f);
+        ml.Tick(0.016f, mgr.Current, reg);
         Assert.False(c.TickCalled);
     }
 }

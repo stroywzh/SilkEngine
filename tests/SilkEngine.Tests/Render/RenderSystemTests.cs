@@ -83,7 +83,6 @@ public class FakeRenderBackend : IRenderBackend
     public void MakeContextCurrent() { }
     public void ClearContext() { }
     public void PumpWindowEvents() { }
-    public void ExecuteFrame(IReadOnlyList<DrawCommand> commands) { }
     public void ExecutePass(IReadOnlyList<DrawCommand> commands) => Passes.Add(commands);
     public void Present() => PresentCount++;
     public IntPtr CreateBuffer(int size) => IntPtr.Zero;

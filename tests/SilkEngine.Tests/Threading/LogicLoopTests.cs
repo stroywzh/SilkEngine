@@ -16,41 +16,45 @@ public class LogicLoopTests
         public override void OnPostRender() => Post++;
     }
 
+    private static (LogicLoop Loop, Counter Counter, ComponentRegistry Reg, FrameSnapshotManager Mgr) Setup()
+    {
+        var s = new EngineScene("T"); var go = new GameObject(); var c = go.AddComponent<Counter>(); s.AddRootObject(go);
+        var reg = new ComponentRegistry();
+        var mgr = new FrameSnapshotManager();
+        SceneManager.Instance.LoadScene(s, reg);
+        mgr.CommitPending(reg, new List<SceneManager.DestroyEntry>(), s, 0f);
+        return (new LogicLoop(), c, reg, mgr);
+    }
+
     [Fact]
     public void Tick_DrivesSceneUpdate()
     {
-        var s = new EngineScene("T"); var go = new GameObject(); var c = go.AddComponent<Counter>(); s.AddRootObject(go);
-        SceneManager.Instance.LoadScene(s);
-        var ml = new LogicLoop();
-        ml.Tick(0.016f);
+        var (ml, c, reg, mgr) = Setup();
+        ml.Tick(0.016f, mgr.Current, reg);
         Assert.Equal(1, c.Tick);
     }
 
     [Fact]
     public void FixedTick_Accumulates()
     {
-        var s = new EngineScene("T"); var go = new GameObject(); var c = go.AddComponent<Counter>(); s.AddRootObject(go);
-        SceneManager.Instance.LoadScene(s);
-        var ml = new LogicLoop();
+        var (ml, c, reg, mgr) = Setup();
         ml.FixedDeltaTime = 0.02f;
-        ml.Tick(0.05f);
+        ml.Tick(0.05f, mgr.Current, reg);
         Assert.True(c.Fixed >= 2);
     }
 
     [Fact]
     public void LateTick_DrivesPostRender()
     {
-        var s = new EngineScene("T"); var go = new GameObject(); var c = go.AddComponent<Counter>(); s.AddRootObject(go);
-        SceneManager.Instance.LoadScene(s);
-        var ml = new LogicLoop();
-        ml.Tick(0.016f);
-        ml.LateTick(0.016f);
+        var (ml, c, reg, mgr) = Setup();
+        ml.Tick(0.016f, mgr.Current, reg);
+        ml.LateTick(0.016f, mgr.Current, reg);
         Assert.Equal(1, c.Late);
         Assert.Equal(1, c.Post);
     }
 
     [Fact]
-    public void TickWithSnapshot_DrivesRegistryComponents()
+    public void Tick_DrivesRegistryComponents()
     {
         var reg = new ComponentRegistry();
         var mgr = new FrameSnapshotManager();
@@ -63,7 +67,7 @@ public class LogicLoopTests
         mgr.CommitPending(reg, new List<SceneManager.DestroyEntry>(), s, 0f);
 
         var ml = new LogicLoop();
-        ml.TickWithSnapshot(0.016f, mgr.Current, reg);
+        ml.Tick(0.016f, mgr.Current, reg);
         Assert.Equal(1, c.Tick);
     }
 }

@@ -39,12 +39,6 @@ public class VulkanRenderBackend : RenderBackendBase
     public override void PumpWindowEvents() => _window?.DoEvents();
 
     /// <inheritdoc />
-    public override void ExecuteFrame(IReadOnlyList<DrawCommand> commands)
-    {
-        _window!.SwapBuffers();
-    }
-
-    /// <inheritdoc />
     public override void ExecutePass(IReadOnlyList<DrawCommand> commands) { }
 
     /// <inheritdoc />

@@ -19,37 +19,22 @@ public class LogicLoop : IDisposable
 
     public LogicLoop() => Time.FixedDeltaTime = _fixedDt;
 
-    public void Tick(float deltaTime)
+    public void Tick(float deltaTime, FrameSnapshot snapshot, ComponentRegistry registry)
     {
         _accumulator += deltaTime;
         while (_accumulator >= _fixedDt)
         {
-            SceneManager.Instance.FixedTick(_fixedDt);
+            SceneManager.Instance.FixedTick(snapshot, registry, _fixedDt);
             _accumulator -= _fixedDt;
         }
-        SceneManager.Instance.Tick(deltaTime);
-        SceneManager.Instance.LateTick();
-        SceneManager.Instance.ProcessDestroys(deltaTime);
-    }
-
-    public void LateTick(float deltaTime) => SceneManager.Instance.PostRender();
-
-    public void TickWithSnapshot(float deltaTime, FrameSnapshot snapshot, ComponentRegistry registry)
-    {
-        _accumulator += deltaTime;
-        while (_accumulator >= _fixedDt)
-        {
-            SceneManager.Instance.FixedTickWithSnapshot(snapshot, registry, _fixedDt);
-            _accumulator -= _fixedDt;
-        }
-        SceneManager.Instance.TickWithSnapshot(snapshot, registry, deltaTime);
-        SceneManager.Instance.LateTickWithSnapshot(snapshot, registry);
+        SceneManager.Instance.Tick(snapshot, registry, deltaTime);
+        SceneManager.Instance.LateTick(snapshot, registry);
         // 注意：销毁处理由 FrameSnapshotManager.CommitPending 在帧末统一执行，
         // 此处不调用 ProcessDestroys（避免双重处理）
     }
 
-    public void LateTickWithSnapshot(float deltaTime, FrameSnapshot snapshot, ComponentRegistry registry)
-        => SceneManager.Instance.PostRenderWithSnapshot(snapshot, registry);
+    public void LateTick(float deltaTime, FrameSnapshot snapshot, ComponentRegistry registry)
+        => SceneManager.Instance.PostRender(snapshot, registry);
 
     public void Stop() { }
 

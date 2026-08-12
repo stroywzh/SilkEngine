@@ -21,8 +21,11 @@ public class SceneManagerTests
     public void LoadScene_CallsAwakeAndStart()
     {
         var s = new Scene("T"); var go = new GameObject(); var c = go.AddComponent<Tracker>(); s.AddRootObject(go);
-        SceneManager.Instance.LoadScene(s);
-        SceneManager.Instance.Tick(0.016f);
+        var reg = new ComponentRegistry();
+        var mgr = new FrameSnapshotManager();
+        SceneManager.Instance.LoadScene(s, reg);
+        mgr.CommitPending(reg, new List<SceneManager.DestroyEntry>(), s, 0f);
+        SceneManager.Instance.Tick(mgr.Current, reg, 0.016f);
         Assert.True(c.Awake); Assert.True(c.Start);
     }
 
@@ -30,8 +33,11 @@ public class SceneManagerTests
     public void Tick_PassesDeltaTime()
     {
         var s = new Scene("T"); var go = new GameObject(); var c = go.AddComponent<Tracker>(); s.AddRootObject(go);
-        SceneManager.Instance.LoadScene(s);
-        SceneManager.Instance.Tick(0.16f);
+        var reg = new ComponentRegistry();
+        var mgr = new FrameSnapshotManager();
+        SceneManager.Instance.LoadScene(s, reg);
+        mgr.CommitPending(reg, new List<SceneManager.DestroyEntry>(), s, 0f);
+        SceneManager.Instance.Tick(mgr.Current, reg, 0.16f);
         Assert.True(c.Tick); Assert.Equal(0.16f, c.TickDt);
     }
 
@@ -39,8 +45,11 @@ public class SceneManagerTests
     public void FixedTick_PassesFixedTime()
     {
         var s = new Scene("T"); var go = new GameObject(); var c = go.AddComponent<Tracker>(); s.AddRootObject(go);
-        SceneManager.Instance.LoadScene(s);
-        SceneManager.Instance.FixedTick(0.02f);
+        var reg = new ComponentRegistry();
+        var mgr = new FrameSnapshotManager();
+        SceneManager.Instance.LoadScene(s, reg);
+        mgr.CommitPending(reg, new List<SceneManager.DestroyEntry>(), s, 0f);
+        SceneManager.Instance.FixedTick(mgr.Current, reg, 0.02f);
         Assert.Equal(0.02f, c.FixedDt);
     }
 
@@ -48,18 +57,24 @@ public class SceneManagerTests
     public void Inactive_SkipsTick()
     {
         var s = new Scene("T"); var go = new GameObject(); var c = go.AddComponent<Tracker>(); go.IsActive = false; s.AddRootObject(go);
-        SceneManager.Instance.LoadScene(s);
-        SceneManager.Instance.Tick(0.16f);
+        var reg = new ComponentRegistry();
+        var mgr = new FrameSnapshotManager();
+        SceneManager.Instance.LoadScene(s, reg);
+        mgr.CommitPending(reg, new List<SceneManager.DestroyEntry>(), s, 0f);
+        SceneManager.Instance.Tick(mgr.Current, reg, 0.16f);
         Assert.False(c.Tick);
     }
 
     [Fact]
-    public void Destroy_AfterProcessDestroys()
+    public void Destroy_AfterCommitPending()
     {
+        SceneManager._destroyQueue.Clear();
         var s = new Scene("T"); var go = new GameObject(); var c = go.AddComponent<Tracker>(); s.AddRootObject(go);
-        SceneManager.Instance.LoadScene(s);
+        var reg = new ComponentRegistry();
+        var mgr = new FrameSnapshotManager();
+        SceneManager.Instance.LoadScene(s, reg);
         Object.Destroy(c); Assert.False(c.Destroy);
-        SceneManager.Instance.ProcessDestroys(0.1f);
+        mgr.CommitPending(reg, SceneManager._destroyQueue, s, 0.1f);
         Assert.True(c.Destroy);
     }
 
@@ -85,16 +100,19 @@ public class SceneManagerTests
     }
 
     [Fact]
-    public void Destroy_AfterProcessDestroys_RemovesFromScene()
+    public void Destroy_AfterCommitPending_RemovesFromScene()
     {
+        SceneManager._destroyQueue.Clear();
         var s = new Scene("T");
         var go = new GameObject();
         var c = go.AddComponent<Tracker>();
         s.AddRootObject(go);
-        SceneManager.Instance.LoadScene(s);
+        var reg = new ComponentRegistry();
+        var mgr = new FrameSnapshotManager();
+        SceneManager.Instance.LoadScene(s, reg);
 
         Object.Destroy(go);
-        SceneManager.Instance.ProcessDestroys(0.1f);
+        mgr.CommitPending(reg, SceneManager._destroyQueue, s, 0.1f);
         Assert.True(c.Destroy);
         Assert.Empty(s.GetRootGameObjects());
     }
@@ -102,20 +120,23 @@ public class SceneManagerTests
     [Fact]
     public void Destroy_Delayed_NotRemovedImmediately()
     {
+        SceneManager._destroyQueue.Clear();
         var s = new Scene("T");
         var go = new GameObject();
         s.AddRootObject(go);
-        SceneManager.Instance.LoadScene(s);
+        var reg = new ComponentRegistry();
+        var mgr = new FrameSnapshotManager();
+        SceneManager.Instance.LoadScene(s, reg);
 
         Object.Destroy(go, 1f);
-        SceneManager.Instance.ProcessDestroys(0.5f);
+        mgr.CommitPending(reg, SceneManager._destroyQueue, s, 0.5f);
         Assert.Single(s.GetRootGameObjects());
-        SceneManager.Instance.ProcessDestroys(0.6f);
+        mgr.CommitPending(reg, SceneManager._destroyQueue, s, 0.6f);
         Assert.Empty(s.GetRootGameObjects());
     }
 
     [Fact]
-    public void TickWithSnapshot_UsesRegistry()
+    public void Tick_UsesRegistry()
     {
         var reg = new ComponentRegistry();
         var mgr = new FrameSnapshotManager();
@@ -127,7 +148,7 @@ public class SceneManagerTests
         reg.ApplyPending();
         mgr.CommitPending(reg, new List<SceneManager.DestroyEntry>(), s, 0f);
 
-        SceneManager.Instance.TickWithSnapshot(mgr.Current, reg, 0.16f);
+        SceneManager.Instance.Tick(mgr.Current, reg, 0.16f);
         Assert.True(c.Tick);
     }
 
@@ -146,7 +167,7 @@ public class SceneManagerTests
 
         reg.ApplyPending();
         mgr.CommitPending(reg, new List<SceneManager.DestroyEntry>(), s, 0f);
-        SceneManager.Instance.TickWithSnapshot(mgr.Current, reg, 0.16f);
+        SceneManager.Instance.Tick(mgr.Current, reg, 0.16f);
 
         Assert.Equal([1, 2], order);
     }

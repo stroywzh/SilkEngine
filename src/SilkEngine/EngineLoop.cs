@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using SilkEngine.InputSystem;
 using SilkEngine.Render;
@@ -96,9 +95,9 @@ public class EngineLoop : IDisposable
 
             Input.Update();
 
-            _logicLoop.TickWithSnapshot(Time.DeltaTime, _snapshotManager.Current, _registry);
+            _logicLoop.Tick(Time.DeltaTime, _snapshotManager.Current, _registry);
             _renderSystem!.Render(_snapshotManager.Current);
-            _logicLoop.LateTickWithSnapshot(Time.DeltaTime, _snapshotManager.Current, _registry);
+            _logicLoop.LateTick(Time.DeltaTime, _snapshotManager.Current, _registry);
 
             _snapshotManager.CommitPending(_registry, SceneManager._destroyQueue, SceneManager.ActiveScene, Time.DeltaTime);
         }
@@ -112,56 +111,9 @@ public class EngineLoop : IDisposable
         return System.Math.Min(dt, 0.1f);
     }
 
-    // Camera mainCam = new();
-    /// <summary>
-    /// 很显然这里这个东西需要拆除去，就光凭这个camera每帧都要寻找就是纯拖累来的
-    /// </summary>
     protected virtual void OnRender()
     {
-        Camera? cam = null;
-        SceneManager.Instance.ForEachComponent<Camera>(c =>
-        {
-            if (c.GameObject.IsActive)
-                cam ??= c;
-        });
-
-        if (cam == null)
-        {
-            cam = new Camera();
-            // cam.Transform.LocalPosition = Math.Vector3.Zero;
-        }
-
-        float aspect = (float)_renderThreadLoop.Width / _renderThreadLoop.Height;
-
-        cam.UpdateMatrices(aspect);
-
-        var renderers = new List<MeshRenderer>();
-        SceneManager.Instance.ForEachComponent<MeshRenderer>(r =>
-        {
-            if (r.Enabled && r.GameObject.IsActive)
-                renderers.Add(r);
-        });
-
-        var drawCommands = new List<DrawCommand>();
-        foreach (var mr in renderers)
-        {
-            if (mr.Material != null && cam != null)
-            {
-                mr.Material.SetMatrix4x4("uView", cam.ViewMatrix);
-                mr.Material.SetMatrix4x4("uProjection", cam.ProjectionMatrix);
-            }
-            drawCommands.Add(
-                new SingleDrawCommand
-                {
-                    Shader = mr.Shader,
-                    Mesh = mr.Mesh,
-                    Material = mr.Material,
-                    Enabled = mr.Enabled,
-                    ModelMatrix = mr.Transform.LocalToWorldMatrix,
-                }
-            );
-        }
-        _renderThreadLoop.SubmitFrame(drawCommands);
+        _renderSystem!.Render(_snapshotManager.Current);
     }
 
     public void Stop() => _stopRequested = true;

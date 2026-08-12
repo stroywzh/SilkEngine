@@ -69,6 +69,29 @@ public class ComponentRegistryTests
     }
 
     [Fact]
+    public void Register_DuplicateCall_DoesNotDuplicate()
+    {
+        var reg = new ComponentRegistry();
+        var a = new GameObject().AddComponent<A>();
+        reg.Register(a);
+        reg.Register(a);
+        reg.ApplyPending();
+        Assert.Single(reg.GetOfType<A>());
+    }
+
+    [Fact]
+    public void Register_AfterApplyPending_DoesNotDuplicate()
+    {
+        var reg = new ComponentRegistry();
+        var a = new GameObject().AddComponent<A>();
+        reg.Register(a);
+        reg.ApplyPending();
+        reg.Register(a);
+        reg.ApplyPending();
+        Assert.Single(reg.GetOfType<A>());
+    }
+
+    [Fact]
     public void GetOfType_BaseType_ReturnsSubclassComponents()
     {
         var reg = new ComponentRegistry();

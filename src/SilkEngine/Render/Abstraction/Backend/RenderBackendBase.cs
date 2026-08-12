@@ -6,7 +6,7 @@ namespace SilkEngine.Render;
 /// <summary>
 /// 渲染后端抽象基类
 /// <br/>为 OpenGL、Vulkan 等后端提供共享的缓冲区句柄管理与释放状态。
-/// 子类实现 InitWindow / MakeContextCurrent / ClearContext / PumpWindowEvents / ExecuteFrame 和窗口属性。
+/// 子类实现 InitWindow / MakeContextCurrent / ClearContext / PumpWindowEvents / ExecutePass 和窗口属性。
 /// </summary>
 public abstract class RenderBackendBase : IRenderBackend
 {
@@ -39,9 +39,6 @@ public abstract class RenderBackendBase : IRenderBackend
 
     /// <inheritdoc />
     public abstract void PumpWindowEvents();
-
-    /// <inheritdoc />
-    public abstract void ExecuteFrame(IReadOnlyList<DrawCommand> commands);
 
     /// <inheritdoc />
     public virtual void ExecutePass(IReadOnlyList<DrawCommand> commands) { }

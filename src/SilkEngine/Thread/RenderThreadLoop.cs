@@ -14,7 +14,6 @@ public class RenderThreadLoop : IDisposable
     private volatile bool _rendering;
     private readonly ManualResetEventSlim _commandsReady = new(false);
     private readonly ManualResetEventSlim _frameDone = new(false);
-    private IReadOnlyList<DrawCommand>? _pendingCommands;
     private IReadOnlyList<RenderPass>? _pendingPasses;
     private bool _disposed;
 
@@ -39,14 +38,6 @@ public class RenderThreadLoop : IDisposable
     }
 
     public void PumpEvents() => _backend.PumpWindowEvents();
-
-    public void SubmitFrame(IReadOnlyList<DrawCommand> commands)
-    {
-        _pendingCommands = commands;
-        _commandsReady.Set();
-        _frameDone.Wait();
-        _frameDone.Reset();
-    }
 
     public void SubmitFrame(IReadOnlyList<RenderPass> passes)
     {
@@ -77,14 +68,10 @@ public class RenderThreadLoop : IDisposable
                     }
                     _backend.Present();
                 }
-                else if (_pendingCommands != null)
-                {
-                    _backend.ExecuteFrame(_pendingCommands!);
-                }
             }
             catch (Exception ex)
             {
-                Log.Error($"[RenderThread] ExecuteFrame failed: {ex}");
+                Log.Error($"[RenderThread] ExecutePass failed: {ex}");
             }
             _frameDone.Set();
         }
