@@ -31,8 +31,6 @@ public class SceneManager
     public void LoadScene(Scene scene)
     {
         ActiveScene = scene;
-        foreach (var go in scene._rootObjects)
-            InvokeRecursive(go, c => (c as MonoBehaviour)?.OnAwake());
         _fristUpdateFlag = true;
         _fristUpdateDone = false;
     }
@@ -43,20 +41,8 @@ public class SceneManager
         if (registry != null)
         {
             foreach (var go in scene._rootObjects)
-                InvokeRecursive(
-                    go,
-                    c =>
-                    {
-                        registry.Register(c);
-                        (c as MonoBehaviour)?.OnAwake();
-                    }
-                );
+                InvokeRecursive(go, c => registry.Register(c));
             registry.ApplyPending();
-        }
-        else
-        {
-            foreach (var go in scene._rootObjects)
-                InvokeRecursive(go, c => (c as MonoBehaviour)?.OnAwake());
         }
         _fristUpdateFlag = true;
         _fristUpdateDone = false;

@@ -24,11 +24,25 @@ public sealed class GameObject : Object
         where T : Component, new()
     {
         var c = new T();
+        InitializeComponent(c, registry);
+        return c;
+    }
+
+    /// <summary>组件工厂：挂载 → Awake → 活跃重算 → 注册。顺序 MUST 为挂载→Awake→Enable(条件)→注册。</summary>
+    internal void InitializeComponent(Component c, ComponentRegistry? registry)
+    {
         c.GameObject = this;
         _components.Add(c);
+
+        if (c is MonoBehaviour mb && !mb.Awaked)
+        {
+            mb.Awaked = true;
+            mb.OnAwake();
+        }
+
         c.RecomputeActiveState();
+
         (registry ?? SceneManager.ActiveRegistry)?.Register(c);
-        return c;
     }
 
     public T? GetComponent<T>()
