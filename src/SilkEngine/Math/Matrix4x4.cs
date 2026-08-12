@@ -111,9 +111,9 @@ public struct Matrix4x4 : IEquatable<Matrix4x4>
             M11 = f / aspect,
             M22 = f,
             M33 = far / (far - near),
-            M34 = 1f,
-            M43 = -near * far / (far - near),
-            M44 = 1f,
+            M34 = -near * far / (far - near),
+            M43 = 1f,
+            M44 = 0f,
         };
     }
 
@@ -125,8 +125,8 @@ public struct Matrix4x4 : IEquatable<Matrix4x4>
             M11 = 2f / width,
             M22 = 2f / height,
             M33 = r,
-            M34 = 0f,
-            M43 = -near * r,
+            M34 = -near * r,
+            M43 = 0f,
             M44 = 1f,
         };
     }
@@ -142,13 +142,13 @@ public struct Matrix4x4 : IEquatable<Matrix4x4>
         return new Matrix4x4
         {
             M11 = right.X,
-            M12 = u.X,
-            M13 = fwd.X,
-            M21 = right.Y,
+            M12 = right.Y,
+            M13 = right.Z,
+            M21 = u.X,
             M22 = u.Y,
-            M23 = fwd.Y,
-            M31 = right.Z,
-            M32 = u.Z,
+            M23 = u.Z,
+            M31 = fwd.X,
+            M32 = fwd.Y,
             M33 = fwd.Z,
             M14 = -Vector3.Dot(right, eye),
             M24 = -Vector3.Dot(u, eye),

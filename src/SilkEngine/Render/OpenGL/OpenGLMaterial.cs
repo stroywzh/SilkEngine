@@ -53,7 +53,7 @@ public class OpenGLMaterial : IMaterial
                 {
                     fixed (float* ptr = kv.Value)
                     {
-                        _gl.UniformMatrix4(loc, 1, false, ptr);
+                        _gl.UniformMatrix4(loc, 1, true, ptr);
                     }
                 }
             }

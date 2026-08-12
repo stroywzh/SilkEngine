@@ -61,4 +61,34 @@ public class Matrix4x4Tests
         var result = proj * new Vector3(0, 0, 5);
         Assert.True(result.Z > 0);
     }
+
+    [Fact]
+    public void LookAt_NonAxisAligned_RotatesIntoViewSpace()
+    {
+        // 相机在 (10,0,0) 看原点：right=(0,0,1), u=(0,1,0), fwd=(-1,0,0)
+        var view = Matrix4x4.CreateLookAt(new Vector3(10, 0, 0), Vector3.Zero, Vector3.Up);
+        // 世界点 (0,0,5)：视空间 x' = right·p = 5（当前 buggy 实现得 -5）
+        var p = view * new Vector3(0, 0, 5);
+        Assert.Equal(5f, p.X, 3);
+        Assert.Equal(0f, p.Y, 3);
+        Assert.Equal(10f, p.Z, 3);   // fwd·(p-eye) = (-1,0,0)·(-10,0,5) = 10
+    }
+
+    [Fact]
+    public void Perspective_NearAndFar_MapToZeroAndOne()
+    {
+        var proj = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 2f, 1.0f, 0.1f, 100f);
+        Assert.Equal(0f, (proj * new Vector3(0, 0, 0.1f)).Z, 3);
+        Assert.Equal(1f, (proj * new Vector3(0, 0, 100f)).Z, 3);
+        // 透视深度非线性：z'=0.5 出现在 z=2·near·far/(near+far)≈0.2 处（z=50 处已≈1.0）
+        Assert.Equal(0.5f, (proj * new Vector3(0, 0, 0.2f)).Z, 2);
+    }
+
+    [Fact]
+    public void Orthographic_NearAndFar_MapToZeroAndOne()
+    {
+        var ortho = Matrix4x4.CreateOrthographic(10f, 10f, 0.1f, 100f);
+        Assert.Equal(0f, (ortho * new Vector3(0, 0, 0.1f)).Z, 3);
+        Assert.Equal(1f, (ortho * new Vector3(0, 0, 100f)).Z, 3);
+    }
 }

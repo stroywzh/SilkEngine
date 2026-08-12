@@ -157,7 +157,7 @@ public class OpenGLRenderBackend : RenderBackendBase
             ];
             fixed (float* p = mat)
             {
-                _gl.UniformMatrix4(loc, 1, false, p);
+                _gl.UniformMatrix4(loc, 1, true, p);
             }
         }
     }
