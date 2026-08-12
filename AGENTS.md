@@ -9,7 +9,7 @@
 - 静态类模式：`Time` / `SceneManager` / `Input` / `Log` 为全局门面
 - 线程通过 `ThreadFactory.CreateThread` 统一创建（禁止直接 `new Thread()`）
 - `allow(ArbirtaryCode)` requires safe code blocks explicitly: 仅 "unsafe" 标为 unsafe；所有其他代码逻辑应为 safe
-- Priority: automated testing exists with full coverage (126 xUnit tests)
+- Priority: automated testing exists with full coverage (156 xUnit tests)
 
 ## 架构
 
@@ -17,18 +17,19 @@
 
 ```
 主线程 (Heartbeat)
-  ├─ Input.Update → LogicLoop.Tick → OnRender → SubmitFrame(阻塞等GPU) → LateTick
+  ├─ Input.Update → LogicLoop.Tick → RenderSystem.Render(SubmitFrame阻塞等GPU) → LogicLoop.LateTick → CommitPending(帧末提交)
   │
-  ├─ RenderThreadLoop → 渲染线程 (ManualResetEventSlim 握手)
+  ├─ RenderThreadLoop → 渲染线程 (ManualResetEventSlim 握手, 由 RenderSystem 持有)
   └─ EngineThreadPool(2 workers) → 后台工作线程 (ConcurrentQueue 三优先级)
 ```
 
 ### 核心子系统
 
 - **EngineLoop**: 心跳提供者，计算 dt → 驱动 Input/Logic/Tick/渲染。支持 Pause 和 Embedded 模式
-- **LogicLoop**: 固定步长累加器 + SceneManager 派发 (FixedTick/Tick/LateTick/ProcessDestroys)
+- **FrameSnapshot/ComponentRegistry**: 帧原子性核心。ComponentRegistry 类型索引注册表（持久化 ComponentGroup），FrameSnapshotManager 双缓冲快照，帧末 CommitPending 统一应用销毁/注册并 swap（零分配）
+- **LogicLoop**: 固定步长累加器 + 基于快照的 SceneManager 派发 (FixedTick/Tick/LateTick)
 - **Scene System**: Object → GameObject(内置Transform) → Component(Enabled生命周期) → MonoBehaviour(9虚方法)
-- **Render**: Camera → MeshRenderer → DrawCommand → RenderThreadLoop → OpenGLRenderBackend(缓存+ExecuteFrame)
+- **Render**: RenderSystem(顶层管理) → RenderCollector(收集) → IRenderPipeline/ForwardPipeline(策略) → RenderPass[] → RenderThreadLoop → IRenderBackend(ExecutePass+Present)
 - **Input**: Input门面 → KeyboardState/MouseState(双缓冲) → IInputProvider → SilkInputProvider
 - **Threading**: ThreadFactory + EngineThreadPool(IWorkerScheduler) + RenderThreadLoop
 - **Math**: 自研 Mathf/Vector2/Vector3/Quaternion/Matrix4x4 (左手系, column-major)
@@ -38,23 +39,25 @@
 
 ```
 PumpEvents → GetDeltaTime → Input.Update → LogicLoop.Tick
-→ OnRender(收集MeshRenderer→构建DrawCommand→SubmitFrame阻塞等GPU)
+→ RenderSystem.Render(Collector→Pipeline→SubmitFrame阻塞等GPU)
 → LogicLoop.LateTick(PostRender)
+→ FrameSnapshotManager.CommitPending(销毁+注册+快照swap)
 ```
 
 ### 项目结构
 
 ```
-src/SilkEngine/        # 引擎类库 (54 .cs)
+src/SilkEngine/        # 引擎类库 (59 .cs)
   Math/ Scene/ Render/ Thread/ Core/ Input/
 src/Sandbox/              # 演示程序
-tests/SilkEngine.Tests/ # 126 个 xUnit 测试
+tests/SilkEngine.Tests/ # 156 个 xUnit 测试
 ```
 
 ## 测试
 
 - 框架: xUnit 2.9.3，目标 net10.0
 - 126 个测试覆盖 Math / Scene / Threading / Input / Render / Log
+- 156 个测试覆盖 Math / Scene / Threading / Input / Render / Core
 - TDD 强制: 所有业务逻辑代码必须先写测试→失败→实现→通过
 - 测试文件按模块分目录: Math/ Scene/ Threading/ Input/ Render/ Core/
 
@@ -75,7 +78,7 @@ tests/SilkEngine.Tests/ # 126 个 xUnit 测试
 - Vulkan 后端为桩
 
 ### P1
-- RenderSystem/RenderPass 孤儿代码
+- RenderPass.Filter 已定义未接线
 - Transform.Scale 不组合父级
 - Camera 默认正交 (应为透视)
 - 预留未接线: IComputeShader, RenderPacket, DrawIndirect
