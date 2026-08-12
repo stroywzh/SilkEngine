@@ -1,34 +1,37 @@
 using System;
 using System.Linq;
+using SilkEngine.Threading;
 
 namespace SilkEngine.Render;
 
 public sealed class RenderSystem : IDisposable
 {
     private readonly IRenderBackend _backend;
+    private readonly RenderThreadLoop _renderThread;
     private readonly RenderCollector _collector = new();
     private IRenderPipeline _pipeline;
 
     public RenderSystem(IRenderBackend backend, IRenderPipeline? pipeline = null)
     {
         _backend = backend;
+        _renderThread = new RenderThreadLoop(backend);
         _pipeline = pipeline ?? new ForwardPipeline();
     }
+
+    public IRenderBackend Backend => _backend;
+    public bool ShouldClose => _renderThread.ShouldClose;
+
+    public void Initialize() => _renderThread.Initialize();
+
+    public void PumpEvents() => _renderThread.PumpEvents();
 
     public void Render(FrameSnapshot snapshot)
     {
         _collector.Gather(snapshot, out var camera, out var batches);
         camera.UpdateMatrices((float)_backend.Width / _backend.Height);
         var passes = _pipeline.Build(camera, batches);
-
-        foreach (var pass in passes.OrderBy(p => p.SortOrder))
-        {
-            pass.BeforeCommands?.Invoke(_backend);
-            _backend.ExecutePass(pass.Commands);
-            pass.AfterCommands?.Invoke(_backend);
-        }
-        _backend.Present();
+        _renderThread.SubmitFrame(passes);
     }
 
-    public void Dispose() { }
+    public void Dispose() => _renderThread.Dispose();
 }

@@ -9,7 +9,7 @@ namespace SilkEngine;
 public class EngineLoop : IDisposable
 {
     private static int Pid => Process.GetCurrentProcess().Id;
-    private readonly RenderThreadLoop _renderThreadLoop;
+    private readonly IRenderBackend _backend;
     private readonly LogicLoop _logicLoop;
     private readonly EngineThreadPool _workerPool = new(2);
     private readonly FrameSnapshotManager _snapshotManager = new();
@@ -21,7 +21,6 @@ public class EngineLoop : IDisposable
         _disposed,
         _canStart;
 
-    public RenderThreadLoop Render => _renderThreadLoop;
     public LogicLoop Logic => _logicLoop;
     public IWorkerScheduler Workers => _workerPool;
     public bool Embedded { get; set; } = false;
@@ -33,7 +32,7 @@ public class EngineLoop : IDisposable
 
     public EngineLoop(IRenderBackend backend)
     {
-        _renderThreadLoop = new RenderThreadLoop(backend);
+        _backend = backend;
         _logicLoop = new LogicLoop();
         _lastTime = DateTime.UtcNow;
         _canStart = false;
@@ -41,10 +40,11 @@ public class EngineLoop : IDisposable
 
     public EngineLoop Initialize()
     {
-        _renderThreadLoop.Initialize();
+        _renderSystem = new RenderSystem(_backend);
+        _renderSystem.Initialize();
 
         //TODO:初始化逻辑后面要改，改成基于Editor启动和游戏启动
-        if (Render.Backend.NativeWindow is { } win)
+        if (_renderSystem.Backend.NativeWindow is { } win)
         {
             var inputProvider = new SilkInputProvider();
             inputProvider.Initialize(win);
@@ -54,7 +54,6 @@ public class EngineLoop : IDisposable
         _stopRequested = false;
         _lastTime = DateTime.UtcNow;
 
-        _renderSystem = new RenderSystem(Render.Backend);
         SceneManager.Instance.RegisterScene(_registry);
         _snapshotManager.CommitPending(_registry, SceneManager._destroyQueue, SceneManager.ActiveScene, 0f);
 
@@ -71,14 +70,14 @@ public class EngineLoop : IDisposable
         }
 
         Log.Info(
-            $"[EngineLoop]: EngineLoop Started. \nManaged threads: \nMain(heartbeat):PID{Pid}\nWorkerThreadCount:{_workerPool.WorkerThreadCount}\nRenderThread:PID{_renderThreadLoop.PID}."
+            $"[EngineLoop]: EngineLoop Started. \nManaged threads: \nMain(heartbeat):PID{Pid}\nWorkerThreadCount:{_workerPool.WorkerThreadCount}\nRenderThread:PID{Pid}."
         );
 
-        while (!_renderThreadLoop.ShouldClose && !_stopRequested)
+        while (!_renderSystem!.ShouldClose && !_stopRequested)
         {
             if (!Embedded)
             {
-                _renderThreadLoop.PumpEvents();
+                _renderSystem.PumpEvents();
             }
 
             if (_paused)
@@ -125,7 +124,7 @@ public class EngineLoop : IDisposable
         _disposed = true;
         _stopRequested = true;
         _workerPool.Dispose();
-        _renderThreadLoop.Dispose();
+        _renderSystem?.Dispose();
         _logicLoop.Dispose();
     }
 }

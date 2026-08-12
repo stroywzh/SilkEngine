@@ -96,7 +96,8 @@ public class RenderSystemTests
     public void RenderSystem_Render_CallsBackendPresent()
     {
         using var backend = new FakeRenderBackend();
-        var sys = new RenderSystem(backend);
+        using var sys = new RenderSystem(backend);
+        sys.Initialize();
 
         var snap = new FrameSnapshot();
         var scene = new Scene("T");
