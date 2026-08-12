@@ -20,13 +20,14 @@ public sealed class GameObject : Object
         Transform = new Transform((GameObject)this, parent);
     }
 
-    public T AddComponent<T>()
+    public T AddComponent<T>(ComponentRegistry? registry = null)
         where T : Component, new()
     {
         var c = new T();
         c.GameObject = this;
         _components.Add(c);
         (c as MonoBehaviour)?.OnEnable();
+        registry?.Register(c);
         return c;
     }
 
@@ -40,13 +41,14 @@ public sealed class GameObject : Object
         return null;
     }
 
-    public bool RemoveComponent<T>()
+    public bool RemoveComponent<T>(ComponentRegistry? registry = null)
         where T : Component
     {
         var c = GetComponent<T>();
         if (c != null)
         {
             _components.Remove(c);
+            registry?.Unregister(c);
             return true;
         }
         return false;

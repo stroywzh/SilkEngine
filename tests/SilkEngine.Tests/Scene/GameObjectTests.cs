@@ -44,4 +44,26 @@ public class GameObjectTests
         var c = go.AddComponent<TestComponent>();
         Assert.Same(go.Transform, c.Transform);
     }
+
+    [Fact]
+    public void AddComponent_WithRegistry_GoesToPending()
+    {
+        var reg = new ComponentRegistry();
+        var go = new GameObject();
+        var c = go.AddComponent<TestComponent>(reg);
+        Assert.Empty(reg.GetOfType<TestComponent>());
+
+        reg.ApplyPending();
+        Assert.Single(reg.GetOfType<TestComponent>());
+        Assert.Same(c, reg.GetOfType<TestComponent>()[0]);
+    }
+
+    [Fact]
+    public void AddComponent_WithoutRegistry_StillWorks()
+    {
+        var go = new GameObject();
+        var c = go.AddComponent<TestComponent>();
+        Assert.NotNull(c);
+        Assert.Same(go, c.GameObject);
+    }
 }
