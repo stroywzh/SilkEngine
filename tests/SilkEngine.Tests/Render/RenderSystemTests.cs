@@ -45,3 +45,27 @@ public class RenderCollectorTests
         Assert.NotEmpty(batches);
     }
 }
+
+public class ForwardPipelineTests
+{
+    [Fact]
+    public void ForwardPipeline_Build_CreatesSinglePass()
+    {
+        var pipeline = new ForwardPipeline();
+        var camObj = new GameObject();
+        var cam = camObj.AddComponent<Camera>();
+        cam.Orthographic = true;
+        cam.UpdateMatrices(800f / 600f);
+
+        var mr = new GameObject().AddComponent<MeshRenderer>();
+        mr.Mesh = new Mesh { Name = "Test", Layout = [] };
+        mr.Shader = new Shader { Name = "S" };
+        mr.Material = new Material();
+        var batches = new List<RenderBatch> { new() { Camera = cam, Renderers = [mr] } };
+
+        var passes = pipeline.Build(cam, batches);
+        Assert.Single(passes);
+        Assert.NotEmpty(passes[0].Commands);
+        Assert.IsType<SingleDrawCommand>(passes[0].Commands[0]);
+    }
+}
