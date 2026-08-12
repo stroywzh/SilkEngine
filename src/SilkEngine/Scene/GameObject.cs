@@ -27,7 +27,7 @@ public sealed class GameObject : Object
         c.GameObject = this;
         _components.Add(c);
         (c as MonoBehaviour)?.OnEnable();
-        registry?.Register(c);
+        (registry ?? SceneManager.ActiveRegistry)?.Register(c);
         return c;
     }
 

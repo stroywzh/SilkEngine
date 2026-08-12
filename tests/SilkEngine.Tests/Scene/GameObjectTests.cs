@@ -1,7 +1,9 @@
 using SilkEngine;
 
 namespace SilkEngine.Tests.Scene;
+using Scene = SilkEngine.Scene;
 
+[Collection("SceneManager")]
 public class GameObjectTests
 {
     private class TestComponent : Component { }
@@ -65,5 +67,24 @@ public class GameObjectTests
         var c = go.AddComponent<TestComponent>();
         Assert.NotNull(c);
         Assert.Same(go, c.GameObject);
+    }
+
+    [Fact]
+    public void AddComponent_AmbientRegistry_AutoRegisters()
+    {
+        var reg = new ComponentRegistry();
+        SceneManager.ActiveRegistry = reg;
+        try
+        {
+            var go = new GameObject();
+            var c = go.AddComponent<TestComponent>();
+            reg.ApplyPending();
+            Assert.Single(reg.GetOfType<TestComponent>());
+            Assert.Same(c, reg.GetOfType<TestComponent>()[0]);
+        }
+        finally
+        {
+            SceneManager.ActiveRegistry = null;
+        }
     }
 }

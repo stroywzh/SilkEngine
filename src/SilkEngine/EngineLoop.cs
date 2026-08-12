@@ -54,6 +54,7 @@ public class EngineLoop : IDisposable
         _stopRequested = false;
         _lastTime = DateTime.UtcNow;
 
+        SceneManager.ActiveRegistry = _registry;
         SceneManager.Instance.RegisterScene(_registry);
         _snapshotManager.CommitPending(_registry, SceneManager._destroyQueue, SceneManager.ActiveScene, 0f);
 

@@ -16,6 +16,8 @@ public class SceneManager
 
     internal static List<DestroyEntry> _destroyQueue = new();
 
+    internal static ComponentRegistry? ActiveRegistry { get; set; }
+
     public static readonly SceneManager Instance = new();
 
     public SceneManager()
