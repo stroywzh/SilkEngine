@@ -58,7 +58,7 @@ public class EngineLoop : IDisposable
         SceneManager.Instance.RegisterScene(_registry);
         _snapshotManager.CommitPending(
             _registry,
-            SceneManager._destroyQueue,
+            SceneManager.Instance._destroyQueue,
             SceneManager.ActiveScene,
             0f
         );
@@ -109,7 +109,7 @@ public class EngineLoop : IDisposable
             // 帧末尾，记录快照
             _snapshotManager.CommitPending(
                 _registry,
-                SceneManager._destroyQueue,
+                SceneManager.Instance._destroyQueue,
                 SceneManager.ActiveScene,
                 Time.DeltaTime
             );

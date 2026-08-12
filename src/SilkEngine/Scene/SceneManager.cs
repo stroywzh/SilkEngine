@@ -11,17 +11,20 @@ public class SceneManager
         public float Delay;
     }
 
-    internal static List<DestroyEntry> _destroyQueue = new();
+    internal List<DestroyEntry> _destroyQueue = new(); // 实例成员（原 static）
 
     internal static ComponentRegistry? ActiveRegistry { get; set; }
 
-    public static readonly SceneManager Instance = new();
+    public static readonly SceneManager Instance;
 
-    public SceneManager()
+    static SceneManager()
     {
+        Instance = new SceneManager();
         Object.DestroyHandler += (obj, delay) =>
-            _destroyQueue.Add(new DestroyEntry { Target = obj, Delay = delay });
+            Instance._destroyQueue.Add(new DestroyEntry { Target = obj, Delay = delay });
     }
+
+    public SceneManager() { } // 不再订阅
 
     public static Scene? ActiveScene { get; internal set; }
 
@@ -32,6 +35,16 @@ public class SceneManager
 
     public void LoadScene(Scene scene, ComponentRegistry? registry = null)
     {
+        if (ActiveScene != null && registry != null)
+        {
+            foreach (var go in ActiveScene._rootObjects)
+                InvokeRecursive(go, c =>
+                {
+                    registry.Unregister(c);
+                    c._destroyed = true;
+                    c.OnDestroy();
+                });
+        }
         ActiveScene = scene;
         if (registry != null)
         {
@@ -50,7 +63,7 @@ public class SceneManager
         registry.ApplyPending();
     }
 
-    private void InvokeRecursive(GameObject go, Action<Component> action)
+    private static void InvokeRecursive(GameObject go, Action<Component> action)
     {
         foreach (var c in go._components)
             action(c);
@@ -104,21 +117,19 @@ public class SceneManager
         }
     }
 
-    /// <summary>
-    /// 这个东西很麻烦，涉及到后续对于Scripting API等的设计
-    /// </summary>
-    /// <param name="obj"></param>
-    public static void AddObjectToScene(Object obj)
+    /// <summary>运行时向活动场景添加 GameObject（含子树），仅注册；Awake/Enable 由组件工厂保证，不重复触发。</summary>
+    public static bool AddObjectToScene(GameObject go)
     {
-        if (obj is MonoBehaviour mb)
-        {
-            ActiveScene?.AddRootObject(mb.GameObject);
-            foreach (var c in mb.GameObject._components)
-            {
-                c.OnEnable();
-            }
-
-            mb.OnAwake();
-        }
+        if (ActiveScene == null
+            || ActiveScene._rootObjects.Contains(go)
+            || go.Transform.Parent != null)
+            return false;
+        ActiveScene.AddRootObject(go);
+        var registry = ActiveRegistry;
+        InvokeRecursive(go, c => registry?.Register(c));
+        return true;
     }
+
+    /// <summary>便捷重载：从组件定位其 GameObject。</summary>
+    public static bool AddObjectToScene(MonoBehaviour mb) => AddObjectToScene(mb.GameObject);
 }

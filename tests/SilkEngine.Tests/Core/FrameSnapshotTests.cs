@@ -72,7 +72,7 @@ public class FrameSnapshotTests
     [Fact]
     public void CommitPending_DelayedDestroy_RespectsDelay()
     {
-        SceneManager._destroyQueue.Clear();
+        SceneManager.Instance._destroyQueue.Clear();
         var reg = new ComponentRegistry();
         var mgr = new FrameSnapshotManager();
         var scene = new Scene("T");
@@ -82,10 +82,10 @@ public class FrameSnapshotTests
         Object.Destroy(c, 1.0f);
 
         reg.ApplyPending();
-        mgr.CommitPending(reg, SceneManager._destroyQueue, scene, 0.5f);
+        mgr.CommitPending(reg, SceneManager.Instance._destroyQueue, scene, 0.5f);
         Assert.False(c.Destroyed); // 延迟未到
 
-        mgr.CommitPending(reg, SceneManager._destroyQueue, scene, 0.6f);
+        mgr.CommitPending(reg, SceneManager.Instance._destroyQueue, scene, 0.6f);
         Assert.True(c.Destroyed);
         Assert.Empty(reg.GetOfType<DestroyTracker>()); // 已从注册表移除
     }
@@ -93,7 +93,7 @@ public class FrameSnapshotTests
     [Fact]
     public void CommitPending_GameObjectDestroy_RemovesTreeFromRegistry()
     {
-        SceneManager._destroyQueue.Clear();
+        SceneManager.Instance._destroyQueue.Clear();
         var reg = new ComponentRegistry();
         var mgr = new FrameSnapshotManager();
         var scene = new Scene("T");
@@ -106,7 +106,7 @@ public class FrameSnapshotTests
         Object.Destroy(parent);
 
         reg.ApplyPending();
-        mgr.CommitPending(reg, SceneManager._destroyQueue, scene, 0f);
+        mgr.CommitPending(reg, SceneManager.Instance._destroyQueue, scene, 0f);
 
         Assert.True(pc.Destroyed);
         Assert.True(cc.Destroyed);
@@ -131,7 +131,7 @@ public class FrameSnapshotTests
     [Fact]
     public void CommitPending_AfterWarmup_ZeroAllocation()
     {
-        SceneManager._destroyQueue.Clear();
+        SceneManager.Instance._destroyQueue.Clear();
         var reg = new ComponentRegistry();
         var scene = new Scene("T");
         var go = new GameObject();
@@ -140,13 +140,13 @@ public class FrameSnapshotTests
         reg.ApplyPending();
 
         var mgr = new FrameSnapshotManager();
-        mgr.CommitPending(reg, SceneManager._destroyQueue, scene, 0f);
-        mgr.CommitPending(reg, SceneManager._destroyQueue, scene, 0f); // warmup
+        mgr.CommitPending(reg, SceneManager.Instance._destroyQueue, scene, 0f);
+        mgr.CommitPending(reg, SceneManager.Instance._destroyQueue, scene, 0f); // warmup
 
         GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect();
         var before = GC.GetTotalAllocatedBytes();
         for (int i = 0; i < 10; i++)
-            mgr.CommitPending(reg, SceneManager._destroyQueue, scene, 0f);
+            mgr.CommitPending(reg, SceneManager.Instance._destroyQueue, scene, 0f);
         var after = GC.GetTotalAllocatedBytes();
 
         Assert.True(after - before < 16384, $"CommitPending allocated {after - before} bytes over 10 frames");

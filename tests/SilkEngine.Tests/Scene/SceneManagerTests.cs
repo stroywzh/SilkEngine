@@ -68,13 +68,13 @@ public class SceneManagerTests
     [Fact]
     public void Destroy_AfterCommitPending()
     {
-        SceneManager._destroyQueue.Clear();
+        SceneManager.Instance._destroyQueue.Clear();
         var s = new Scene("T"); var go = new GameObject(); var c = go.AddComponent<Tracker>(); s.AddRootObject(go);
         var reg = new ComponentRegistry();
         var mgr = new FrameSnapshotManager();
         SceneManager.Instance.LoadScene(s, reg);
         Object.Destroy(c); Assert.False(c.Destroy);
-        mgr.CommitPending(reg, SceneManager._destroyQueue, s, 0.1f);
+        mgr.CommitPending(reg, SceneManager.Instance._destroyQueue, s, 0.1f);
         Assert.True(c.Destroy);
     }
 
@@ -102,7 +102,7 @@ public class SceneManagerTests
     [Fact]
     public void Destroy_AfterCommitPending_RemovesFromScene()
     {
-        SceneManager._destroyQueue.Clear();
+        SceneManager.Instance._destroyQueue.Clear();
         var s = new Scene("T");
         var go = new GameObject();
         var c = go.AddComponent<Tracker>();
@@ -112,7 +112,7 @@ public class SceneManagerTests
         SceneManager.Instance.LoadScene(s, reg);
 
         Object.Destroy(go);
-        mgr.CommitPending(reg, SceneManager._destroyQueue, s, 0.1f);
+        mgr.CommitPending(reg, SceneManager.Instance._destroyQueue, s, 0.1f);
         Assert.True(c.Destroy);
         Assert.Empty(s.GetRootGameObjects());
     }
@@ -120,7 +120,7 @@ public class SceneManagerTests
     [Fact]
     public void Destroy_Delayed_NotRemovedImmediately()
     {
-        SceneManager._destroyQueue.Clear();
+        SceneManager.Instance._destroyQueue.Clear();
         var s = new Scene("T");
         var go = new GameObject();
         s.AddRootObject(go);
@@ -129,9 +129,9 @@ public class SceneManagerTests
         SceneManager.Instance.LoadScene(s, reg);
 
         Object.Destroy(go, 1f);
-        mgr.CommitPending(reg, SceneManager._destroyQueue, s, 0.5f);
+        mgr.CommitPending(reg, SceneManager.Instance._destroyQueue, s, 0.5f);
         Assert.Single(s.GetRootGameObjects());
-        mgr.CommitPending(reg, SceneManager._destroyQueue, s, 0.6f);
+        mgr.CommitPending(reg, SceneManager.Instance._destroyQueue, s, 0.6f);
         Assert.Empty(s.GetRootGameObjects());
     }
 
@@ -230,5 +230,61 @@ public class SceneManagerTests
         c.Start = false;
         SceneManager.Instance.Tick(mgr.Current, 0.016f);
         Assert.False(c.Start);              // 仅一次
+    }
+
+    [Fact]
+    public void LoadScene_SwitchesUnregistersOldScene()
+    {
+        var reg = new ComponentRegistry();
+        var mgr = new FrameSnapshotManager();
+        var s1 = new Scene("A");
+        var go1 = new GameObject();
+        var c1 = go1.AddComponent<Tracker>();
+        s1.AddRootObject(go1);
+        SceneManager.Instance.LoadScene(s1, reg);
+        mgr.CommitPending(reg, new List<SceneManager.DestroyEntry>(), s1, 0f);
+
+        var s2 = new Scene("B");
+        var go2 = new GameObject();
+        var c2 = go2.AddComponent<Tracker>();
+        s2.AddRootObject(go2);
+        SceneManager.Instance.LoadScene(s2, reg);
+        mgr.CommitPending(reg, new List<SceneManager.DestroyEntry>(), s2, 0f);
+
+        Assert.True(c1.Destroy);                        // 旧场景组件收到 OnDestroy
+        var all = reg.GetOfType<Tracker>();
+        Assert.Single(all);                              // 仅新场景组件在册
+        Assert.Same(c2, all[0]);
+    }
+
+    [Fact]
+    public void AddObjectToScene_RegistersAndRejectsDuplicates()
+    {
+        var reg = new ComponentRegistry();
+        SceneManager.ActiveRegistry = reg;
+        try
+        {
+            var s = new Scene("T");
+            SceneManager.Instance.LoadScene(s, reg);
+            var go = new GameObject();
+            var c = go.AddComponent<AwakeCounter>();
+            Assert.Equal(1, c.AwakeCount);          // 工厂已 Awake
+
+            Assert.True(SceneManager.AddObjectToScene(go));
+            Assert.False(SceneManager.AddObjectToScene(go));   // 重复 → false
+
+            reg.ApplyPending();
+            Assert.Single(reg.GetOfType<AwakeCounter>());       // Register 去重
+        }
+        finally
+        {
+            SceneManager.ActiveRegistry = null;
+        }
+    }
+
+    private class AwakeCounter : MonoBehaviour
+    {
+        public int AwakeCount;
+        public override void OnAwake() => AwakeCount++;
     }
 }
