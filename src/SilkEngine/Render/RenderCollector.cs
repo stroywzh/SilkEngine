@@ -11,13 +11,15 @@ public sealed class RenderBatch
 
 public sealed class RenderCollector
 {
+    private Camera? _defaultCamera;
+
     public void Gather(FrameSnapshot snapshot, out Camera camera, out List<RenderBatch> batches)
     {
         batches = [];
 
         camera = snapshot.GetComponents<Camera>()
             .FirstOrDefault(c => c.GameObject.IsActive)
-            ?? new Camera { Orthographic = true };
+            ?? GetDefaultCamera();
 
         var renderers = snapshot.GetComponents<MeshRenderer>()
             .Where(r => r.Enabled && r.GameObject.IsActive)
@@ -27,5 +29,14 @@ public sealed class RenderCollector
         {
             batches.Add(new RenderBatch { Camera = camera, Renderers = renderers });
         }
+    }
+
+    private Camera GetDefaultCamera()
+    {
+        if (_defaultCamera != null)
+            return _defaultCamera;
+        var host = new GameObject("Default Camera");
+        _defaultCamera = host.AddComponent<Camera>();
+        return _defaultCamera;
     }
 }

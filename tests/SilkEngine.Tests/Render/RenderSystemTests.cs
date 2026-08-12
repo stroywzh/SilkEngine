@@ -15,7 +15,23 @@ public class RenderCollectorTests
 
         collector.Gather(snap, out var camera, out var batches);
         Assert.NotNull(camera);
+        Assert.NotNull(camera.GameObject);
+        Assert.True(camera.Orthographic);
         Assert.Empty(batches);
+
+        camera.UpdateMatrices(800f / 600f);
+    }
+
+    [Fact]
+    public void Gather_DefaultCamera_ReusesInstance()
+    {
+        var collector = new RenderCollector();
+        var snap = new FrameSnapshot();
+        snap.ActiveScene = new Scene("T");
+
+        collector.Gather(snap, out var cam1, out _);
+        collector.Gather(snap, out var cam2, out _);
+        Assert.Same(cam1, cam2);
     }
 
     [Fact]
