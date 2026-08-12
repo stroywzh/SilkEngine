@@ -26,7 +26,7 @@ public sealed class GameObject : Object
         var c = new T();
         c.GameObject = this;
         _components.Add(c);
-        (c as MonoBehaviour)?.OnEnable();
+        c.RecomputeActiveState();
         (registry ?? SceneManager.ActiveRegistry)?.Register(c);
         return c;
     }
@@ -49,8 +49,8 @@ public sealed class GameObject : Object
             return false;
 
         _components.Remove(c);
-        if (c is MonoBehaviour mb && mb.Enabled)
-            mb.OnDisable();
+        if (c.Enabled && c.GameObject.IsActive)
+            c.OnDisable();
         Object.Destroy(c); // 帧末由 CommitPending 执行 OnDestroy + Unregister
         return true;
     }

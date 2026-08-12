@@ -3,11 +3,14 @@ namespace SilkEngine;
 public abstract class Component : Object
 {
     public GameObject GameObject { get; internal set; } = null!;
-
-    // TODO:调用爆null
     public Transform Transform => GameObject.Transform;
 
+    internal bool Awaked;   // OnAwake 已触发
+    internal bool Started;  // OnStart 已触发
+
     private bool _enabled = true;
+    private bool _enableFired;
+
     public bool Enabled
     {
         get => _enabled;
@@ -15,18 +18,31 @@ public abstract class Component : Object
         {
             if (_enabled == value)
                 return;
-
             _enabled = value;
-            if (_enabled)
-                (this as MonoBehaviour)?.OnEnable();
-            else
-                (this as MonoBehaviour)?.OnDisable();
+            RecomputeActiveState();
+        }
+    }
+
+    internal void RecomputeActiveState()
+    {
+        bool shouldBeActive = _enabled && GameObject.IsActive;
+        if (shouldBeActive && !_enableFired)
+        {
+            _enableFired = true;
+            OnEnable();
+        }
+        else if (!shouldBeActive && _enableFired)
+        {
+            _enableFired = false;
+            OnDisable();
         }
     }
 
     public void OnVaildate() { }
 
-    public void OnEnable() { }
+    public virtual void OnEnable() { }
 
-    public void OnDisable() { }
+    public virtual void OnDisable() { }
+
+    public virtual void OnDestroy() { }
 }
