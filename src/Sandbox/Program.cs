@@ -16,8 +16,9 @@ class Program
 
         // -------------------- 逐个取消注释测试 --------------------
 
-        TestThirdPerson3D();
+        // TestSingleCube();
 
+        TestThirdPerson3D();
         // TestNDCTriangle();
         // TestNDCQuad();
         // TestCameraOrtho();
@@ -28,6 +29,43 @@ class Program
         engine.Initialize().Run();
 
         // ======================== 测试方法 ========================
+
+        void TestSingleCube()
+        {
+            var scene = new Scene("SingleCube");
+            SceneManager.Instance.LoadScene(scene);
+
+            var shader = new Shader
+            {
+                Name = "PerspCheck",
+                VertexSource =
+                    @"#version 460 core
+layout(location = 0) in vec3 aPos;
+layout(location = 1) in vec3 aNormal;
+layout(location = 2) in vec2 aTexCoord;
+uniform mat4 uModel;
+uniform mat4 uView;
+uniform mat4 uProjection;
+out vec3 vNormal;
+void main() { gl_Position = uProjection * uView * uModel * vec4(aPos, 1.0); vNormal = aNormal; }",
+                FragmentSource =
+                    @"#version 460 core
+in vec3 vNormal;
+out vec4 FragColor;
+void main() { FragColor = vec4(abs(vNormal), 1.0); }",
+            };
+
+            var cube = new GameObject("Cube");
+            var mr = cube.AddComponent<MeshRenderer>();
+            mr.Shader = shader;
+            mr.Mesh = MeshFactory.CreateCube(1f);
+            scene.AddRootObject(cube);
+
+            var camObj = new GameObject("Cam");
+            camObj.Transform.LocalPosition = new Vector3(3, 2, -5);
+            var cam = camObj.AddComponent<Camera>();
+            scene.AddRootObject(camObj);
+        }
 
         void TestNDCTriangle()
         {
