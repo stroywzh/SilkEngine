@@ -209,4 +209,22 @@ public class GameObjectTests
         Assert.True(child.RemoveComponent<LifecycleTracker>());
         Assert.False(c.Disabled);       // 不应触发无对应的 OnDisable
     }
+
+    [Fact]
+    public void Destroy_AfterCommitPending_GetComponentReturnsNull()
+    {
+        SceneManager._destroyQueue.Clear();
+        var reg = new ComponentRegistry();
+        var mgr = new FrameSnapshotManager();
+        var scene = new Scene("T");
+        var go = new GameObject();
+        var c = go.AddComponent<TestComponent>(reg);
+        scene.AddRootObject(go);
+        reg.ApplyPending();
+        mgr.CommitPending(reg, SceneManager._destroyQueue, scene, 0f);
+
+        Object.Destroy(c);
+        mgr.CommitPending(reg, SceneManager._destroyQueue, scene, 0f);
+        Assert.Null(go.GetComponent<TestComponent>());   // 已从 _components 移除
+    }
 }

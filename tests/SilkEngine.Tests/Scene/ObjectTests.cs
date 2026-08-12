@@ -21,4 +21,15 @@ public class ObjectTests
         Object.Destroy(obj, 0.5f);
         Assert.Same(obj, d); Assert.Equal(0.5f, dl);
     }
+
+    [Fact]
+    public void Destroy_Twice_InvokesHandlerOnce()
+    {
+        int count = 0;
+        Object.DestroyHandler += (o, t) => count++;
+        var obj = new TestObject();
+        Object.Destroy(obj);
+        Object.Destroy(obj);
+        Assert.Equal(1, count);
+    }
 }

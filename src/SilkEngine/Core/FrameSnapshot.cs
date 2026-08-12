@@ -51,14 +51,17 @@ public sealed class FrameSnapshotManager
                 continue;
             }
 
-            if (e.Target is MonoBehaviour mb)
+            if (e.Target is Component c)
             {
-                mb.OnDestroy();
-                registry.Unregister(mb);
+                c.OnDestroy();
+                c._destroyed = true;
+                registry.Unregister(c);
+                c.GameObject._components.Remove(c);
             }
             else if (e.Target is GameObject go)
             {
                 RemoveObjectRecursive(go, registry);
+                go._destroyed = true;
                 activeScene?._rootObjects.Remove(go);
             }
             destroys.RemoveAt(i);
@@ -80,8 +83,10 @@ public sealed class FrameSnapshotManager
         foreach (var c in go._components)
         {
             registry.Unregister(c);
-            (c as MonoBehaviour)?.OnDestroy();
+            c.OnDestroy();
+            c._destroyed = true;
         }
+        go._components.Clear();
         foreach (var child in go.Transform.Children)
             if (child.GameObject is { } cgo)
                 RemoveObjectRecursive(cgo, registry);

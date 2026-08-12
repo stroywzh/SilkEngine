@@ -13,8 +13,14 @@ public abstract class Object
 
     public static event Action<Object, float>? DestroyHandler;
 
+    internal bool _destroyPending;
+    internal bool _destroyed;
+
     public static void Destroy(Object obj, float delay = 0f)
     {
+        if (obj._destroyPending || obj._destroyed)
+            return;                       // 幂等
+        obj._destroyPending = true;
         if (obj is GameObject go)
             DestroyRecursive(go);
         DestroyHandler?.Invoke(obj, delay);
