@@ -157,4 +157,32 @@ public class SceneManagerTests
         public List<int> Order = null!;
         public override void OnUpdate(float dt) => Order.Add(Id);
     }
+
+    [Fact]
+    public void LoadScene_WithRegistry_RegistersComponents()
+    {
+        var reg = new ComponentRegistry();
+        var s = new Scene("T");
+        var go = new GameObject();
+        var c = go.AddComponent<Tracker>();
+        s.AddRootObject(go);
+
+        SceneManager.Instance.LoadScene(s, reg);
+        Assert.Single(reg.GetOfType<Tracker>());
+        Assert.True(c.Awake);
+    }
+
+    [Fact]
+    public void RegisterScene_RegistersAllComponents()
+    {
+        var reg = new ComponentRegistry();
+        var s = new Scene("T");
+        var go = new GameObject();
+        var c = go.AddComponent<Tracker>();
+        s.AddRootObject(go);
+        SceneManager.Instance.LoadScene(s);
+
+        SceneManager.Instance.RegisterScene(reg);
+        Assert.Single(reg.GetOfType<Tracker>());
+    }
 }

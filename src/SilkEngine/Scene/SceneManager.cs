@@ -37,6 +37,36 @@ public class SceneManager
         _fristUpdateFlag = true;
     }
 
+    public void LoadScene(Scene scene, ComponentRegistry? registry = null)
+    {
+        ActiveScene = scene;
+        if (registry != null)
+        {
+            foreach (var go in scene._rootObjects)
+                InvokeRecursive(go, c =>
+                {
+                    registry.Register(c);
+                    (c as MonoBehaviour)?.OnAwake();
+                });
+            registry.ApplyPending();
+        }
+        else
+        {
+            foreach (var go in scene._rootObjects)
+                InvokeRecursive(go, c => (c as MonoBehaviour)?.OnAwake());
+        }
+        _fristUpdateFlag = true;
+    }
+
+    internal void RegisterScene(ComponentRegistry registry)
+    {
+        if (ActiveScene == null)
+            return;
+        foreach (var go in ActiveScene._rootObjects)
+            InvokeRecursive(go, c => registry.Register(c));
+        registry.ApplyPending();
+    }
+
     public void Tick(float dt)
     {
         if (ActiveScene == null)
