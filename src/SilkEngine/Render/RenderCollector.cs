@@ -18,11 +18,11 @@ public sealed class RenderCollector
         batches = [];
 
         camera = snapshot.GetComponents<Camera>()
-            .FirstOrDefault(c => c.GameObject.IsActive)
+            .FirstOrDefault(c => c.GameObject.IsActiveInHierarchy)
             ?? GetDefaultCamera();
 
         var renderers = snapshot.GetComponents<MeshRenderer>()
-            .Where(r => r.Enabled && r.GameObject.IsActive)
+            .Where(r => r.Enabled && r.GameObject.IsActiveInHierarchy)
             .ToList();
 
         if (renderers.Count > 0)

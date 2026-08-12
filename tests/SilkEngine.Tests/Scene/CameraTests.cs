@@ -6,6 +6,7 @@ namespace SilkEngine.Tests.Scene;
 public class CameraTests
 {
     [Fact] public void DefaultFOV_60() => Assert.Equal(60f, new Camera().FieldOfView);
+    [Fact] public void DefaultOrthographic_IsFalse() => Assert.False(new Camera().Orthographic);
     [Fact] public void DefaultClipPlanes() { var c = new Camera(); Assert.Equal(0.1f, c.NearClipPlane); Assert.Equal(1000f, c.FarClipPlane); }
 
     [Fact]

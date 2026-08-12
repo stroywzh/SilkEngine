@@ -16,7 +16,7 @@ public class RenderCollectorTests
         collector.Gather(snap, out var camera, out var batches);
         Assert.NotNull(camera);
         Assert.NotNull(camera.GameObject);
-        Assert.True(camera.Orthographic);
+        Assert.False(camera.Orthographic);
         Assert.Empty(batches);
 
         camera.UpdateMatrices(800f / 600f);
@@ -32,6 +32,30 @@ public class RenderCollectorTests
         collector.Gather(snap, out var cam1, out _);
         collector.Gather(snap, out var cam2, out _);
         Assert.Same(cam1, cam2);
+    }
+
+    [Fact]
+    public void Gather_SkipsRenderersUnderInactiveParent()
+    {
+        var scene = new Scene("T");
+        var parent = new GameObject("P");
+        parent.IsActive = false;
+        var child = new GameObject("C");
+        child.Transform.SetParent(parent.Transform);
+        var mr = child.AddComponent<MeshRenderer>();
+        mr.Enabled = true;
+        scene.AddRootObject(parent);
+
+        var reg = new ComponentRegistry();
+        reg.Register(mr);
+        reg.ApplyPending();
+        var snap = new FrameSnapshot();
+        snap.ActiveScene = scene;
+        reg.RefreshSnapshot(snap);
+
+        var collector = new RenderCollector();
+        collector.Gather(snap, out _, out var batches);
+        Assert.Empty(batches);
     }
 
     [Fact]

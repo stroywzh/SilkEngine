@@ -8,7 +8,7 @@ public class Camera : Component
     public float NearClipPlane { get; set; } = 0.1f;
     public float FarClipPlane { get; set; } = 1000f;
     public float OrthographicSize { get; set; } = 5f;
-    public bool Orthographic { get; set; } = true;
+    public bool Orthographic { get; set; } = false;
     public Matrix4x4 ViewMatrix { get; private set; }
     public Matrix4x4 ProjectionMatrix { get; private set; }
 
