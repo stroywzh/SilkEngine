@@ -2,6 +2,7 @@ using System;
 using System.Runtime.InteropServices;
 
 namespace SilkEngine.Render.OpenGL;
+
 [Obsolete]
 /// <summary>
 /// Win32 窗口操作辅助

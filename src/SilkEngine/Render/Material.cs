@@ -8,7 +8,7 @@ namespace SilkEngine.Render;
 public class Material
 {
     /// <summary>材质标识名称</summary>
-    public string Name { get; init; } = "";
+    public string Name { get; init; } = string.Empty;
 
     /// <summary>浮点类型 uniform 参数</summary>
     public Dictionary<string, float> Floats { get; } = new();
@@ -27,7 +27,24 @@ public class Material
 
     /// <summary>设置 Matrix4x4 uniform 值</summary>
     public void SetMatrix4x4(string name, Matrix4x4 value) =>
-        Matrices[name] = [value.M11, value.M12, value.M13, value.M14, value.M21, value.M22, value.M23, value.M24, value.M31, value.M32, value.M33, value.M34, value.M41, value.M42, value.M43, value.M44];
+        Matrices[name] = [
+            value.M11,
+            value.M12,
+            value.M13,
+            value.M14,
+            value.M21,
+            value.M22,
+            value.M23,
+            value.M24,
+            value.M31,
+            value.M32,
+            value.M33,
+            value.M34,
+            value.M41,
+            value.M42,
+            value.M43,
+            value.M44,
+        ];
 
     private int? _hash;
 
@@ -37,8 +54,16 @@ public class Material
         {
             var h = new HashCode();
             h.Add(Name);
-            foreach (var kv in Floats) { h.Add(kv.Key); h.Add(kv.Value); }
-            foreach (var kv in Vectors) { h.Add(kv.Key); h.Add(kv.Value.GetHashCode()); }
+            foreach (var kv in Floats)
+            {
+                h.Add(kv.Key);
+                h.Add(kv.Value);
+            }
+            foreach (var kv in Vectors)
+            {
+                h.Add(kv.Key);
+                h.Add(kv.Value.GetHashCode());
+            }
             h.Add(Matrices.Count);
             _hash = h.ToHashCode();
         }
@@ -47,16 +72,24 @@ public class Material
 
     public override bool Equals(object? obj)
     {
-        if (obj is not Material m) return false;
-        if (Name != m.Name || Floats.Count != m.Floats.Count
-            || Vectors.Count != m.Vectors.Count || Matrices.Count != m.Matrices.Count)
+        if (obj is not Material m)
+            return false;
+        if (
+            Name != m.Name
+            || Floats.Count != m.Floats.Count
+            || Vectors.Count != m.Vectors.Count
+            || Matrices.Count != m.Matrices.Count
+        )
             return false;
         foreach (var kv in Floats)
-            if (!m.Floats.TryGetValue(kv.Key, out var v) || kv.Value != v) return false;
+            if (!m.Floats.TryGetValue(kv.Key, out var v) || kv.Value != v)
+                return false;
         foreach (var kv in Vectors)
-            if (!m.Vectors.TryGetValue(kv.Key, out var v) || kv.Value != v) return false;
+            if (!m.Vectors.TryGetValue(kv.Key, out var v) || kv.Value != v)
+                return false;
         foreach (var kv in Matrices)
-            if (!m.Matrices.TryGetValue(kv.Key, out var a) || kv.Value.Length != a.Length) return false;
+            if (!m.Matrices.TryGetValue(kv.Key, out var a) || kv.Value.Length != a.Length)
+                return false;
         return true;
     }
 }

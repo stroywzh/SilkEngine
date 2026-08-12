@@ -14,7 +14,8 @@ public sealed class GameObject : Object
         Transform = new Transform { GameObject = this };
     }
 
-    public T AddComponent<T>() where T : Component, new()
+    public T AddComponent<T>()
+        where T : Component, new()
     {
         var c = new T();
         c.GameObject = this;
@@ -23,17 +24,25 @@ public sealed class GameObject : Object
         return c;
     }
 
-    public T? GetComponent<T>() where T : Component
+    public T? GetComponent<T>()
+        where T : Component
     {
         foreach (var c in _components)
-            if (c is T t) return t;
+            if (c is T t)
+                return t;
+
         return null;
     }
 
-    public bool RemoveComponent<T>() where T : Component
+    public bool RemoveComponent<T>()
+        where T : Component
     {
         var c = GetComponent<T>();
-        if (c != null) { _components.Remove(c); return true; }
+        if (c != null)
+        {
+            _components.Remove(c);
+            return true;
+        }
         return false;
     }
 }

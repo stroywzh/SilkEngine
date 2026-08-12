@@ -4,11 +4,17 @@ namespace SilkEngine.Math;
 
 public struct Quaternion : IEquatable<Quaternion>
 {
-    public float X, Y, Z, W;
+    public float X,
+        Y,
+        Z,
+        W;
 
     public Quaternion(float x, float y, float z, float w)
     {
-        X = x; Y = y; Z = z; W = w;
+        X = x;
+        Y = y;
+        Z = z;
+        W = w;
     }
 
     public static readonly Quaternion Identity = new(0, 0, 0, 1);
@@ -19,9 +25,12 @@ public struct Quaternion : IEquatable<Quaternion>
         float halfY = yaw * MathF.PI / 360f;
         float halfZ = roll * MathF.PI / 360f;
 
-        float cx = MathF.Cos(halfX), sx = MathF.Sin(halfX);
-        float cy = MathF.Cos(halfY), sy = MathF.Sin(halfY);
-        float cz = MathF.Cos(halfZ), sz = MathF.Sin(halfZ);
+        float cx = MathF.Cos(halfX),
+            sx = MathF.Sin(halfX);
+        float cy = MathF.Cos(halfY),
+            sy = MathF.Sin(halfY);
+        float cz = MathF.Cos(halfZ),
+            sz = MathF.Sin(halfZ);
 
         return new Quaternion(
             sx * cy * cz - cx * sy * sz,
@@ -49,10 +58,14 @@ public struct Quaternion : IEquatable<Quaternion>
 
     public static bool operator ==(Quaternion a, Quaternion b) =>
         a.X == b.X && a.Y == b.Y && a.Z == b.Z && a.W == b.W;
+
     public static bool operator !=(Quaternion a, Quaternion b) => !(a == b);
 
     public bool Equals(Quaternion other) => this == other;
+
     public override bool Equals(object? obj) => obj is Quaternion q && Equals(q);
+
     public override int GetHashCode() => HashCode.Combine(X, Y, Z, W);
+
     public override string ToString() => $"({X}, {Y}, {Z}, {W})";
 }

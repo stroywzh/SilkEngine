@@ -1,14 +1,17 @@
 using SilkEngine;
+using SilkEngine.InputSystem;
 using SilkEngine.Math;
 using SilkEngine.Render;
 using SilkEngine.Render.OpenGL;
 
 var backend = new OpenGLRenderBackend();
 var engine = new EngineLoop(backend);
+Input.EnableLog = true;
 
 // -------------------- 逐个取消注释测试 --------------------
 
 TestNDCTriangle();
+
 // TestNDCQuad();
 // TestCameraOrtho();
 // TestCameraPerspective();
@@ -27,15 +30,17 @@ void TestNDCTriangle()
     var shader = new Shader
     {
         Name = "NDC",
-        VertexSource = @"#version 460 core
+        VertexSource =
+            @"#version 460 core
 layout(location = 0) in vec3 aPos;
 layout(location = 1) in vec3 aColor;
 out vec3 vColor;
 void main() { gl_Position = vec4(aPos, 1.0); vColor = aColor; }",
-        FragmentSource = @"#version 460 core
+        FragmentSource =
+            @"#version 460 core
 in vec3 vColor;
 out vec4 FragColor;
-void main() { FragColor = vec4(vColor, 1.0); }"
+void main() { FragColor = vec4(vColor, 1.0); }",
     };
 
     var mesh = new Mesh
@@ -43,11 +48,26 @@ void main() { FragColor = vec4(vColor, 1.0); }"
         Name = "Triangle",
         Vertices = new float[]
         {
-            -0.5f, -0.5f, 0,  1,0,0,
-             0.5f, -0.5f, 0,  0,1,0,
-             0.0f,  0.5f, 0,  0,0,1
+            -0.5f,
+            -0.5f,
+            0,
+            1,
+            0,
+            0,
+            0.5f,
+            -0.5f,
+            0,
+            0,
+            1,
+            0,
+            0.0f,
+            0.5f,
+            0,
+            0,
+            0,
+            1,
         },
-        Layout = new[] { 3, 3 }
+        Layout = new[] { 3, 3 },
     };
 
     var go = new GameObject("TriangleObj");
@@ -65,15 +85,17 @@ void TestNDCQuad()
     var shader = new Shader
     {
         Name = "NDC_Quad",
-        VertexSource = @"#version 460 core
+        VertexSource =
+            @"#version 460 core
 layout(location = 0) in vec3 aPos;
 layout(location = 1) in vec2 aTexCoord;
 out vec2 vTexCoord;
 void main() { gl_Position = vec4(aPos, 1.0); vTexCoord = aTexCoord; }",
-        FragmentSource = @"#version 460 core
+        FragmentSource =
+            @"#version 460 core
 in vec2 vTexCoord;
 out vec4 FragColor;
-void main() { FragColor = vec4(vTexCoord.x, vTexCoord.y, 0.3, 1.0); }"
+void main() { FragColor = vec4(vTexCoord.x, vTexCoord.y, 0.3, 1.0); }",
     };
 
     var mesh = MeshFactory.CreateQuad(1.6f, 1.2f);
@@ -92,7 +114,8 @@ void TestCameraOrtho()
     var shader = new Shader
     {
         Name = "Cam",
-        VertexSource = @"#version 460 core
+        VertexSource =
+            @"#version 460 core
 layout(location = 0) in vec3 aPos;
 layout(location = 1) in vec2 aTexCoord;
 uniform mat4 uModel;
@@ -100,10 +123,11 @@ uniform mat4 uView;
 uniform mat4 uProjection;
 out vec2 vTexCoord;
 void main() { gl_Position = uProjection * uView * uModel * vec4(aPos, 1.0); vTexCoord = aTexCoord; }",
-        FragmentSource = @"#version 460 core
+        FragmentSource =
+            @"#version 460 core
 in vec2 vTexCoord;
 out vec4 FragColor;
-void main() { FragColor = vec4(vTexCoord.x, vTexCoord.y, 0.3, 1.0); }"
+void main() { FragColor = vec4(vTexCoord.x, vTexCoord.y, 0.3, 1.0); }",
     };
 
     var mat = new Material { Name = "Mat" };
@@ -131,7 +155,8 @@ void TestCameraPerspective()
     var shader = new Shader
     {
         Name = "Persp",
-        VertexSource = @"#version 460 core
+        VertexSource =
+            @"#version 460 core
 layout(location = 0) in vec3 aPos;
 layout(location = 1) in vec3 aNormal;
 layout(location = 2) in vec2 aTexCoord;
@@ -140,10 +165,11 @@ uniform mat4 uView;
 uniform mat4 uProjection;
 out vec3 vNormal;
 void main() { gl_Position = uProjection * uView * uModel * vec4(aPos, 1.0); vNormal = aNormal; }",
-        FragmentSource = @"#version 460 core
+        FragmentSource =
+            @"#version 460 core
 in vec3 vNormal;
 out vec4 FragColor;
-void main() { FragColor = vec4(abs(vNormal), 1.0); }"
+void main() { FragColor = vec4(abs(vNormal), 1.0); }",
     };
 
     var mat = new Material { Name = "Mat" };

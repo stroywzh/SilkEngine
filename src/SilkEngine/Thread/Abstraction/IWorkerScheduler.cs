@@ -6,6 +6,9 @@ namespace SilkEngine.Threading;
 
 public interface IWorkerScheduler
 {
-    void Schedule(Func<Task> work, WorkPriority priority = WorkPriority.Normal,
-        CancellationToken ct = default);
+    void Schedule(
+        Func<Task> work,
+        WorkPriority priority = WorkPriority.Normal,
+        CancellationToken ct = default
+    );
 }

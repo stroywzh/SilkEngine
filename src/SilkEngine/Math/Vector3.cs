@@ -4,7 +4,9 @@ namespace SilkEngine.Math;
 
 public struct Vector3 : IEquatable<Vector3>
 {
-    public float X, Y, Z;
+    public float X,
+        Y,
+        Z;
 
     public Vector3(float x, float y, float z)
     {
@@ -28,9 +30,13 @@ public struct Vector3 : IEquatable<Vector3>
     public static readonly Vector3 Back = new(0, 0, -1);
 
     public static Vector3 operator +(Vector3 a, Vector3 b) => new(a.X + b.X, a.Y + b.Y, a.Z + b.Z);
+
     public static Vector3 operator -(Vector3 a, Vector3 b) => new(a.X - b.X, a.Y - b.Y, a.Z - b.Z);
+
     public static Vector3 operator -(Vector3 v) => new(-v.X, -v.Y, -v.Z);
+
     public static Vector3 operator *(Vector3 v, float s) => new(v.X * s, v.Y * s, v.Z * s);
+
     public static Vector3 operator *(float s, Vector3 v) => v * s;
 
     public static float Dot(Vector3 a, Vector3 b) => a.X * b.X + a.Y * b.Y + a.Z * b.Z;
@@ -42,12 +48,15 @@ public struct Vector3 : IEquatable<Vector3>
 
     public static Vector3 Lerp(Vector3 a, Vector3 b, float t) => a + (b - a) * t;
 
-    public static bool operator ==(Vector3 a, Vector3 b) =>
-        a.X == b.X && a.Y == b.Y && a.Z == b.Z;
+    public static bool operator ==(Vector3 a, Vector3 b) => a.X == b.X && a.Y == b.Y && a.Z == b.Z;
+
     public static bool operator !=(Vector3 a, Vector3 b) => !(a == b);
 
     public bool Equals(Vector3 other) => this == other;
+
     public override bool Equals(object? obj) => obj is Vector3 v && Equals(v);
+
     public override int GetHashCode() => HashCode.Combine(X, Y, Z);
+
     public override string ToString() => $"({X}, {Y}, {Z})";
 }

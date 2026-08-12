@@ -9,8 +9,12 @@ public static class Mathf
 
     public static float Clamp(float value, float min, float max)
     {
-        if (value < min) return min;
-        if (value > max) return max;
+        if (value < min)
+            return min;
+
+        if (value > max)
+            return max;
+
         return value;
     }
 
@@ -18,5 +22,8 @@ public static class Mathf
 
     public static float Abs(float v) => v < 0 ? -v : v;
 
-    public static float Sign(float v) => v > 0 ? 1f : v < 0 ? -1f : 0f;
+    public static float Sign(float v) =>
+        v > 0 ? 1f
+        : v < 0 ? -1f
+        : 0f;
 }

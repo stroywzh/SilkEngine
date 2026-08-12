@@ -54,6 +54,7 @@ public abstract class RenderBackendBase : IRenderBackend
     {
         if (_disposed)
             return;
+
         _disposed = true;
     }
 }

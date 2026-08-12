@@ -78,6 +78,7 @@ public class OpenGLRenderBackend : RenderBackendBase
     {
         if (_gl == null)
             return;
+
         _gl.Enable(GLEnum.DepthTest);
         _gl.Viewport(0, 0, (uint)Width, (uint)Height);
         _gl.ClearColor(_clearR, _clearG, _clearB, _clearA);
@@ -111,9 +112,13 @@ public class OpenGLRenderBackend : RenderBackendBase
             }
 
             if (glMaterial != null)
+            {
                 glMaterial.Apply();
+            }
             else
+            {
                 glShader.Use();
+            }
 
             if (cmd is SingleDrawCommand sdc && sdc.ModelMatrix.HasValue)
             {
@@ -125,12 +130,27 @@ public class OpenGLRenderBackend : RenderBackendBase
                     {
                         float[] mat =
                         [
-                            m.M11, m.M12, m.M13, m.M14,
-                            m.M21, m.M22, m.M23, m.M24,
-                            m.M31, m.M32, m.M33, m.M34,
-                            m.M41, m.M42, m.M43, m.M44
+                            m.M11,
+                            m.M12,
+                            m.M13,
+                            m.M14,
+                            m.M21,
+                            m.M22,
+                            m.M23,
+                            m.M24,
+                            m.M31,
+                            m.M32,
+                            m.M33,
+                            m.M34,
+                            m.M41,
+                            m.M42,
+                            m.M43,
+                            m.M44,
                         ];
-                        fixed (float* p = mat) _gl.UniformMatrix4(loc, 1, false, p);
+                        fixed (float* p = mat)
+                        {
+                            _gl.UniformMatrix4(loc, 1, false, p);
+                        }
                     }
                 }
             }
@@ -144,11 +164,17 @@ public class OpenGLRenderBackend : RenderBackendBase
     public override void Dispose()
     {
         foreach (var s in _shaderCache.Values)
+        {
             s.Dispose();
+        }
         foreach (var m in _meshCache.Values)
+        {
             m.Dispose();
+        }
         foreach (var m in _materialCache.Values)
+        {
             m.Dispose();
+        }
         _shaderCache.Clear();
         _meshCache.Clear();
         _materialCache.Clear();

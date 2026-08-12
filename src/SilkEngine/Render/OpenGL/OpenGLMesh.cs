@@ -7,7 +7,9 @@ namespace SilkEngine.Render.OpenGL;
 public class OpenGLMesh : IMesh
 {
     private readonly GL _gl;
-    private readonly uint _vao, _vbo, _ebo;
+    private readonly uint _vao,
+        _vbo,
+        _ebo;
     private readonly bool _hasIndices;
     private bool _disposed;
 
@@ -28,13 +30,24 @@ public class OpenGLMesh : IMesh
 
         gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbo);
         fixed (float* v = vertices)
-            gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(vertices.Length * sizeof(float)), v, BufferUsageARB.StaticDraw);
+            gl.BufferData(
+                BufferTargetARB.ArrayBuffer,
+                (nuint)(vertices.Length * sizeof(float)),
+                v,
+                BufferUsageARB.StaticDraw
+            );
 
         int offset = 0;
         for (int i = 0; i < layout.Length; i++)
         {
-            gl.VertexAttribPointer((uint)i, layout[i], VertexAttribPointerType.Float, false,
-                (uint)(stride * sizeof(float)), (void*)(offset * sizeof(float)));
+            gl.VertexAttribPointer(
+                (uint)i,
+                layout[i],
+                VertexAttribPointerType.Float,
+                false,
+                (uint)(stride * sizeof(float)),
+                (void*)(offset * sizeof(float))
+            );
             gl.EnableVertexAttribArray((uint)i);
             offset += layout[i];
         }
@@ -46,10 +59,19 @@ public class OpenGLMesh : IMesh
             gl.BindBuffer(BufferTargetARB.ElementArrayBuffer, _ebo);
             var indices = data.Indices!;
             fixed (int* idx = indices)
-                gl.BufferData(BufferTargetARB.ElementArrayBuffer, (nuint)(indices.Length * sizeof(int)), idx, BufferUsageARB.StaticDraw);
+                gl.BufferData(
+                    BufferTargetARB.ElementArrayBuffer,
+                    (nuint)(indices.Length * sizeof(int)),
+                    idx,
+                    BufferUsageARB.StaticDraw
+                );
             IndexCount = indices.Length;
         }
-        else { _ebo = 0; IndexCount = 0; }
+        else
+        {
+            _ebo = 0;
+            IndexCount = 0;
+        }
 
         gl.BindVertexArray(0);
         gl.BindBuffer(BufferTargetARB.ArrayBuffer, 0);
@@ -60,27 +82,52 @@ public class OpenGLMesh : IMesh
     public unsafe void Draw()
     {
         _gl.BindVertexArray(_vao);
-        if (_hasIndices) _gl.DrawElements(PrimitiveType.Triangles, (uint)IndexCount, DrawElementsType.UnsignedInt, null);
-        else _gl.DrawArrays(PrimitiveType.Triangles, 0, (uint)VertexCount);
+        if (_hasIndices)
+            _gl.DrawElements(
+                PrimitiveType.Triangles,
+                (uint)IndexCount,
+                DrawElementsType.UnsignedInt,
+                null
+            );
+        else
+        {
+            _gl.DrawArrays(PrimitiveType.Triangles, 0, (uint)VertexCount);
+        }
         _gl.BindVertexArray(0);
     }
 
     public unsafe void DrawInstanced(int instanceCount)
     {
         _gl.BindVertexArray(_vao);
-        if (_hasIndices) _gl.DrawElementsInstanced(PrimitiveType.Triangles, (uint)IndexCount, DrawElementsType.UnsignedInt, null, (uint)instanceCount);
-        else _gl.DrawArraysInstanced(PrimitiveType.Triangles, 0, (uint)VertexCount, (uint)instanceCount);
+        if (_hasIndices)
+            _gl.DrawElementsInstanced(
+                PrimitiveType.Triangles,
+                (uint)IndexCount,
+                DrawElementsType.UnsignedInt,
+                null,
+                (uint)instanceCount
+            );
+        else
+            _gl.DrawArraysInstanced(
+                PrimitiveType.Triangles,
+                0,
+                (uint)VertexCount,
+                (uint)instanceCount
+            );
         _gl.BindVertexArray(0);
     }
 
     public void Dispose()
     {
-        if (!_disposed)
+        if (_disposed)
+            return;
+
+        _gl.DeleteBuffer(_vbo);
+        if (_ebo != 0)
         {
-            _gl.DeleteBuffer(_vbo);
-            if (_ebo != 0) _gl.DeleteBuffer(_ebo);
-            _gl.DeleteVertexArray(_vao);
-            _disposed = true;
+            _gl.DeleteBuffer(_ebo);
         }
+        _gl.DeleteVertexArray(_vao);
+        _disposed = true;
     }
 }

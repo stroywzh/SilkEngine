@@ -7,7 +7,7 @@ public abstract class Object
 {
     private static int _nextID = 0;
     private readonly int _id = Interlocked.Increment(ref _nextID);
-    public string Name { get; set; } = "";
+    public string Name { get; set; } = string.Empty;
 
     public int GetInstanceID() => _id;
 
@@ -45,4 +45,3 @@ public abstract class Object
         throw new NotSupportedException($"Instantiate not supported for {original.GetType()}");
     }
 }
-

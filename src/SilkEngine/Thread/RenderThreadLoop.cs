@@ -20,7 +20,7 @@ public class RenderThreadLoop : IDisposable
     public int Width => _backend.Width;
     public int Height => _backend.Height;
 
-    public int PID =>Process.GetCurrentProcess().Id;
+    public int PID => Process.GetCurrentProcess().Id;
 
     /// <summary>渲染后端实例</summary>
     public IRenderBackend Backend => _backend;

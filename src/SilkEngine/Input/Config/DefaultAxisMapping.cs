@@ -2,12 +2,17 @@ namespace SilkEngine.InputSystem;
 
 public static class DefaultAxisMapping
 {
-    public record AxisConfig(string Name, KeyCode Positive, KeyCode Negative,
-        float Sensitivity = 1f, float Gravity = 3f);
+    public record AxisConfig(
+        string name,
+        KeyCode positive,
+        KeyCode negative,
+        float sensitivity = 1f,
+        float gravity = 3f
+    );
 
     public static readonly AxisConfig[] DefaultAxes =
     [
         new("Horizontal", KeyCode.D, KeyCode.A),
-        new("Vertical",   KeyCode.W, KeyCode.S),
+        new("Vertical", KeyCode.W, KeyCode.S),
     ];
 }

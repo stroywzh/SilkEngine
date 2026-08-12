@@ -7,13 +7,13 @@ namespace SilkEngine.Render;
 public class Shader
 {
     /// <summary>着色器标识名称</summary>
-    public string Name { get; init; } = "";
+    public string Name { get; init; } = string.Empty;
 
     /// <summary>顶点着色器 GLSL 源码</summary>
-    public string VertexSource { get; init; } = "";
+    public string VertexSource { get; init; } = string.Empty;
 
     /// <summary>片段着色器 GLSL 源码</summary>
-    public string FragmentSource { get; init; } = "";
+    public string FragmentSource { get; init; } = string.Empty;
 
     /// <summary>着色器入口函数名</summary>
     public string EntryPoint { get; init; } = "main";

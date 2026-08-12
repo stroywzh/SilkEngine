@@ -11,7 +11,9 @@ public abstract class Component : Object
         get => _enabled;
         set
         {
-            if (_enabled == value) return;
+            if (_enabled == value)
+                return;
+
             _enabled = value;
             if (_enabled)
                 (this as MonoBehaviour)?.OnEnable();

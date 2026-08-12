@@ -77,4 +77,3 @@ public sealed class Transform
             c.NotifyChildren();
     }
 }
-

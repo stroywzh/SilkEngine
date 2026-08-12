@@ -34,6 +34,7 @@ public static class SceneManager
     {
         if (ActiveScene == null)
             return;
+
         foreach (var go in ActiveScene._rootObjects)
             InvokeRecursive(
                 go,
@@ -49,6 +50,7 @@ public static class SceneManager
     {
         if (ActiveScene == null)
             return;
+
         foreach (var go in ActiveScene._rootObjects)
             InvokeRecursive(
                 go,
@@ -64,6 +66,7 @@ public static class SceneManager
     {
         if (ActiveScene == null)
             return;
+
         foreach (var go in ActiveScene._rootObjects)
             InvokeRecursive(
                 go,
@@ -79,6 +82,7 @@ public static class SceneManager
     {
         if (ActiveScene == null)
             return;
+
         foreach (var go in ActiveScene._rootObjects)
             InvokeRecursive(
                 go,
@@ -95,6 +99,7 @@ public static class SceneManager
     {
         if (ActiveScene == null)
             return;
+
         foreach (var go in ActiveScene._rootObjects)
             InvokeRecursive(
                 go,

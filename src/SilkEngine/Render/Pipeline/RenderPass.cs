@@ -6,7 +6,7 @@ namespace SilkEngine.Render;
 public class RenderPass
 {
     /// <summary>Pass 标识名称。</summary>
-    public string Name { get; init; } = "";
+    public string Name { get; init; } = string.Empty;
 
     /// <summary>排序键，值越小越先执行。</summary>
     public int SortOrder { get; init; }

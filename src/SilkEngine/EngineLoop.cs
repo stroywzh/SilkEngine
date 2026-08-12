@@ -9,7 +9,7 @@ namespace SilkEngine;
 
 public class EngineLoop : IDisposable
 {
-    private int pid => Process.GetCurrentProcess().Id;
+    private static int Pid => Process.GetCurrentProcess().Id;
     private readonly RenderThreadLoop _renderThreadLoop;
     private readonly LogicLoop _logicLoop;
     private readonly EngineThreadPool _workerPool = new(2);
@@ -64,7 +64,7 @@ public class EngineLoop : IDisposable
         }
 
         Log.Info(
-            $"[EngineLoop]: EngineLoop Started. Managed threads: \nMain(heartbeat):PID{pid}\nWorkerThreadCount:{_workerPool.WorkerThreadCount}\nRenderThread:PID{_renderThreadLoop.PID}."
+            $"[EngineLoop]: EngineLoop Started. Managed threads: \nMain(heartbeat):PID{Pid}\nWorkerThreadCount:{_workerPool.WorkerThreadCount}\nRenderThread:PID{_renderThreadLoop.PID}."
         );
 
         while (!_renderThreadLoop.ShouldClose && !_stopRequested)
