@@ -21,12 +21,14 @@ public sealed class Transform
     {
         GameObject = go;
         _parent = parent;
+        parent._children.Add(this);
     }
 
     public Transform(GameObject go, GameObject parent)
     {
         GameObject = go;
         _parent = parent.Transform;
+        parent.Transform._children.Add(this);
     }
 
     public Vector3 LocalPosition

@@ -86,7 +86,7 @@ public sealed class GameObject : Object
             return false;
 
         _components.Remove(c);
-        if (c.Enabled && c.GameObject.IsActive)
+        if (c.Enabled && c.GameObject.IsActiveInHierarchy)
             c.OnDisable();
         Object.Destroy(c); // 帧末由 CommitPending 执行 OnDestroy + Unregister
         return true;

@@ -183,4 +183,30 @@ public class GameObjectTests
         child.Transform.SetParent(parent.Transform);
         Assert.True(c.Disabled);       // 转移到失活父级下 → 失活
     }
+
+    [Fact]
+    public void CtorWithParent_CascadesDeactivation()
+    {
+        var parent = new GameObject("P");
+        var child = new GameObject(parent.Transform, "C");
+        var c = child.AddComponent<LifecycleTracker>();
+        Assert.True(c.EnableCalled);
+
+        parent.IsActive = false;
+        Assert.True(c.Disabled);
+    }
+
+    [Fact]
+    public void RemoveComponent_UnderInactiveParent_NoDisableFired()
+    {
+        SceneManager._destroyQueue.Clear();
+        var parent = new GameObject("P");
+        parent.IsActive = false;
+        var child = new GameObject(parent.Transform, "C");
+        var c = child.AddComponent<LifecycleTracker>();
+        Assert.False(c.EnableCalled);   // 父级失活 → 从未 Enable
+
+        Assert.True(child.RemoveComponent<LifecycleTracker>());
+        Assert.False(c.Disabled);       // 不应触发无对应的 OnDisable
+    }
 }
