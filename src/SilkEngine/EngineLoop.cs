@@ -13,6 +13,9 @@ public class EngineLoop : IDisposable
     private readonly RenderThreadLoop _renderThreadLoop;
     private readonly LogicLoop _logicLoop;
     private readonly EngineThreadPool _workerPool = new(2);
+    private readonly FrameSnapshotManager _snapshotManager = new();
+    private readonly ComponentRegistry _registry = new();
+    private RenderSystem? _renderSystem;
     private DateTime _lastTime;
     private volatile bool _stopRequested,
         _paused,
@@ -51,6 +54,11 @@ public class EngineLoop : IDisposable
 
         _stopRequested = false;
         _lastTime = DateTime.UtcNow;
+
+        _renderSystem = new RenderSystem(Render.Backend);
+        SceneManager.Instance.RegisterScene(_registry);
+        _snapshotManager.CommitPending(_registry, SceneManager._destroyQueue, SceneManager.ActiveScene, 0f);
+
         _canStart = true;
         return this;
     }
@@ -88,9 +96,11 @@ public class EngineLoop : IDisposable
 
             Input.Update();
 
-            _logicLoop.Tick(Time.DeltaTime);
-            OnRender();
-            _logicLoop.LateTick(Time.DeltaTime);
+            _logicLoop.TickWithSnapshot(Time.DeltaTime, _snapshotManager.Current, _registry);
+            _renderSystem!.Render(_snapshotManager.Current);
+            _logicLoop.LateTickWithSnapshot(Time.DeltaTime, _snapshotManager.Current, _registry);
+
+            _snapshotManager.CommitPending(_registry, SceneManager._destroyQueue, SceneManager.ActiveScene, Time.DeltaTime);
         }
     }
 
@@ -102,7 +112,7 @@ public class EngineLoop : IDisposable
         return System.Math.Min(dt, 0.1f);
     }
 
-    Camera mainCam = new();
+    // Camera mainCam = new();
     /// <summary>
     /// 很显然这里这个东西需要拆除去，就光凭这个camera每帧都要寻找就是纯拖累来的
     /// </summary>
