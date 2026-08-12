@@ -43,11 +43,14 @@ public class SceneManager
         if (registry != null)
         {
             foreach (var go in scene._rootObjects)
-                InvokeRecursive(go, c =>
-                {
-                    registry.Register(c);
-                    (c as MonoBehaviour)?.OnAwake();
-                });
+                InvokeRecursive(
+                    go,
+                    c =>
+                    {
+                        registry.Register(c);
+                        (c as MonoBehaviour)?.OnAwake();
+                    }
+                );
             registry.ApplyPending();
         }
         else
@@ -111,11 +114,32 @@ public class SceneManager
     {
         foreach (var g in snapshot.Groups)
         {
-            if (g.ComponentType != typeof(MonoBehaviour) && !g.ComponentType.IsSubclassOf(typeof(MonoBehaviour)))
+            if (
+                g.ComponentType != typeof(MonoBehaviour)
+                && !g.ComponentType.IsSubclassOf(typeof(MonoBehaviour))
+            )
                 continue;
             foreach (var c in g.Components)
                 if (c is MonoBehaviour mb && mb.GameObject.IsActive && mb.Enabled)
                     yield return mb;
+        }
+    }
+
+    /// <summary>
+    /// 这个东西很麻烦，涉及到后续对于Scripting API等的设计
+    /// </summary>
+    /// <param name="obj"></param>
+    public static void AddObjectToScene(Object obj)
+    {
+        if (obj is MonoBehaviour mb)
+        {
+            ActiveScene?.AddRootObject(mb.GameObject);
+            foreach (var c in mb.GameObject._components)
+            {
+                c.OnEnable();
+            }
+
+            mb.OnAwake();
         }
     }
 }

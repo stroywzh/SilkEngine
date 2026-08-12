@@ -8,7 +8,8 @@ public class DEBUG_scripts : MonoBehaviour
 {
     public override void OnAwake()
     {
-        Log.Info("Hello World!");
+        // throw new Exception();
+        Log.Error("Hello World!");
     }
 
     public override void OnUpdate(float deltaTime)
@@ -17,8 +18,8 @@ public class DEBUG_scripts : MonoBehaviour
         {
             if (Input.GetKey(KeyCode.W))
             {
-                this.Transform.LocalPosition += Vector3.Up;
-                Log.Info(Transform.Position);
+                // this.Transform.LocalPosition += Vector3.Up;
+                // Log.Info(Transform.Position);
             }
         }
         else

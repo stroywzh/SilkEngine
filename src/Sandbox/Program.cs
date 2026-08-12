@@ -82,7 +82,8 @@ void main() { FragColor = vec4(vColor, 1.0); }",
 
             mr.Shader = shader;
             mr.Mesh = mesh;
-            scene.AddRootObject(go);
+            // scene.AddRootObject(go);
+            SceneManager.AddObjectToScene(go);
         }
 
         void TestNDCQuad()

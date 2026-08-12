@@ -3,6 +3,7 @@ namespace SilkEngine;
 public abstract class Component : Object
 {
     public GameObject GameObject { get; internal set; } = null!;
+
     // TODO:调用爆null
     public Transform Transform => GameObject.Transform;
 
@@ -24,4 +25,8 @@ public abstract class Component : Object
     }
 
     public void OnVaildate() { }
+
+    public void OnEnable() { }
+
+    public void OnDisable() { }
 }

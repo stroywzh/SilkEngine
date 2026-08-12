@@ -1,7 +1,8 @@
 using System;
+using System.Runtime.InteropServices;
 
 namespace SilkEngine.Math;
-
+[StructLayout(LayoutKind.Sequential)]
 public struct Vector3 : IEquatable<Vector3>
 {
     public float X,

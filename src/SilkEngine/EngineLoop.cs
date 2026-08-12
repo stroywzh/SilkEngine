@@ -56,7 +56,12 @@ public class EngineLoop : IDisposable
 
         SceneManager.ActiveRegistry = _registry;
         SceneManager.Instance.RegisterScene(_registry);
-        _snapshotManager.CommitPending(_registry, SceneManager._destroyQueue, SceneManager.ActiveScene, 0f);
+        _snapshotManager.CommitPending(
+            _registry,
+            SceneManager._destroyQueue,
+            SceneManager.ActiveScene,
+            0f
+        );
 
         _canStart = true;
         return this;
@@ -93,13 +98,22 @@ public class EngineLoop : IDisposable
             Time.DeltaTime = dt * Time.TimeScale;
             Time.FrameCount++;
 
+            // 所有的游戏逻辑从这里开始处理
             Input.Update();
 
             _logicLoop.Tick(Time.DeltaTime, _snapshotManager.Current);
-            _renderSystem!.Render(_snapshotManager.Current);
+            // _renderSystem!.Render(_snapshotManager.Current);
+            OnRender();
             _logicLoop.LateTick(Time.DeltaTime, _snapshotManager.Current);
 
-            _snapshotManager.CommitPending(_registry, SceneManager._destroyQueue, SceneManager.ActiveScene, Time.DeltaTime);
+
+            // 帧末尾，记录快照
+            _snapshotManager.CommitPending(
+                _registry,
+                SceneManager._destroyQueue,
+                SceneManager.ActiveScene,
+                Time.DeltaTime
+            );
         }
     }
 
@@ -122,6 +136,7 @@ public class EngineLoop : IDisposable
     {
         if (_disposed)
             return;
+
         _disposed = true;
         _stopRequested = true;
         _workerPool.Dispose();

@@ -15,7 +15,8 @@ public sealed class FrameSnapshot
     public Scene? ActiveScene { get; internal set; }
     internal List<ComponentGroup> Groups { get; } = [];
 
-    public IReadOnlyList<T> GetComponents<T>() where T : Component
+    public IReadOnlyList<T> GetComponents<T>()
+        where T : Component
     {
         foreach (var g in Groups)
             if (g.ComponentType == typeof(T))
@@ -37,13 +38,18 @@ public sealed class FrameSnapshotManager
         ComponentRegistry registry,
         List<SceneManager.DestroyEntry> destroys,
         Scene? activeScene,
-        float deltaTime)
+        float deltaTime
+    )
     {
         for (int i = destroys.Count - 1; i >= 0; i--)
         {
             var e = destroys[i];
             e.Delay -= deltaTime;
-            if (e.Delay > 0) { destroys[i] = e; continue; }
+            if (e.Delay > 0)
+            {
+                destroys[i] = e;
+                continue;
+            }
 
             if (e.Target is MonoBehaviour mb)
             {
