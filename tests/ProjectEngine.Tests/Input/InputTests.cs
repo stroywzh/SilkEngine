@@ -1,8 +1,8 @@
-namespace ProjectEngine.Tests.Input
+namespace SilkEngine.Tests.Input
 {
-    using ProjectEngine;
-    using ProjectEngine.InputSystem;
-    using ProjectEngine.Math;
+    using SilkEngine;
+    using SilkEngine.InputSystem;
+    using SilkEngine.Math;
 
     public class InputTests
     {

@@ -1,8 +1,8 @@
-using ProjectEngine;
-using ProjectEngine.Threading;
+using SilkEngine;
+using SilkEngine.Threading;
 
-namespace ProjectEngine.Tests.Scene;
-using Scene = ProjectEngine.Scene;
+namespace SilkEngine.Tests.Scene;
+using Scene = SilkEngine.Scene;
 
 [Collection("SceneManager")]
 public class ComponentTests

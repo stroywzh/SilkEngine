@@ -1,7 +1,7 @@
-using ProjectEngine;
-using ProjectEngine.Math;
-using ProjectEngine.Render;
-using ProjectEngine.Render.OpenGL;
+using SilkEngine;
+using SilkEngine.Math;
+using SilkEngine.Render;
+using SilkEngine.Render.OpenGL;
 
 var backend = new OpenGLRenderBackend();
 var engine = new EngineLoop(backend);

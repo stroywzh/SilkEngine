@@ -1,7 +1,7 @@
-using ProjectEngine;
-using ProjectEngine.Math;
+using SilkEngine;
+using SilkEngine.Math;
 
-namespace ProjectEngine.Tests.Input;
+namespace SilkEngine.Tests.Input;
 
 public class MouseStateTests
 {

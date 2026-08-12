@@ -1,6 +1,6 @@
-using ProjectEngine.Render;
+using SilkEngine.Render;
 
-namespace ProjectEngine.Tests.Render;
+namespace SilkEngine.Tests.Render;
 
 public class RenderDataTests
 {

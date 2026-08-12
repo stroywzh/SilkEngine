@@ -1,7 +1,7 @@
-using ProjectEngine;
-using ProjectEngine.InputSystem;
+using SilkEngine;
+using SilkEngine.InputSystem;
 
-namespace ProjectEngine.Tests.Input;
+namespace SilkEngine.Tests.Input;
 
 public class KeyboardStateTests
 {

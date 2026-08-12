@@ -1,7 +1,7 @@
-using ProjectEngine;
-using ProjectEngine.Render;
+using SilkEngine;
+using SilkEngine.Render;
 
-namespace ProjectEngine.Tests;
+namespace SilkEngine.Tests;
 
 public class MeshFactoryTests
 {

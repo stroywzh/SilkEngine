@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
+        <AssemblyName>SilkEngine.Tests</AssemblyName>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <IsPackable>false</IsPackable>
@@ -12,6 +13,6 @@
         <PackageReference Include="xunit.runner.visualstudio" Version="3.0.2" />
     </ItemGroup>
     <ItemGroup>
-      <ProjectReference Include="..\..\ProjectEngine\ProjectEngine.csproj" />
+      <ProjectReference Include="..\..\src\SilkEngine\SilkEngine.csproj" />
     </ItemGroup>
 </Project>

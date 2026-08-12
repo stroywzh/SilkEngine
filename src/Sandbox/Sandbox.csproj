@@ -6,6 +6,6 @@
         <Nullable>enable</Nullable>
     </PropertyGroup>
     <ItemGroup>
-      <ProjectReference Include="..\..\ProjectEngine\ProjectEngine.csproj" />
+      <ProjectReference Include="..\..\src\SilkEngine\SilkEngine.csproj" />
     </ItemGroup>
 </Project>

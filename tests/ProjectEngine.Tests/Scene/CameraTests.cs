@@ -1,7 +1,7 @@
-using ProjectEngine;
-using ProjectEngine.Math;
+using SilkEngine;
+using SilkEngine.Math;
 
-namespace ProjectEngine.Tests.Scene;
+namespace SilkEngine.Tests.Scene;
 
 public class CameraTests
 {

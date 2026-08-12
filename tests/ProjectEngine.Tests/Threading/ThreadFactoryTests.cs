@@ -1,6 +1,6 @@
-using ProjectEngine.Threading;
+using SilkEngine.Threading;
 
-namespace ProjectEngine.Tests.Threading;
+namespace SilkEngine.Tests.Threading;
 
 public class ThreadFactoryTests
 {

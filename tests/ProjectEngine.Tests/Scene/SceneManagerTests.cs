@@ -1,7 +1,7 @@
-using ProjectEngine;
+using SilkEngine;
 
-namespace ProjectEngine.Tests.Scene;
-using Scene = ProjectEngine.Scene;
+namespace SilkEngine.Tests.Scene;
+using Scene = SilkEngine.Scene;
 
 [Collection("SceneManager")]
 public class SceneManagerTests

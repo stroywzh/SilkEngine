@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
-using ProjectEngine;
+using SilkEngine;
 
-namespace ProjectEngine.Tests.Core;
+namespace SilkEngine.Tests.Core;
 
 [CollectionDefinition("Log")]
 public class LogTestsCollection { }

@@ -1,6 +1,6 @@
-using ProjectEngine;
+using SilkEngine;
 
-namespace ProjectEngine.Tests.Scene;
+namespace SilkEngine.Tests.Scene;
 
 public class GameObjectTests
 {

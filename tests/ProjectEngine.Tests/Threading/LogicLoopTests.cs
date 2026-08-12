@@ -1,8 +1,8 @@
-using ProjectEngine;
-using ProjectEngine.Threading;
+using SilkEngine;
+using SilkEngine.Threading;
 
-namespace ProjectEngine.Tests;
-using EngineScene = ProjectEngine.Scene;
+namespace SilkEngine.Tests;
+using EngineScene = SilkEngine.Scene;
 
 [Collection("SceneManager")]
 public class LogicLoopTests

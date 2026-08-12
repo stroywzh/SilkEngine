@@ -1,6 +1,6 @@
-using ProjectEngine.Math;
+using SilkEngine.Math;
 
-namespace ProjectEngine.Tests.Math;
+namespace SilkEngine.Tests.Math;
 
 public class Vector3Tests
 {
