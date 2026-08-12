@@ -1,5 +1,5 @@
 <Solution>
   <Project Path="src/SilkEngine/SilkEngine.csproj" />
   <Project Path="src/Sandbox/Sandbox.csproj" />
-  <Project Path="tests/ProjectEngine.Tests/ProjectEngine.Tests.csproj" />
+  <Project Path="tests/SilkEngine.Tests/SilkEngine.Tests.csproj" />
 </Solution>
