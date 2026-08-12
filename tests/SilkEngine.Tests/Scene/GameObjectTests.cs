@@ -69,6 +69,13 @@ public class GameObjectTests
         Assert.Same(go, c.GameObject);
     }
 
+    private class LifecycleTracker : MonoBehaviour
+    {
+        public bool Disabled, Destroyed;
+        public override void OnDisable() => Disabled = true;
+        public override void OnDestroy() => Destroyed = true;
+    }
+
     [Fact]
     public void AddComponent_AmbientRegistry_AutoRegisters()
     {
@@ -86,5 +93,28 @@ public class GameObjectTests
         {
             SceneManager.ActiveRegistry = null;
         }
+    }
+
+    [Fact]
+    public void RemoveComponent_CallsDisableAndDefersDestroy()
+    {
+        SceneManager._destroyQueue.Clear();
+        var reg = new ComponentRegistry();
+        var mgr = new FrameSnapshotManager();
+        var go = new GameObject();
+        var c = go.AddComponent<LifecycleTracker>(reg);
+        var scene = new Scene("T");
+        scene.AddRootObject(go);
+        reg.ApplyPending();
+        mgr.CommitPending(reg, SceneManager._destroyQueue, scene, 0f);
+
+        Assert.True(go.RemoveComponent<LifecycleTracker>(reg));
+        Assert.Null(go.GetComponent<LifecycleTracker>());
+        Assert.True(c.Disabled);
+        Assert.False(c.Destroyed); // 帧末才销毁
+
+        mgr.CommitPending(reg, SceneManager._destroyQueue, scene, 0f);
+        Assert.True(c.Destroyed);
+        Assert.Empty(reg.GetOfType<LifecycleTracker>());
     }
 }

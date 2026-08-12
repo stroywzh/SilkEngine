@@ -45,12 +45,13 @@ public sealed class GameObject : Object
         where T : Component
     {
         var c = GetComponent<T>();
-        if (c != null)
-        {
-            _components.Remove(c);
-            registry?.Unregister(c);
-            return true;
-        }
-        return false;
+        if (c == null)
+            return false;
+
+        _components.Remove(c);
+        if (c is MonoBehaviour mb && mb.Enabled)
+            mb.OnDisable();
+        Object.Destroy(c); // 帧末由 CommitPending 执行 OnDestroy + Unregister
+        return true;
     }
 }
