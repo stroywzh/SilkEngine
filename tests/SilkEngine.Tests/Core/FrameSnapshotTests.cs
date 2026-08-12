@@ -112,4 +112,43 @@ public class FrameSnapshotTests
         Assert.True(cc.Destroyed);
         Assert.Empty(reg.GetOfType<DestroyTracker>());
     }
+
+    [Fact]
+    public void RefreshSnapshot_ReusesGroupInstances()
+    {
+        var reg = new ComponentRegistry();
+        var c = new GameObject().AddComponent<TestTracker>();
+        reg.Register(c);
+        reg.ApplyPending();
+
+        var snap1 = new FrameSnapshot();
+        var snap2 = new FrameSnapshot();
+        reg.RefreshSnapshot(snap1);
+        reg.RefreshSnapshot(snap2);
+        Assert.Same(snap1.Groups[0], snap2.Groups[0]); // 同一 ComponentGroup 实例
+    }
+
+    [Fact]
+    public void CommitPending_AfterWarmup_ZeroAllocation()
+    {
+        SceneManager._destroyQueue.Clear();
+        var reg = new ComponentRegistry();
+        var scene = new Scene("T");
+        var go = new GameObject();
+        go.AddComponent<TestTracker>(reg);
+        scene.AddRootObject(go);
+        reg.ApplyPending();
+
+        var mgr = new FrameSnapshotManager();
+        mgr.CommitPending(reg, SceneManager._destroyQueue, scene, 0f);
+        mgr.CommitPending(reg, SceneManager._destroyQueue, scene, 0f); // warmup
+
+        GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect();
+        var before = GC.GetTotalAllocatedBytes();
+        for (int i = 0; i < 10; i++)
+            mgr.CommitPending(reg, SceneManager._destroyQueue, scene, 0f);
+        var after = GC.GetTotalAllocatedBytes();
+
+        Assert.True(after - before < 1024, $"CommitPending allocated {after - before} bytes over 10 frames");
+    }
 }

@@ -54,7 +54,7 @@ public class ComponentTests
         mgr.CommitPending(reg, new List<SceneManager.DestroyEntry>(), s, 0f);
         c.Enabled = false;
         var ml = new LogicLoop();
-        ml.Tick(0.016f, mgr.Current, reg);
+        ml.Tick(0.016f, mgr.Current);
         Assert.False(c.TickCalled);
     }
 }

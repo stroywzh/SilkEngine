@@ -30,7 +30,7 @@ public class LogicLoopTests
     public void Tick_DrivesSceneUpdate()
     {
         var (ml, c, reg, mgr) = Setup();
-        ml.Tick(0.016f, mgr.Current, reg);
+        ml.Tick(0.016f, mgr.Current);
         Assert.Equal(1, c.Tick);
     }
 
@@ -39,7 +39,7 @@ public class LogicLoopTests
     {
         var (ml, c, reg, mgr) = Setup();
         ml.FixedDeltaTime = 0.02f;
-        ml.Tick(0.05f, mgr.Current, reg);
+        ml.Tick(0.05f, mgr.Current);
         Assert.True(c.Fixed >= 2);
     }
 
@@ -47,8 +47,8 @@ public class LogicLoopTests
     public void LateTick_DrivesPostRender()
     {
         var (ml, c, reg, mgr) = Setup();
-        ml.Tick(0.016f, mgr.Current, reg);
-        ml.LateTick(0.016f, mgr.Current, reg);
+        ml.Tick(0.016f, mgr.Current);
+        ml.LateTick(0.016f, mgr.Current);
         Assert.Equal(1, c.Late);
         Assert.Equal(1, c.Post);
     }
@@ -67,7 +67,7 @@ public class LogicLoopTests
         mgr.CommitPending(reg, new List<SceneManager.DestroyEntry>(), s, 0f);
 
         var ml = new LogicLoop();
-        ml.Tick(0.016f, mgr.Current, reg);
+        ml.Tick(0.016f, mgr.Current);
         Assert.Equal(1, c.Tick);
     }
 }

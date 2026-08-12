@@ -19,22 +19,22 @@ public class LogicLoop : IDisposable
 
     public LogicLoop() => Time.FixedDeltaTime = _fixedDt;
 
-    public void Tick(float deltaTime, FrameSnapshot snapshot, ComponentRegistry registry)
+    public void Tick(float deltaTime, FrameSnapshot snapshot)
     {
         _accumulator += deltaTime;
         while (_accumulator >= _fixedDt)
         {
-            SceneManager.Instance.FixedTick(snapshot, registry, _fixedDt);
+            SceneManager.Instance.FixedTick(snapshot, _fixedDt);
             _accumulator -= _fixedDt;
         }
-        SceneManager.Instance.Tick(snapshot, registry, deltaTime);
-        SceneManager.Instance.LateTick(snapshot, registry);
+        SceneManager.Instance.Tick(snapshot, deltaTime);
+        SceneManager.Instance.LateTick(snapshot);
         // 注意：销毁处理由 FrameSnapshotManager.CommitPending 在帧末统一执行，
         // 此处不调用 ProcessDestroys（避免双重处理）
     }
 
-    public void LateTick(float deltaTime, FrameSnapshot snapshot, ComponentRegistry registry)
-        => SceneManager.Instance.PostRender(snapshot, registry);
+    public void LateTick(float deltaTime, FrameSnapshot snapshot)
+        => SceneManager.Instance.PostRender(snapshot);
 
     public void Stop() { }
 

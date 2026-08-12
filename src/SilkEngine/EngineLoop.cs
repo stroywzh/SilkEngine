@@ -95,9 +95,9 @@ public class EngineLoop : IDisposable
 
             Input.Update();
 
-            _logicLoop.Tick(Time.DeltaTime, _snapshotManager.Current, _registry);
+            _logicLoop.Tick(Time.DeltaTime, _snapshotManager.Current);
             _renderSystem!.Render(_snapshotManager.Current);
-            _logicLoop.LateTick(Time.DeltaTime, _snapshotManager.Current, _registry);
+            _logicLoop.LateTick(Time.DeltaTime, _snapshotManager.Current);
 
             _snapshotManager.CommitPending(_registry, SceneManager._destroyQueue, SceneManager.ActiveScene, Time.DeltaTime);
         }

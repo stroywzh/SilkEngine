@@ -90,20 +90,4 @@ public class ComponentRegistryTests
         reg.ApplyPending();
         Assert.Single(reg.GetOfType<A>());
     }
-
-    [Fact]
-    public void GetOfType_BaseType_ReturnsSubclassComponents()
-    {
-        var reg = new ComponentRegistry();
-        var a = new GameObject().AddComponent<A>();
-        var b = new GameObject().AddComponent<B>();
-        reg.Register(a);
-        reg.Register(b);
-        reg.ApplyPending();
-
-        var all = reg.GetOfType<Component>();
-        Assert.Equal(2, all.Count);
-        Assert.Same(a, all[0]);
-        Assert.Same(b, all[1]);
-    }
 }

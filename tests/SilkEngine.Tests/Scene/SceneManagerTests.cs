@@ -25,7 +25,7 @@ public class SceneManagerTests
         var mgr = new FrameSnapshotManager();
         SceneManager.Instance.LoadScene(s, reg);
         mgr.CommitPending(reg, new List<SceneManager.DestroyEntry>(), s, 0f);
-        SceneManager.Instance.Tick(mgr.Current, reg, 0.016f);
+        SceneManager.Instance.Tick(mgr.Current, 0.016f);
         Assert.True(c.Awake); Assert.True(c.Start);
     }
 
@@ -37,7 +37,7 @@ public class SceneManagerTests
         var mgr = new FrameSnapshotManager();
         SceneManager.Instance.LoadScene(s, reg);
         mgr.CommitPending(reg, new List<SceneManager.DestroyEntry>(), s, 0f);
-        SceneManager.Instance.Tick(mgr.Current, reg, 0.16f);
+        SceneManager.Instance.Tick(mgr.Current, 0.16f);
         Assert.True(c.Tick); Assert.Equal(0.16f, c.TickDt);
     }
 
@@ -49,7 +49,7 @@ public class SceneManagerTests
         var mgr = new FrameSnapshotManager();
         SceneManager.Instance.LoadScene(s, reg);
         mgr.CommitPending(reg, new List<SceneManager.DestroyEntry>(), s, 0f);
-        SceneManager.Instance.FixedTick(mgr.Current, reg, 0.02f);
+        SceneManager.Instance.FixedTick(mgr.Current, 0.02f);
         Assert.Equal(0.02f, c.FixedDt);
     }
 
@@ -61,7 +61,7 @@ public class SceneManagerTests
         var mgr = new FrameSnapshotManager();
         SceneManager.Instance.LoadScene(s, reg);
         mgr.CommitPending(reg, new List<SceneManager.DestroyEntry>(), s, 0f);
-        SceneManager.Instance.Tick(mgr.Current, reg, 0.16f);
+        SceneManager.Instance.Tick(mgr.Current, 0.16f);
         Assert.False(c.Tick);
     }
 
@@ -148,7 +148,7 @@ public class SceneManagerTests
         reg.ApplyPending();
         mgr.CommitPending(reg, new List<SceneManager.DestroyEntry>(), s, 0f);
 
-        SceneManager.Instance.Tick(mgr.Current, reg, 0.16f);
+        SceneManager.Instance.Tick(mgr.Current, 0.16f);
         Assert.True(c.Tick);
     }
 
@@ -167,7 +167,7 @@ public class SceneManagerTests
 
         reg.ApplyPending();
         mgr.CommitPending(reg, new List<SceneManager.DestroyEntry>(), s, 0f);
-        SceneManager.Instance.Tick(mgr.Current, reg, 0.16f);
+        SceneManager.Instance.Tick(mgr.Current, 0.16f);
 
         Assert.Equal([1, 2], order);
     }

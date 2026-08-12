@@ -76,41 +76,46 @@ public class SceneManager
             InvokeRecursive(child.GameObject!, action);
     }
 
-    public void Tick(FrameSnapshot snapshot, ComponentRegistry registry, float dt)
+    public void Tick(FrameSnapshot snapshot, float dt)
     {
         if (_fristUpdateFlag && !_fristUpdateDone)
         {
-            foreach (var mb in GetActiveMBs(registry))
+            foreach (var mb in GetActiveMBs(snapshot))
                 mb.OnStart();
             _fristUpdateDone = true;
         }
 
-        foreach (var mb in GetActiveMBs(registry))
+        foreach (var mb in GetActiveMBs(snapshot))
             mb.OnUpdate(dt);
     }
 
-    public void FixedTick(FrameSnapshot snapshot, ComponentRegistry registry, float fdt)
+    public void FixedTick(FrameSnapshot snapshot, float fdt)
     {
-        foreach (var mb in GetActiveMBs(registry))
+        foreach (var mb in GetActiveMBs(snapshot))
             mb.OnFixedUpdate(fdt);
     }
 
-    public void LateTick(FrameSnapshot snapshot, ComponentRegistry registry)
+    public void LateTick(FrameSnapshot snapshot)
     {
-        foreach (var mb in GetActiveMBs(registry))
+        foreach (var mb in GetActiveMBs(snapshot))
             mb.OnLateUpdate();
     }
 
-    public void PostRender(FrameSnapshot snapshot, ComponentRegistry registry)
+    public void PostRender(FrameSnapshot snapshot)
     {
-        foreach (var mb in GetActiveMBs(registry))
+        foreach (var mb in GetActiveMBs(snapshot))
             mb.OnPostRender();
     }
 
-    private static IEnumerable<MonoBehaviour> GetActiveMBs(ComponentRegistry registry)
+    private static IEnumerable<MonoBehaviour> GetActiveMBs(FrameSnapshot snapshot)
     {
-        foreach (var mb in registry.GetOfType<MonoBehaviour>())
-            if (mb.GameObject.IsActive && mb.Enabled)
-                yield return mb;
+        foreach (var g in snapshot.Groups)
+        {
+            if (g.ComponentType != typeof(MonoBehaviour) && !g.ComponentType.IsSubclassOf(typeof(MonoBehaviour)))
+                continue;
+            foreach (var c in g.Components)
+                if (c is MonoBehaviour mb && mb.GameObject.IsActive && mb.Enabled)
+                    yield return mb;
+        }
     }
 }

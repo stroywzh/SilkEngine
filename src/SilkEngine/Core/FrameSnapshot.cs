@@ -17,10 +17,10 @@ public sealed class FrameSnapshot
 
     public IReadOnlyList<T> GetComponents<T>() where T : Component
     {
-        var group = Groups.Find(g => g.ComponentType == typeof(T));
-        return group == null
-            ? System.Array.Empty<T>()
-            : group.Components.Cast<T>().ToList().AsReadOnly();
+        foreach (var g in Groups)
+            if (g.ComponentType == typeof(T))
+                return g.Components as IReadOnlyList<T> ?? g.Components.Cast<T>().ToList();
+        return System.Array.Empty<T>();
     }
 }
 
