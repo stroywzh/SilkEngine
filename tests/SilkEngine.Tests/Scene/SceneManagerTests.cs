@@ -113,4 +113,48 @@ public class SceneManagerTests
         SceneManager.Instance.ProcessDestroys(0.6f);
         Assert.Empty(s.GetRootGameObjects());
     }
+
+    [Fact]
+    public void TickWithSnapshot_UsesRegistry()
+    {
+        var reg = new ComponentRegistry();
+        var mgr = new FrameSnapshotManager();
+        var s = new Scene("T");
+        var go = new GameObject();
+        var c = go.AddComponent<Tracker>(reg);
+        s.AddRootObject(go);
+
+        reg.ApplyPending();
+        mgr.CommitPending(reg, new List<SceneManager.DestroyEntry>(), s, 0f);
+
+        SceneManager.Instance.TickWithSnapshot(mgr.Current, reg, 0.16f);
+        Assert.True(c.Tick);
+    }
+
+    [Fact]
+    public void Tick_MultipleComponents_RegistrationOrder()
+    {
+        var reg = new ComponentRegistry();
+        var mgr = new FrameSnapshotManager();
+        var s = new Scene("T");
+        var go = new GameObject();
+        var order = new List<int>();
+
+        var a = go.AddComponent<Ordered>(reg); a.Id = 1; a.Order = order;
+        var b = go.AddComponent<Ordered>(reg); b.Id = 2; b.Order = order;
+        s.AddRootObject(go);
+
+        reg.ApplyPending();
+        mgr.CommitPending(reg, new List<SceneManager.DestroyEntry>(), s, 0f);
+        SceneManager.Instance.TickWithSnapshot(mgr.Current, reg, 0.16f);
+
+        Assert.Equal([1, 2], order);
+    }
+
+    private class Ordered : MonoBehaviour
+    {
+        public int Id;
+        public List<int> Order = null!;
+        public override void OnUpdate(float dt) => Order.Add(Id);
+    }
 }

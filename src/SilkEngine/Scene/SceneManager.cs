@@ -13,6 +13,9 @@ public class SceneManager
 
     internal volatile bool fristUpdate = false;
 
+    internal bool _fristUpdateFlag;
+    private bool _fristUpdateDone;
+
     internal static List<DestroyEntry> _destroyQueue = new();
 
     public static readonly SceneManager Instance = new();
@@ -31,6 +34,7 @@ public class SceneManager
         foreach (var go in scene._rootObjects)
             InvokeRecursive(go, c => (c as MonoBehaviour)?.OnAwake());
         fristUpdate = true;
+        _fristUpdateFlag = true;
     }
 
     public void Tick(float dt)
@@ -149,5 +153,43 @@ public class SceneManager
             action(c);
         foreach (var child in go.Transform.Children)
             InvokeRecursive(child.GameObject!, action);
+    }
+
+    public void TickWithSnapshot(FrameSnapshot snapshot, ComponentRegistry registry, float dt)
+    {
+        if (_fristUpdateFlag && !_fristUpdateDone)
+        {
+            foreach (var mb in GetActiveMBs(registry))
+                mb.OnStart();
+            _fristUpdateDone = true;
+        }
+
+        foreach (var mb in GetActiveMBs(registry))
+            mb.OnUpdate(dt);
+    }
+
+    public void FixedTickWithSnapshot(FrameSnapshot snapshot, ComponentRegistry registry, float fdt)
+    {
+        foreach (var mb in GetActiveMBs(registry))
+            mb.OnFixedUpdate(fdt);
+    }
+
+    public void LateTickWithSnapshot(FrameSnapshot snapshot, ComponentRegistry registry)
+    {
+        foreach (var mb in GetActiveMBs(registry))
+            mb.OnLateUpdate();
+    }
+
+    public void PostRenderWithSnapshot(FrameSnapshot snapshot, ComponentRegistry registry)
+    {
+        foreach (var mb in GetActiveMBs(registry))
+            mb.OnPostRender();
+    }
+
+    private static IEnumerable<MonoBehaviour> GetActiveMBs(ComponentRegistry registry)
+    {
+        foreach (var mb in registry.GetOfType<MonoBehaviour>())
+            if (mb.GameObject.IsActive && mb.Enabled)
+                yield return mb;
     }
 }
