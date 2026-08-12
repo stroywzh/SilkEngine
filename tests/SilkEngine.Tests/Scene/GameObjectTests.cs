@@ -227,4 +227,19 @@ public class GameObjectTests
         mgr.CommitPending(reg, SceneManager.Instance._destroyQueue, scene, 0f);
         Assert.Null(go.GetComponent<TestComponent>());   // 已从 _components 移除
     }
+
+    [Fact]
+    public void RemoveComponent_ThenToggleEnabled_NoGhostCallbacks()
+    {
+        var go = new GameObject();
+        var c = go.AddComponent<LifecycleTracker>();
+        Assert.True(c.EnableCalled);
+
+        Assert.True(go.RemoveComponent<LifecycleTracker>());
+        c.EnableCalled = false;
+        c.Disabled = false;
+
+        c.Enabled = false;      // 已移除 → 不应再触发 OnDisable
+        Assert.False(c.Disabled);
+    }
 }

@@ -28,6 +28,7 @@ public abstract class Object
 
     private static void DestroyRecursive(GameObject go)
     {
+        go._destroyPending = true;
         foreach (var child in go.Transform.Children.ToArray())
             DestroyRecursive(child.GameObject!);
         go.IsActive = false;

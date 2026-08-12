@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 
 namespace SilkEngine;
 
@@ -25,9 +26,9 @@ public sealed class GameObject : Object
 
     internal void NotifyActivationChanged()
     {
-        foreach (var c in _components)
+        foreach (var c in _components.ToArray())
             c.RecomputeActiveState();
-        foreach (var child in Transform.Children)
+        foreach (var child in Transform.Children.ToArray())
             child.GameObject?.NotifyActivationChanged();
     }
 
@@ -86,8 +87,7 @@ public sealed class GameObject : Object
             return false;
 
         _components.Remove(c);
-        if (c.Enabled && c.GameObject.IsActiveInHierarchy)
-            c.OnDisable();
+        c.MarkRemoved();
         Object.Destroy(c); // 帧末由 CommitPending 执行 OnDestroy + Unregister
         return true;
     }
