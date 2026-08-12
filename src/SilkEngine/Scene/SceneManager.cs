@@ -11,9 +11,6 @@ public class SceneManager
         public float Delay;
     }
 
-    internal bool _fristUpdateFlag;
-    private bool _fristUpdateDone;
-
     internal static List<DestroyEntry> _destroyQueue = new();
 
     internal static ComponentRegistry? ActiveRegistry { get; set; }
@@ -31,8 +28,6 @@ public class SceneManager
     public void LoadScene(Scene scene)
     {
         ActiveScene = scene;
-        _fristUpdateFlag = true;
-        _fristUpdateDone = false;
     }
 
     public void LoadScene(Scene scene, ComponentRegistry? registry = null)
@@ -44,8 +39,6 @@ public class SceneManager
                 InvokeRecursive(go, c => registry.Register(c));
             registry.ApplyPending();
         }
-        _fristUpdateFlag = true;
-        _fristUpdateDone = false;
     }
 
     internal void RegisterScene(ComponentRegistry registry)
@@ -67,15 +60,15 @@ public class SceneManager
 
     public void Tick(FrameSnapshot snapshot, float dt)
     {
-        if (_fristUpdateFlag && !_fristUpdateDone)
-        {
-            foreach (var mb in GetActiveMBs(snapshot))
-                mb.OnStart();
-            _fristUpdateDone = true;
-        }
-
         foreach (var mb in GetActiveMBs(snapshot))
+        {
+            if (!mb.Started)
+            {
+                mb.Started = true;
+                mb.OnStart();
+            }
             mb.OnUpdate(dt);
+        }
     }
 
     public void FixedTick(FrameSnapshot snapshot, float fdt)
@@ -106,7 +99,7 @@ public class SceneManager
             )
                 continue;
             foreach (var c in g.Components)
-                if (c is MonoBehaviour mb && mb.GameObject.IsActive && mb.Enabled)
+                if (c is MonoBehaviour mb && mb.GameObject.IsActiveInHierarchy && mb.Enabled)
                     yield return mb;
         }
     }

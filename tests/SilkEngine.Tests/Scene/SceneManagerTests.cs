@@ -206,4 +206,29 @@ public class SceneManagerTests
         SceneManager.Instance.RegisterScene(reg);
         Assert.Single(reg.GetOfType<Tracker>());
     }
+
+    [Fact]
+    public void LateEnable_StartsOnce()
+    {
+        var s = new Scene("T");
+        var go = new GameObject();
+        var c = go.AddComponent<Tracker>();
+        s.AddRootObject(go);
+        var reg = new ComponentRegistry();
+        var mgr = new FrameSnapshotManager();
+        SceneManager.Instance.LoadScene(s, reg);
+        mgr.CommitPending(reg, new List<SceneManager.DestroyEntry>(), s, 0f);
+
+        c.Enabled = false;
+        SceneManager.Instance.Tick(mgr.Current, 0.016f);
+        Assert.False(c.Start);              // 禁用 → 不 Start
+
+        c.Enabled = true;
+        SceneManager.Instance.Tick(mgr.Current, 0.016f);
+        Assert.True(c.Start);               // 后启用 → 补 Start
+
+        c.Start = false;
+        SceneManager.Instance.Tick(mgr.Current, 0.016f);
+        Assert.False(c.Start);              // 仅一次
+    }
 }
