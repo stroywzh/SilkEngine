@@ -25,6 +25,15 @@ public class RenderThreadLoopTests
                 throw new InvalidOperationException("simulated crash");
         }
 
+        public void ExecutePass(IReadOnlyList<DrawCommand> commands)
+        {
+            Frames.Add(commands);
+            if (commands.Count > 0 && commands[0] is SingleDrawCommand sdc && sdc.Mesh?.Name == "Crash")
+                throw new InvalidOperationException("simulated crash");
+        }
+
+        public void Present() { }
+
         public IntPtr CreateBuffer(int size) => IntPtr.Zero;
         public void DrawIndirect(IntPtr buf, int off, int cnt) { }
         public void Dispose() { }

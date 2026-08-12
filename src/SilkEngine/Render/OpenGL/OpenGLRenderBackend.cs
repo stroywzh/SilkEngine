@@ -76,6 +76,18 @@ public class OpenGLRenderBackend : RenderBackendBase
     /// <inheritdoc />
     public override void ExecuteFrame(IReadOnlyList<DrawCommand> commands)
     {
+        ExecuteCommands(commands);
+        _window!.SwapBuffers();
+    }
+
+    /// <inheritdoc />
+    public override void ExecutePass(IReadOnlyList<DrawCommand> commands) => ExecuteCommands(commands);
+
+    /// <inheritdoc />
+    public override void Present() => _window!.SwapBuffers();
+
+    private void ExecuteCommands(IReadOnlyList<DrawCommand> commands)
+    {
         if (_gl == null)
             return;
 
@@ -156,8 +168,6 @@ public class OpenGLRenderBackend : RenderBackendBase
             }
             glMesh.Draw();
         }
-
-        _window!.SwapBuffers();
     }
 
     /// <inheritdoc />

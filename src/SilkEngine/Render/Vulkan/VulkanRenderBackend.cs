@@ -45,6 +45,12 @@ public class VulkanRenderBackend : RenderBackendBase
     }
 
     /// <inheritdoc />
+    public override void ExecutePass(IReadOnlyList<DrawCommand> commands) { }
+
+    /// <inheritdoc />
+    public override void Present() { }
+
+    /// <inheritdoc />
     public override void Dispose()
     {
         if (_disposed)

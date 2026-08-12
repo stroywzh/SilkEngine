@@ -10,6 +10,8 @@ public interface IRenderBackend : IDisposable
     void ClearContext();
     void PumpWindowEvents();
     void ExecuteFrame(IReadOnlyList<DrawCommand> commands);
+    void ExecutePass(IReadOnlyList<DrawCommand> commands);
+    void Present();
     IntPtr CreateBuffer(int sizeBytes);
     void DrawIndirect(IntPtr buffer, int offset, int drawCount);
     bool ShouldClose { get; }

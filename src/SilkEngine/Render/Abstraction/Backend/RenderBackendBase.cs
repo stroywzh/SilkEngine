@@ -44,6 +44,12 @@ public abstract class RenderBackendBase : IRenderBackend
     public abstract void ExecuteFrame(IReadOnlyList<DrawCommand> commands);
 
     /// <inheritdoc />
+    public virtual void ExecutePass(IReadOnlyList<DrawCommand> commands) { }
+
+    /// <inheritdoc />
+    public virtual void Present() { }
+
+    /// <inheritdoc />
     public IntPtr CreateBuffer(int sizeBytes) => (IntPtr)(_bufferCounter++);
 
     /// <inheritdoc />
