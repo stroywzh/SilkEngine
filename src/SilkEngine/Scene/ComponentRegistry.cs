@@ -16,6 +16,7 @@ public sealed class ComponentRegistry
 
     public void Unregister(Component c)
     {
+        _pendingAdds.Remove(c);
         var t = c.GetType();
         if (_typeMap.TryGetValue(t, out var list))
             list.Remove(c);

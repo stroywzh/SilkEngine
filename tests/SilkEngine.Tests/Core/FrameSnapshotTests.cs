@@ -4,6 +4,7 @@ using SilkEngine;
 namespace SilkEngine.Tests.Core;
 using Scene = SilkEngine.Scene;
 
+[Collection("SceneManager")]
 public class FrameSnapshotTests
 {
     [Fact]
@@ -38,7 +39,7 @@ public class FrameSnapshotTests
 
         var registry = new ComponentRegistry();
         var scene = new Scene("T"); scene.AddRootObject(new GameObject("A"));
-        mgr.CommitPending(registry, new List<SceneManager.DestroyEntry>(), scene);
+        mgr.CommitPending(registry, new List<SceneManager.DestroyEntry>(), scene, 0f);
 
         var snap2 = mgr.Current;
         Assert.NotSame(snap1, snap2);
@@ -51,9 +52,9 @@ public class FrameSnapshotTests
     {
         var mgr = new FrameSnapshotManager();
         var snap1 = mgr.Current;
-        mgr.CommitPending(new ComponentRegistry(), [], new Scene("T"));
+        mgr.CommitPending(new ComponentRegistry(), [], new Scene("T"), 0f);
         var snap2 = mgr.Current;
-        mgr.CommitPending(new ComponentRegistry(), [], new Scene("T2"));
+        mgr.CommitPending(new ComponentRegistry(), [], new Scene("T2"), 0f);
         var snap3 = mgr.Current;
 
         Assert.NotSame(snap1, snap2);
@@ -61,4 +62,54 @@ public class FrameSnapshotTests
     }
 
     private class TestTracker : Component { }
+
+    private class DestroyTracker : MonoBehaviour
+    {
+        public bool Destroyed;
+        public override void OnDestroy() => Destroyed = true;
+    }
+
+    [Fact]
+    public void CommitPending_DelayedDestroy_RespectsDelay()
+    {
+        SceneManager._destroyQueue.Clear();
+        var reg = new ComponentRegistry();
+        var mgr = new FrameSnapshotManager();
+        var scene = new Scene("T");
+        var go = new GameObject();
+        var c = go.AddComponent<DestroyTracker>(reg);
+        scene.AddRootObject(go);
+        Object.Destroy(c, 1.0f);
+
+        reg.ApplyPending();
+        mgr.CommitPending(reg, SceneManager._destroyQueue, scene, 0.5f);
+        Assert.False(c.Destroyed); // 延迟未到
+
+        mgr.CommitPending(reg, SceneManager._destroyQueue, scene, 0.6f);
+        Assert.True(c.Destroyed);
+        Assert.Empty(reg.GetOfType<DestroyTracker>()); // 已从注册表移除
+    }
+
+    [Fact]
+    public void CommitPending_GameObjectDestroy_RemovesTreeFromRegistry()
+    {
+        SceneManager._destroyQueue.Clear();
+        var reg = new ComponentRegistry();
+        var mgr = new FrameSnapshotManager();
+        var scene = new Scene("T");
+        var parent = new GameObject("Parent");
+        var child = new GameObject("Child");
+        child.Transform.SetParent(parent.Transform);
+        var pc = parent.AddComponent<DestroyTracker>(reg);
+        var cc = child.AddComponent<DestroyTracker>(reg);
+        scene.AddRootObject(parent);
+        Object.Destroy(parent);
+
+        reg.ApplyPending();
+        mgr.CommitPending(reg, SceneManager._destroyQueue, scene, 0f);
+
+        Assert.True(pc.Destroyed);
+        Assert.True(cc.Destroyed);
+        Assert.Empty(reg.GetOfType<DestroyTracker>());
+    }
 }

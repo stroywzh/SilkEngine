@@ -36,16 +36,27 @@ public sealed class FrameSnapshotManager
     internal void CommitPending(
         ComponentRegistry registry,
         List<SceneManager.DestroyEntry> destroys,
-        Scene? activeScene)
+        Scene? activeScene,
+        float deltaTime)
     {
-        foreach (var e in destroys)
+        for (int i = destroys.Count - 1; i >= 0; i--)
         {
+            var e = destroys[i];
+            e.Delay -= deltaTime;
+            if (e.Delay > 0) { destroys[i] = e; continue; }
+
             if (e.Target is MonoBehaviour mb)
+            {
                 mb.OnDestroy();
-            if (e.Target is GameObject go)
+                registry.Unregister(mb);
+            }
+            else if (e.Target is GameObject go)
+            {
+                RemoveObjectRecursive(go, registry);
                 activeScene?._rootObjects.Remove(go);
+            }
+            destroys.RemoveAt(i);
         }
-        destroys.Clear();
 
         registry.ApplyPending();
 
@@ -56,5 +67,17 @@ public sealed class FrameSnapshotManager
 
         Current = _back;
         (_front, _back) = (_back, _front);
+    }
+
+    private static void RemoveObjectRecursive(GameObject go, ComponentRegistry registry)
+    {
+        foreach (var c in go._components)
+        {
+            registry.Unregister(c);
+            (c as MonoBehaviour)?.OnDestroy();
+        }
+        foreach (var child in go.Transform.Children)
+            if (child.GameObject is { } cgo)
+                RemoveObjectRecursive(cgo, registry);
     }
 }

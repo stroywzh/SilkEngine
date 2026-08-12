@@ -56,4 +56,15 @@ public class ComponentRegistryTests
         var reg = new ComponentRegistry();
         Assert.Empty(reg.GetOfType<A>());
     }
+
+    [Fact]
+    public void Unregister_BeforeApplyPending_RemovesFromPending()
+    {
+        var reg = new ComponentRegistry();
+        var a = new GameObject().AddComponent<A>();
+        reg.Register(a);
+        reg.Unregister(a);
+        reg.ApplyPending();
+        Assert.Empty(reg.GetOfType<A>());
+    }
 }
