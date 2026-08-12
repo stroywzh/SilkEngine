@@ -9,7 +9,7 @@
 - 静态类模式：`Time` / `SceneManager` / `Input` / `Log` 为全局门面
 - 线程通过 `ThreadFactory.CreateThread` 统一创建（禁止直接 `new Thread()`）
 - `allow(ArbirtaryCode)` requires safe code blocks explicitly: 仅 "unsafe" 标为 unsafe；所有其他代码逻辑应为 safe
-- Priority: automated testing exists with full coverage (156 xUnit tests)
+- Priority: automated testing exists with full coverage (185 xUnit tests)
 
 ## 架构
 
@@ -26,19 +26,19 @@
 ### 核心子系统
 
 - **EngineLoop**: 心跳提供者，计算 dt → 驱动 Input/Logic/Tick/渲染。支持 Pause 和 Embedded 模式
-- **FrameSnapshot/ComponentRegistry**: 帧原子性核心。ComponentRegistry 类型索引注册表（持久化 ComponentGroup），FrameSnapshotManager 双缓冲快照，帧末 CommitPending 统一应用销毁/注册并 swap（零分配）
+- **FrameSnapshot/ComponentRegistry**: 帧原子性核心。ComponentRegistry 类型索引注册表（持久化 ComponentGroup），FrameSnapshotManager 双缓冲快照，帧末 CommitPending 统一应用销毁/注册并 swap（零分配）。销毁幂等（`_destroyPending`/`_destroyed` 双标志），LoadScene 场景切换注销旧场景全部组件
 - **LogicLoop**: 固定步长累加器 + 基于快照的 SceneManager 派发 (FixedTick/Tick/LateTick)
-- **Scene System**: Object → GameObject(内置Transform) → Component(Enabled生命周期) → MonoBehaviour(9虚方法)
-- **Render**: RenderSystem(顶层管理) → RenderCollector(收集) → IRenderPipeline/ForwardPipeline(策略) → RenderPass[] → RenderThreadLoop → IRenderBackend(ExecutePass+Present)
+- **Scene System**: Object → GameObject(内置Transform) → Component(活跃状态机: `RecomputeActiveState` 单一真理源, OnEnable/OnDisable/OnDestroy 下沉至 Component, Enabled/IsActive/SetParent 三路幂等重放) → MonoBehaviour(OnAwake/OnStart/OnUpdate/OnFixedUpdate/OnLateUpdate/OnPostRender)。工厂 `InitializeComponent`(挂载→OnAwake→OnEnable→注册)，GO 层级活跃门控 `IsActiveInHierarchy` 级联通知，`Started` 标志位 Start 补发，`AddObjectToScene` 运行时增删
+- **Render**: RenderSystem(顶层管理) → RenderCollector(收集) → IRenderPipeline/ForwardPipeline(策略) → RenderPass[] → RenderThreadLoop → IRenderBackend(ExecutePass+Present)。相机矩阵经 `SingleDrawCommand.ViewMatrix/ProjectionMatrix` 携带，后端按 uModel 同款模式上传，不突变 Material
 - **Input**: Input门面 → KeyboardState/MouseState(双缓冲) → IInputProvider → SilkInputProvider
 - **Threading**: ThreadFactory + EngineThreadPool(IWorkerScheduler) + RenderThreadLoop
-- **Math**: 自研 Mathf/Vector2/Vector3/Quaternion/Matrix4x4 (左手系, column-major)
+- **Math**: 自研 Mathf/Vector2/Vector3/Quaternion/Matrix4x4 (左手系, 行主序约定; GL 上传 UniformMatrix4 transpose=true)
 - **Log**: Log.Info/Warn/Error/Debug + StackTree + ILogWriter 可扩展
 
 ### 每帧流程
 
 ```
-PumpEvents → GetDeltaTime → Input.Update → LogicLoop.Tick
+PumpEvents → GetDeltaTime → Input.Update → LogicLoop.Tick(活跃且未 Started 组件补发 OnStart, 仅一次)
 → RenderSystem.Render(Collector→Pipeline→SubmitFrame阻塞等GPU)
 → LogicLoop.LateTick(PostRender)
 → FrameSnapshotManager.CommitPending(销毁+注册+快照swap)
@@ -47,17 +47,16 @@ PumpEvents → GetDeltaTime → Input.Update → LogicLoop.Tick
 ### 项目结构
 
 ```
-src/SilkEngine/        # 引擎类库 (59 .cs)
+src/SilkEngine/        # 引擎类库 (60 .cs)
   Math/ Scene/ Render/ Thread/ Core/ Input/
 src/Sandbox/              # 演示程序
-tests/SilkEngine.Tests/ # 156 个 xUnit 测试
+tests/SilkEngine.Tests/ # 185 个 xUnit 测试
 ```
 
 ## 测试
 
 - 框架: xUnit 2.9.3，目标 net10.0
-- 126 个测试覆盖 Math / Scene / Threading / Input / Render / Log
-- 156 个测试覆盖 Math / Scene / Threading / Input / Render / Core
+- 185 个测试覆盖 Math / Scene / Threading / Input / Render / Core / MeshFactory
 - TDD 强制: 所有业务逻辑代码必须先写测试→失败→实现→通过
 - 测试文件按模块分目录: Math/ Scene/ Threading/ Input/ Render/ Core/
 
@@ -80,5 +79,8 @@ tests/SilkEngine.Tests/ # 156 个 xUnit 测试
 ### P1
 - RenderPass.Filter 已定义未接线
 - Transform.Scale 不组合父级
-- Camera 默认正交 (应为透视)
+- SetParent 无环检测
+- Instantiate 不克隆组件
+- 场景卸载只发 OnDestroy 不发 OnDisable
+- OpenGLMaterial 同名 uniform 覆盖风险
 - 预留未接线: IComputeShader, RenderPacket, DrawIndirect
