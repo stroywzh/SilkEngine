@@ -2,6 +2,7 @@ using SilkEngine;
 
 namespace SilkEngine.Tests.Scene;
 
+[Collection("SceneManager")]
 public class ObjectTests
 {
     private class TestObject : Object { }
