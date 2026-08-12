@@ -5,12 +5,29 @@ namespace SilkEngine;
 
 public sealed class Transform
 {
-    public GameObject? GameObject { get; internal set; }
+    public GameObject GameObject { get; private set; }
     private Vector3 _localPosition,
         _localScale = Vector3.One;
     private Quaternion _localRotation = Quaternion.Identity;
     private Transform? _parent;
     private List<Transform> _children = new();
+
+    public Transform(GameObject go)
+    {
+        GameObject = go;
+    }
+
+    public Transform(GameObject go, Transform parent)
+    {
+        GameObject = go;
+        _parent = parent;
+    }
+
+    public Transform(GameObject go, GameObject parent)
+    {
+        GameObject = go;
+        _parent = parent.Transform;
+    }
 
     public Vector3 LocalPosition
     {

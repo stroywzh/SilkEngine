@@ -3,6 +3,7 @@ namespace SilkEngine;
 public abstract class Component : Object
 {
     public GameObject GameObject { get; internal set; } = null!;
+    // TODO:调用爆null
     public Transform Transform => GameObject.Transform;
 
     private bool _enabled = true;
@@ -21,4 +22,6 @@ public abstract class Component : Object
                 (this as MonoBehaviour)?.OnDisable();
         }
     }
+
+    public void OnVaildate() { }
 }

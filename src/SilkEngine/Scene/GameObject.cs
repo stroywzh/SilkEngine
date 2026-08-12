@@ -11,7 +11,13 @@ public sealed class GameObject : Object
     public GameObject(string name = "GameObject")
     {
         Name = name;
-        Transform = new Transform { GameObject = this };
+        Transform = new Transform((GameObject)this);
+    }
+
+    public GameObject(Transform parent, string name = "GameObject")
+    {
+        Name = name;
+        Transform = new Transform((GameObject)this, parent);
     }
 
     public T AddComponent<T>()

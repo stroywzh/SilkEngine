@@ -48,7 +48,7 @@ PumpEvents → GetDeltaTime → Input.Update → LogicLoop.Tick
 src/SilkEngine/        # 引擎类库 (54 .cs)
   Math/ Scene/ Render/ Thread/ Core/ Input/
 src/Sandbox/              # 演示程序
-tests/ProjectEngine.Tests/ # 126 个 xUnit 测试
+tests/SilkEngine.Tests/ # 126 个 xUnit 测试
 ```
 
 ## 测试

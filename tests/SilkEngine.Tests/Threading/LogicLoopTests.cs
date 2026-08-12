@@ -10,9 +10,9 @@ public class LogicLoopTests
     private class Counter : MonoBehaviour
     {
         public int Tick, Fixed, Late, Post;
-        public override void OnTick(float dt) => Tick++;
-        public override void OnFixedTick(float dt) => Fixed++;
-        public override void OnLateTick() => Late++;
+        public override void OnUpdate(float dt) => Tick++;
+        public override void OnFixedUpdate(float dt) => Fixed++;
+        public override void OnLateUpdate() => Late++;
         public override void OnPostRender() => Post++;
     }
 

@@ -38,8 +38,12 @@ public abstract class Object
             clone.Transform.LocalRotation = go.Transform.LocalRotation;
             clone.Transform.LocalScale = go.Transform.LocalScale;
             foreach (var child in go.Transform.Children)
-                if (Instantiate(child.GameObject) is GameObject cc)
+            {
+                var cgo = Instantiate(child.GameObject);
+                if (cgo is GameObject cc)
                     cc.Transform.SetParent(clone.Transform);
+            }
+
             return clone;
         }
         throw new NotSupportedException($"Instantiate not supported for {original.GetType()}");

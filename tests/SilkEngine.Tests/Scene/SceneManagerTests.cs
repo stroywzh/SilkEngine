@@ -12,8 +12,8 @@ public class SceneManagerTests
         public float TickDt, FixedDt;
         public override void OnAwake() => Awake = true;
         public override void OnStart() => Start = true;
-        public override void OnTick(float dt) { Tick = true; TickDt = dt; }
-        public override void OnFixedTick(float dt) => FixedDt = dt;
+        public override void OnUpdate(float dt) { Tick = true; TickDt = dt; }
+        public override void OnFixedUpdate(float dt) => FixedDt = dt;
         public override void OnDestroy() => Destroy = true;
     }
 

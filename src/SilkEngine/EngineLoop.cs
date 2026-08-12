@@ -64,7 +64,7 @@ public class EngineLoop : IDisposable
         }
 
         Log.Info(
-            $"[EngineLoop]: EngineLoop Started. Managed threads: \nMain(heartbeat):PID{Pid}\nWorkerThreadCount:{_workerPool.WorkerThreadCount}\nRenderThread:PID{_renderThreadLoop.PID}."
+            $"[EngineLoop]: EngineLoop Started. \nManaged threads: \nMain(heartbeat):PID{Pid}\nWorkerThreadCount:{_workerPool.WorkerThreadCount}\nRenderThread:PID{_renderThreadLoop.PID}."
         );
 
         while (!_renderThreadLoop.ShouldClose && !_stopRequested)
@@ -102,21 +102,31 @@ public class EngineLoop : IDisposable
         return System.Math.Min(dt, 0.1f);
     }
 
+    Camera mainCam = new();
+    /// <summary>
+    /// 很显然这里这个东西需要拆除去，就光凭这个camera每帧都要寻找就是纯拖累来的
+    /// </summary>
     protected virtual void OnRender()
     {
         Camera? cam = null;
-        SceneManager.ForEachComponent<Camera>(c =>
+        SceneManager.Instance.ForEachComponent<Camera>(c =>
         {
             if (c.GameObject.IsActive)
                 cam ??= c;
         });
 
+        if (cam == null)
+        {
+            cam = new Camera();
+            // cam.Transform.LocalPosition = Math.Vector3.Zero;
+        }
+
         float aspect = (float)_renderThreadLoop.Width / _renderThreadLoop.Height;
-        if (cam != null)
-            cam.UpdateMatrices(aspect);
+
+        cam.UpdateMatrices(aspect);
 
         var renderers = new List<MeshRenderer>();
-        SceneManager.ForEachComponent<MeshRenderer>(r =>
+        SceneManager.Instance.ForEachComponent<MeshRenderer>(r =>
         {
             if (r.Enabled && r.GameObject.IsActive)
                 renderers.Add(r);

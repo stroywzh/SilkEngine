@@ -55,7 +55,6 @@ public static class Input
     {
         _keyboard.SwapBuffers();
         _mouse.SwapBuffers();
-        Time.DeltaTime = Time.DeltaTime > 0 ? Time.DeltaTime : 0.016f;
         _provider?.UpdateInput(_keyboard, _mouse);
 
         if (EnableLog)

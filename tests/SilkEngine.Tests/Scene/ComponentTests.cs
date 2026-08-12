@@ -12,7 +12,7 @@ public class ComponentTests
         public bool EnabledCalled, DisabledCalled, TickCalled;
         public override void OnEnable() => EnabledCalled = true;
         public override void OnDisable() => DisabledCalled = true;
-        public override void OnTick(float dt) => TickCalled = true;
+        public override void OnUpdate(float dt) => TickCalled = true;
     }
 
     [Fact]

@@ -24,15 +24,15 @@ public class LogicLoop : IDisposable
         _accumulator += deltaTime;
         while (_accumulator >= _fixedDt)
         {
-            SceneManager.FixedTick(_fixedDt);
+            SceneManager.Instance.FixedTick(_fixedDt);
             _accumulator -= _fixedDt;
         }
-        SceneManager.Tick(deltaTime);
-        SceneManager.LateTick();
-        SceneManager.ProcessDestroys(deltaTime);
+        SceneManager.Instance.Tick(deltaTime);
+        SceneManager.Instance.LateTick();
+        SceneManager.Instance.ProcessDestroys(deltaTime);
     }
 
-    public void LateTick(float deltaTime) => SceneManager.PostRender();
+    public void LateTick(float deltaTime) => SceneManager.Instance.PostRender();
 
     public void Stop() { }
 

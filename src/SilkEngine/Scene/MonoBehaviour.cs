@@ -10,11 +10,11 @@ public abstract class MonoBehaviour : Component
 
     public virtual void OnDisable() { }
 
-    public virtual void OnTick(float deltaTime) { }
+    public virtual void OnUpdate(float deltaTime) { }
 
-    public virtual void OnFixedTick(float deltaTime) { }
+    public virtual void OnFixedUpdate(float deltaTime) { }
 
-    public virtual void OnLateTick() { }
+    public virtual void OnLateUpdate() { }
 
     public virtual void OnPostRender() { }
 
