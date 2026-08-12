@@ -20,7 +20,7 @@ public class LogicLoopTests
     public void Tick_DrivesSceneUpdate()
     {
         var s = new EngineScene("T"); var go = new GameObject(); var c = go.AddComponent<Counter>(); s.AddRootObject(go);
-        SceneManager.LoadScene(s);
+        SceneManager.Instance.LoadScene(s);
         var ml = new LogicLoop();
         ml.Tick(0.016f);
         Assert.Equal(1, c.Tick);
@@ -30,7 +30,7 @@ public class LogicLoopTests
     public void FixedTick_Accumulates()
     {
         var s = new EngineScene("T"); var go = new GameObject(); var c = go.AddComponent<Counter>(); s.AddRootObject(go);
-        SceneManager.LoadScene(s);
+        SceneManager.Instance.LoadScene(s);
         var ml = new LogicLoop();
         ml.FixedDeltaTime = 0.02f;
         ml.Tick(0.05f);
@@ -41,7 +41,7 @@ public class LogicLoopTests
     public void LateTick_DrivesPostRender()
     {
         var s = new EngineScene("T"); var go = new GameObject(); var c = go.AddComponent<Counter>(); s.AddRootObject(go);
-        SceneManager.LoadScene(s);
+        SceneManager.Instance.LoadScene(s);
         var ml = new LogicLoop();
         ml.Tick(0.016f);
         ml.LateTick(0.016f);

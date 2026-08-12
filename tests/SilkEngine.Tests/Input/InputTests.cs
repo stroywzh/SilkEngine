@@ -47,6 +47,7 @@ namespace SilkEngine.Tests.Input
         {
             var p = new FakeProvider { D = true };
             Input.SetProvider(p);
+            Time.DeltaTime = 0.016f;
             Input.Update();
             Input.Update();
             float v = Input.GetAxis("Horizontal");

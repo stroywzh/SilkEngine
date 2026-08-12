@@ -21,7 +21,8 @@ public class SceneManagerTests
     public void LoadScene_CallsAwakeAndStart()
     {
         var s = new Scene("T"); var go = new GameObject(); var c = go.AddComponent<Tracker>(); s.AddRootObject(go);
-        SceneManager.LoadScene(s);
+        SceneManager.Instance.LoadScene(s);
+        SceneManager.Instance.Tick(0.016f);
         Assert.True(c.Awake); Assert.True(c.Start);
     }
 
@@ -29,8 +30,8 @@ public class SceneManagerTests
     public void Tick_PassesDeltaTime()
     {
         var s = new Scene("T"); var go = new GameObject(); var c = go.AddComponent<Tracker>(); s.AddRootObject(go);
-        SceneManager.LoadScene(s);
-        SceneManager.Tick(0.16f);
+        SceneManager.Instance.LoadScene(s);
+        SceneManager.Instance.Tick(0.16f);
         Assert.True(c.Tick); Assert.Equal(0.16f, c.TickDt);
     }
 
@@ -38,8 +39,8 @@ public class SceneManagerTests
     public void FixedTick_PassesFixedTime()
     {
         var s = new Scene("T"); var go = new GameObject(); var c = go.AddComponent<Tracker>(); s.AddRootObject(go);
-        SceneManager.LoadScene(s);
-        SceneManager.FixedTick(0.02f);
+        SceneManager.Instance.LoadScene(s);
+        SceneManager.Instance.FixedTick(0.02f);
         Assert.Equal(0.02f, c.FixedDt);
     }
 
@@ -47,8 +48,8 @@ public class SceneManagerTests
     public void Inactive_SkipsTick()
     {
         var s = new Scene("T"); var go = new GameObject(); var c = go.AddComponent<Tracker>(); go.IsActive = false; s.AddRootObject(go);
-        SceneManager.LoadScene(s);
-        SceneManager.Tick(0.16f);
+        SceneManager.Instance.LoadScene(s);
+        SceneManager.Instance.Tick(0.16f);
         Assert.False(c.Tick);
     }
 
@@ -56,9 +57,9 @@ public class SceneManagerTests
     public void Destroy_AfterProcessDestroys()
     {
         var s = new Scene("T"); var go = new GameObject(); var c = go.AddComponent<Tracker>(); s.AddRootObject(go);
-        SceneManager.LoadScene(s);
+        SceneManager.Instance.LoadScene(s);
         Object.Destroy(c); Assert.False(c.Destroy);
-        SceneManager.ProcessDestroys(0.1f);
+        SceneManager.Instance.ProcessDestroys(0.1f);
         Assert.True(c.Destroy);
     }
 
@@ -76,7 +77,7 @@ public class SceneManagerTests
         child.Transform.SetParent(parent.Transform);
         var c = child.AddComponent<Tracker>();
         s.AddRootObject(parent);
-        SceneManager.LoadScene(s);
+        SceneManager.Instance.LoadScene(s);
 
         Object.Destroy(parent);
         Assert.False(child.IsActive);
@@ -90,10 +91,10 @@ public class SceneManagerTests
         var go = new GameObject();
         var c = go.AddComponent<Tracker>();
         s.AddRootObject(go);
-        SceneManager.LoadScene(s);
+        SceneManager.Instance.LoadScene(s);
 
         Object.Destroy(go);
-        SceneManager.ProcessDestroys(0.1f);
+        SceneManager.Instance.ProcessDestroys(0.1f);
         Assert.True(c.Destroy);
         Assert.Empty(s.GetRootGameObjects());
     }
@@ -104,12 +105,12 @@ public class SceneManagerTests
         var s = new Scene("T");
         var go = new GameObject();
         s.AddRootObject(go);
-        SceneManager.LoadScene(s);
+        SceneManager.Instance.LoadScene(s);
 
         Object.Destroy(go, 1f);
-        SceneManager.ProcessDestroys(0.5f);
+        SceneManager.Instance.ProcessDestroys(0.5f);
         Assert.Single(s.GetRootGameObjects());
-        SceneManager.ProcessDestroys(0.6f);
+        SceneManager.Instance.ProcessDestroys(0.6f);
         Assert.Empty(s.GetRootGameObjects());
     }
 }
