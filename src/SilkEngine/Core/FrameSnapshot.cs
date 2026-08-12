@@ -23,3 +23,38 @@ public sealed class FrameSnapshot
             : group.Components.Cast<T>().ToList().AsReadOnly();
     }
 }
+
+public sealed class FrameSnapshotManager
+{
+    private FrameSnapshot _front = new();
+    private FrameSnapshot _back = new();
+
+    public FrameSnapshot Current { get; private set; }
+
+    public FrameSnapshotManager() => Current = _front;
+
+    internal void CommitPending(
+        ComponentRegistry registry,
+        List<SceneManager.DestroyEntry> destroys,
+        Scene? activeScene)
+    {
+        foreach (var e in destroys)
+        {
+            if (e.Target is MonoBehaviour mb)
+                mb.OnDestroy();
+            if (e.Target is GameObject go)
+                activeScene?._rootObjects.Remove(go);
+        }
+        destroys.Clear();
+
+        registry.ApplyPending();
+
+        registry.RefreshSnapshot(_back);
+
+        _back.FrameCount++;
+        _back.ActiveScene = activeScene;
+
+        Current = _back;
+        (_front, _back) = (_back, _front);
+    }
+}
