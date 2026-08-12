@@ -71,7 +71,8 @@ public class GameObjectTests
 
     private class LifecycleTracker : MonoBehaviour
     {
-        public bool Disabled, Destroyed;
+        public bool EnableCalled, Disabled, Destroyed;
+        public override void OnEnable() => EnableCalled = true;
         public override void OnDisable() => Disabled = true;
         public override void OnDestroy() => Destroyed = true;
     }
@@ -116,5 +117,70 @@ public class GameObjectTests
         mgr.CommitPending(reg, SceneManager._destroyQueue, scene, 0f);
         Assert.True(c.Destroyed);
         Assert.Empty(reg.GetOfType<LifecycleTracker>());
+    }
+
+    [Fact]
+    public void IsActiveInHierarchy_FalseWhenParentInactive()
+    {
+        var parent = new GameObject();
+        var child = new GameObject();
+        child.Transform.SetParent(parent.Transform);
+        parent.IsActive = false;
+        Assert.False(child.IsActiveInHierarchy);
+    }
+
+    [Fact]
+    public void Deactivate_CascadesDisableToChildren()
+    {
+        var parent = new GameObject();
+        var child = new GameObject();
+        child.Transform.SetParent(parent.Transform);
+        var pc = parent.AddComponent<LifecycleTracker>();
+        var cc = child.AddComponent<LifecycleTracker>();
+
+        parent.IsActive = false;
+        Assert.True(pc.Disabled);
+        Assert.True(cc.Disabled);
+    }
+
+    [Fact]
+    public void Deactivate_ThenActivate_FiresEnableAgain()
+    {
+        var parent = new GameObject();
+        var child = new GameObject();
+        child.Transform.SetParent(parent.Transform);
+        var cc = child.AddComponent<LifecycleTracker>();
+
+        parent.IsActive = false;
+        Assert.True(cc.Disabled);
+
+        cc.EnableCalled = false;
+        parent.IsActive = true;
+        Assert.True(cc.EnableCalled);
+    }
+
+    [Fact]
+    public void ComponentAddedToInactiveGo_NoEnableUntilActive()
+    {
+        var go = new GameObject();
+        go.IsActive = false;
+        var c = go.AddComponent<LifecycleTracker>();
+        Assert.False(c.EnableCalled);
+
+        go.IsActive = true;
+        Assert.True(c.EnableCalled);
+    }
+
+    [Fact]
+    public void SetParent_ToInactiveParent_DisablesComponent()
+    {
+        var parent = new GameObject();
+        parent.IsActive = false;
+        var child = new GameObject();
+        var c = child.AddComponent<LifecycleTracker>();
+        Assert.True(c.EnableCalled);   // 无父级时活跃
+
+        child.Transform.SetParent(parent.Transform);
+        Assert.True(c.Disabled);       // 转移到失活父级下 → 失活
     }
 }

@@ -6,7 +6,30 @@ public sealed class GameObject : Object
 {
     internal List<Component> _components = new();
     public Transform Transform { get; }
-    public bool IsActive { get; set; } = true;
+    private bool _isActive = true;
+    public bool IsActive
+    {
+        get => _isActive;
+        set
+        {
+            if (_isActive == value)
+                return;
+            _isActive = value;
+            NotifyActivationChanged();
+        }
+    }
+
+    /// <summary>沿父链的层级活跃状态。</summary>
+    public bool IsActiveInHierarchy
+        => _isActive && (Transform.Parent?.GameObject?.IsActiveInHierarchy ?? true);
+
+    internal void NotifyActivationChanged()
+    {
+        foreach (var c in _components)
+            c.RecomputeActiveState();
+        foreach (var child in Transform.Children)
+            child.GameObject?.NotifyActivationChanged();
+    }
 
     public GameObject(string name = "GameObject")
     {

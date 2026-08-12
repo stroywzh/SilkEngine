@@ -25,7 +25,7 @@ public abstract class Component : Object
 
     internal void RecomputeActiveState()
     {
-        bool shouldBeActive = _enabled && GameObject.IsActive;
+        bool shouldBeActive = _enabled && GameObject.IsActiveInHierarchy;
         if (shouldBeActive && !_enableFired)
         {
             _enableFired = true;

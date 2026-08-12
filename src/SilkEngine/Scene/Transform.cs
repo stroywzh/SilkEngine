@@ -86,6 +86,7 @@ public sealed class Transform
         _parent?._children.Remove(this);
         _parent = p;
         _parent?._children.Add(this);
+        GameObject?.NotifyActivationChanged();
     }
 
     internal void NotifyChildren()
