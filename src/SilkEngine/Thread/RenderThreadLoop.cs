@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading;
 using SilkEngine.Render;
 
@@ -14,6 +15,7 @@ public class RenderThreadLoop : IDisposable
     private readonly ManualResetEventSlim _commandsReady = new(false);
     private readonly ManualResetEventSlim _frameDone = new(false);
     private IReadOnlyList<DrawCommand>? _pendingCommands;
+    private IReadOnlyList<RenderPass>? _pendingPasses;
     private bool _disposed;
 
     public bool ShouldClose => _backend.ShouldClose;
@@ -46,6 +48,14 @@ public class RenderThreadLoop : IDisposable
         _frameDone.Reset();
     }
 
+    public void SubmitFrame(IReadOnlyList<RenderPass> passes)
+    {
+        _pendingPasses = passes;
+        _commandsReady.Set();
+        _frameDone.Wait();
+        _frameDone.Reset();
+    }
+
     private void RenderLoop()
     {
         _backend.MakeContextCurrent();
@@ -57,7 +67,20 @@ public class RenderThreadLoop : IDisposable
                 break;
             try
             {
-                _backend.ExecuteFrame(_pendingCommands!);
+                if (_pendingPasses != null)
+                {
+                    foreach (var pass in _pendingPasses.OrderBy(p => p.SortOrder))
+                    {
+                        pass.BeforeCommands?.Invoke(_backend);
+                        _backend.ExecutePass(pass.Commands);
+                        pass.AfterCommands?.Invoke(_backend);
+                    }
+                    _backend.Present();
+                }
+                else if (_pendingCommands != null)
+                {
+                    _backend.ExecuteFrame(_pendingCommands!);
+                }
             }
             catch (Exception ex)
             {

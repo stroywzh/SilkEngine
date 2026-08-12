@@ -52,6 +52,27 @@ public class RenderThreadLoopTests
     }
 
     [Fact]
+    public void SubmitFrame_WithPasses_ExecutesAllPasses()
+    {
+        using var fake = new FakeBackend();
+        var rtl = new RenderThreadLoop(fake);
+        rtl.Initialize();
+
+        var cmd1 = new SingleDrawCommand { Enabled = true, Mesh = new Mesh { Name = "A" } };
+        var cmd2 = new SingleDrawCommand { Enabled = true, Mesh = new Mesh { Name = "B" } };
+        var passes = new List<RenderPass>
+        {
+            new() { SortOrder = 0, Commands = [cmd1] },
+            new() { SortOrder = 1, Commands = [cmd2] }
+        };
+
+        rtl.SubmitFrame(passes);
+        Assert.Equal(2, fake.Frames.Count);
+        Assert.Same(cmd1, fake.Frames[0][0]);
+        Assert.Same(cmd2, fake.Frames[1][0]);
+    }
+
+    [Fact]
     public void ExceptionInExecuteFrame_DoesNotHangSubmitFrame()
     {
         using var fake = new FakeBackend();
