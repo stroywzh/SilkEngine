@@ -49,9 +49,13 @@ public sealed class ComponentRegistry
 
     public IReadOnlyList<T> GetOfType<T>() where T : Component
     {
-        var t = typeof(T);
-        return _typeMap.TryGetValue(t, out var list)
-            ? list.Cast<T>().ToList().AsReadOnly()
-            : Array.Empty<T>();
+        var result = new List<T>();
+        foreach (var kvp in _typeMap)
+        {
+            if (kvp.Key == typeof(T) || kvp.Key.IsSubclassOf(typeof(T)))
+                foreach (var c in kvp.Value)
+                    result.Add((T)c);
+        }
+        return result.AsReadOnly();
     }
 }
