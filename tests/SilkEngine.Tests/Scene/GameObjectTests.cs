@@ -84,25 +84,6 @@ public class GameObjectTests : IClassFixture<SceneManagerFixture>
     }
 
     [Fact]
-    public void AddComponent_AmbientRegistry_AutoRegisters()
-    {
-        var reg = new ComponentRegistry();
-        SceneManager.ActiveRegistry = reg;
-        try
-        {
-            var go = new GameObject();
-            var c = go.AddComponent<TestComponent>();
-            reg.ApplyPending();
-            Assert.Single(reg.GetOfType<TestComponent>());
-            Assert.Same(c, reg.GetOfType<TestComponent>()[0]);
-        }
-        finally
-        {
-            SceneManager.ActiveRegistry = null;
-        }
-    }
-
-    [Fact]
     public void RemoveComponent_CallsDisableAndDefersDestroy()
     {
         _sm._destroyQueue.Clear();

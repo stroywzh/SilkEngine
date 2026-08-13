@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json.Nodes;
+using SilkEngine.Core;
 using SilkEngine.Scene.Serialization;
 using Object = SilkEngine.Core.Object;
 
@@ -107,7 +108,8 @@ public sealed class GameObject : Object
 
         c.RecomputeActiveState();
 
-        (registry ?? SceneManager.ActiveRegistry)?.Register(c);
+        // 回退链（协调裁决 C1）：Services 未注册时 TryGet 静默不注册（保留旧测试语义）
+        (registry ?? (Services.TryGet<SceneManager>(out var sm) ? sm?.Registry : null))?.Register(c);
     }
 
     public T? GetComponent<T>()

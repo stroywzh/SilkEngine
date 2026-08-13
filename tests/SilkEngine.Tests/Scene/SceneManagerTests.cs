@@ -210,8 +210,9 @@ public class SceneManagerTests : IClassFixture<SceneManagerFixture>
         var c = go.AddComponent<Tracker>();
         s.AddRootObject(go);
         _sm.LoadScene(s);
+        _sm.Attach(reg, new FrameSnapshotManager());
 
-        _sm.RegisterScene(reg);
+        _sm.RegisterScene();
         Assert.Single(reg.GetOfType<Tracker>());
     }
 
@@ -269,8 +270,7 @@ public class SceneManagerTests : IClassFixture<SceneManagerFixture>
     public void AddObjectToScene_RegistersAndRejectsDuplicates()
     {
         var reg = new ComponentRegistry();
-        SceneManager.ActiveRegistry = reg;
-        try
+        _sm.Attach(reg, new FrameSnapshotManager());
         {
             var s = new Scene("T");
             _sm.LoadScene(s, reg);
@@ -284,10 +284,6 @@ public class SceneManagerTests : IClassFixture<SceneManagerFixture>
             reg.ApplyPending();
             Assert.Single(reg.GetOfType<AwakeCounter>());       // Register 去重
         }
-        finally
-        {
-            SceneManager.ActiveRegistry = null;
-        }
     }
 
     private class AwakeCounter : MonoBehaviour
@@ -300,8 +296,7 @@ public class SceneManagerTests : IClassFixture<SceneManagerFixture>
     public void LoadScene_SingleArg_SwitchesScenes()
     {
         var reg = new ComponentRegistry();
-        SceneManager.ActiveRegistry = reg;
-        try
+        _sm.Attach(reg, new FrameSnapshotManager());
         {
             var s1 = new Scene("A");
             var go1 = new GameObject();
@@ -319,10 +314,6 @@ public class SceneManagerTests : IClassFixture<SceneManagerFixture>
             var all = reg.GetOfType<Tracker>();
             Assert.Single(all);
             Assert.Same(c2, all[0]);
-        }
-        finally
-        {
-            SceneManager.ActiveRegistry = null;
         }
     }
 
@@ -380,7 +371,7 @@ public class SceneManagerTests : IClassFixture<SceneManagerFixture>
     public void LoadSceneFromFile_LoadsAndRegistersScene()
     {
         var reg = new ComponentRegistry();
-        SceneManager.ActiveRegistry = reg;
+        _sm.Attach(reg, new FrameSnapshotManager());
         var path = Path.Combine(Path.GetTempPath(), $"scene_{Guid.NewGuid():N}.scene");
         try
         {
@@ -421,7 +412,6 @@ public class SceneManagerTests : IClassFixture<SceneManagerFixture>
         finally
         {
             File.Delete(path);
-            SceneManager.ActiveRegistry = null;
         }
     }
 

@@ -18,11 +18,18 @@ public class SceneManager : IDisposable
 
     internal List<DestroyEntry> _destroyQueue = new();
 
-    /// <summary>
-    /// 过渡期保留（Part 4 由 Attach(ComponentRegistry, FrameSnapshotManager) 注入替代后移除；
-    /// GameObject 回退链与 EngineLoop.Initialize 仍写此静态）
-    /// </summary>
-    internal static ComponentRegistry? ActiveRegistry { get; set; }
+    private ComponentRegistry? _registry;
+    private FrameSnapshotManager? _snapshotManager;
+
+    /// <summary>引擎注入：注册表与快照管理器（EngineLoop.Initialize 调用，替代原 ActiveRegistry）。</summary>
+    internal void Attach(ComponentRegistry registry, FrameSnapshotManager snapshotManager)
+    {
+        _registry = registry;
+        _snapshotManager = snapshotManager;
+    }
+
+    /// <summary>已注入的组件注册表（GameObject.AddComponent 回退链与派发消费）。</summary>
+    internal ComponentRegistry? Registry => _registry;
 
     private readonly Action<Object, float> _destroyHandler;
 
@@ -39,7 +46,7 @@ public class SceneManager : IDisposable
 
     public SilkEngine.Scene.Scene? ActiveScene { get; internal set; }
 
-    public void LoadScene(SilkEngine.Scene.Scene scene) => LoadScene(scene, ActiveRegistry);
+    public void LoadScene(SilkEngine.Scene.Scene scene) => LoadScene(scene, _registry);
 
     public void LoadScene(SilkEngine.Scene.Scene scene, ComponentRegistry? registry = null)
     {
@@ -61,13 +68,13 @@ public class SceneManager : IDisposable
         }
     }
 
-    internal void RegisterScene(ComponentRegistry registry)
+    internal void RegisterScene()
     {
-        if (ActiveScene == null)
+        if (ActiveScene == null || _registry == null)
             return;
         foreach (var go in ActiveScene._rootObjects)
-            InvokeRecursive(go, c => registry.Register(c));
-        registry.ApplyPending();
+            InvokeRecursive(go, c => _registry.Register(c));
+        _registry.ApplyPending();
     }
 
     private static void InvokeRecursive(GameObject go, Action<Component> action)
@@ -124,7 +131,7 @@ public class SceneManager : IDisposable
         }
     }
 
-    /// <summary>运行时向活动场景添加 GameObject（含子树），仅注册；Awake/Enable 由组件工厂保证，不重复触发。</summary>
+    /// <summary>运行时向活动场景添加 GameObject（含子树）；注册进已注入注册表，不重复触发生命周期。</summary>
     public bool AddObjectToScene(GameObject go)
     {
         if (ActiveScene == null
@@ -132,8 +139,7 @@ public class SceneManager : IDisposable
             || go.Transform.Parent != null)
             return false;
         ActiveScene.AddRootObject(go);
-        var registry = ActiveRegistry;
-        InvokeRecursive(go, c => registry?.Register(c));
+        InvokeRecursive(go, c => _registry?.Register(c));
         return true;
     }
 
@@ -141,7 +147,7 @@ public class SceneManager : IDisposable
     public bool AddObjectToScene(MonoBehaviour mb) => AddObjectToScene(mb.GameObject);
 
     /// <summary>
-    /// 从 .scene JSON 文件加载场景：读文件 → SceneSerializer.Deserialize → LoadScene（带 ActiveRegistry）。
+    /// 从 .scene JSON 文件加载场景：读文件 → SceneSerializer.Deserialize → LoadScene（带注入的注册表）。
     /// 返回是否成功；失败（文件缺失/无权限/JSON 格式错误）记录错误日志且不抛未捕获异常。
     /// </summary>
     public bool LoadSceneFromFile(string path)
@@ -149,7 +155,7 @@ public class SceneManager : IDisposable
         try
         {
             var scene = SceneSerializer.Deserialize(File.ReadAllText(path));
-            LoadScene(scene, ActiveRegistry);
+            LoadScene(scene, _registry);
             return true;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException or InvalidOperationException)

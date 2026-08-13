@@ -72,9 +72,9 @@ public class EngineLoop : IDisposable
         Services.Register(_snapshotManager);
         Services.Register(_renderSystem);
 
-        // 过渡期（Part 4 移除）：ActiveRegistry 静态暂保留，Attach(registry, snapshot) 注入后删除
-        SceneManager.ActiveRegistry = _registry;
-        _sceneManager.RegisterScene(_registry);
+        // 注入注册表与快照管理器（Part 4：替代原 ActiveRegistry 静态赋值）
+        _sceneManager.Attach(_registry, _snapshotManager);
+        _sceneManager.RegisterScene();
         _snapshotManager.CommitPending(
             _registry,
             _sceneManager._destroyQueue,
