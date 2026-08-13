@@ -1,11 +1,12 @@
 using System.Collections.Generic;
 using System.Linq;
+using SilkEngine.Core.Assets;
 using SilkEngine.Math;
 
 namespace SilkEngine.Render;
 
 /// <summary>纯数据材质参数容器</summary>
-public class Material
+public class Material : IAsset
 {
     /// <summary>材质标识名称</summary>
     public string Name { get; init; } = string.Empty;

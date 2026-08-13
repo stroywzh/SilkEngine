@@ -1,8 +1,9 @@
 using System.Linq;
+using SilkEngine.Core.Assets;
 
 namespace SilkEngine.Render;
 
-public class Mesh
+public class Mesh : IAsset
 {
     public string Name { get; init; } = string.Empty;
     public float[] Vertices { get; init; } = [];

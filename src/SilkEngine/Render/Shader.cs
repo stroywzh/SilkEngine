@@ -1,10 +1,12 @@
+using SilkEngine.Core.Assets;
+
 namespace SilkEngine.Render;
 
 /// <summary>
 /// 纯数据着色器容器
 /// <br/>后端将其编译为 GPU 资源 (IShader)
 /// </summary>
-public class Shader
+public class Shader : IAsset
 {
     /// <summary>着色器标识名称</summary>
     public string Name { get; init; } = string.Empty;

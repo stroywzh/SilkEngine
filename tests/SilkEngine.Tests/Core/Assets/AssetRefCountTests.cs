@@ -1,4 +1,5 @@
 using SilkEngine.Core.Assets;
+using SilkEngine.Render;
 
 namespace SilkEngine.Tests.Core.Assets;
 
@@ -100,5 +101,16 @@ public class AssetRefCountTests
         AssetManager.SetTracked(ref field, a); // 非托管 → 无条目 → no-op
         Assert.Same(a, field);
         AssetManager.SetTracked(ref field, null);
+    }
+
+    [Fact]
+    public void SetTracked_ShaderMeshMaterial_AreTrackableAssets()
+    {
+        var shader = new Shader { Name = "S" };
+        var mesh = new Mesh { Name = "M" };
+        var material = new Material { Name = "Mat" };
+        Assert.IsAssignableFrom<IAsset>(shader);
+        Assert.IsAssignableFrom<IAsset>(mesh);
+        Assert.IsAssignableFrom<IAsset>(material);
     }
 }
