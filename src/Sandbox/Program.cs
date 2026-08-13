@@ -22,12 +22,12 @@ class Program
 
         // TestThirdPerson3D();
 
-        TestPNGQuad();
+        // TestPNGQuad();
         // TestNDCTriangle();
         // TestNDCQuad();
         // TestCameraOrtho();
         // TestCameraPerspective();
-        // TestSceneSerialization();
+        TestSceneSerialization();
 
         // ---------------------------------------------------------
 
@@ -379,12 +379,17 @@ void main() { FragColor = vec4(abs(vNormal), 1.0); }",
                 var mr = cube.AddComponent<MeshRenderer>();
                 mr.Shader = shader;
                 mr.Mesh = MeshFactory.CreateCube(1f);
-                cube.Transform.SetParent(ground.Transform);   // 层级随场景保存
+                cube.Transform.SetParent(ground.Transform); // 层级随场景保存
             }
 
             var camObj = new GameObject("FollowCam");
             camObj.Transform.LocalPosition = new Vector3(0, 4, -10);
             camObj.AddComponent<Camera>();
+            camObj.AddComponent<CameraFollow>().Target = ground;
+            camObj.AddComponent<PlayerController>().Camera = camObj.GetComponent<CameraFollow>();
+
+            Log.Info(camObj.GetAllComponentName());
+
             scene.AddRootObject(camObj);
 
             // ---- 保存 ----
@@ -393,16 +398,29 @@ void main() { FragColor = vec4(abs(vNormal), 1.0); }",
             File.WriteAllText(path, SceneSerializer.Serialize(scene));
             Log.Info($"Scene saved to {path}");
 
+            Thread.Sleep(1000);
+
             // ---- 加载（往返）----
             SceneManager.Instance.LoadSceneFromFile(path);
             Log.Info(
                 $"Scene loaded: '{SceneManager.ActiveScene!.Name}', "
-                + $"roots={SceneManager.ActiveScene.GetRootGameObjects().Length}"
+                    + $"roots={SceneManager.ActiveScene.GetRootGameObjects().Length}"
             );
 
             // 资产重绑：当前 Shader/Mesh 为非托管资产（GUID 为空，序列化跳过引用）
             foreach (var go in SceneManager.ActiveScene.GetRootGameObjects())
                 RebindAssets(go);
+
+            // 用户组件运行时重挂：反序列化不重建未注册组件；组件引用需手动重连
+            // 注：Camera 同样未实现 ISerializableComponent，加载后需一并补挂
+            var loadedCam = SceneManager
+                .ActiveScene!.GetRootGameObjects()
+                .First(go => go.Name == "FollowCam");
+            loadedCam.AddComponent<Camera>();
+            var follow = loadedCam.AddComponent<CameraFollow>();
+            follow.Target = SceneManager
+                .ActiveScene.GetRootGameObjects()
+                .First(go => go.Name == "Ground");
 
             void RebindAssets(GameObject go)
             {
@@ -416,6 +434,10 @@ void main() { FragColor = vec4(abs(vNormal), 1.0); }",
                     RebindAssets(child.GameObject!);
             }
         }
+        (string str1, string str2) GetSrtTurple()
+        {
+            return (string.Empty, "WC");
+        }
     }
 
     // LazyAsync 加载 demo 纹理：未就绪时材质无主纹理 → 白色占位，就绪后贴图
@@ -424,12 +446,12 @@ void main() { FragColor = vec4(abs(vNormal), 1.0); }",
         public Material? Target;
         private AssetRequest<Texture2D>? _request;
 
-            public override void OnStart()
-            {
-                string path = Path.Combine(AppContext.BaseDirectory, "Resources", "test.png");
-                _request = AssetManager.LoadAsync<Texture2D>(path, AsyncLoadMode.LazyAsync);
-                _ = _request.Asset; // LazyAsync 首次访问即触发加载；受 IsDone 保护的 pattern 无法自发触发
-            }
+        public override void OnStart()
+        {
+            string path = Path.Combine(AppContext.BaseDirectory, "Resources", "test.png");
+            _request = AssetManager.LoadAsync<Texture2D>(path, AsyncLoadMode.LazyAsync);
+            _ = _request.Asset; // LazyAsync 首次访问即触发加载；受 IsDone 保护的 pattern 无法自发触发
+        }
 
         public override void OnUpdate(float deltaTime)
         {
