@@ -9,6 +9,7 @@ public class ImageDecoderContractTests
     public static TheoryData<IImageDecoder> Decoders => new()
     {
         new StbImageSharpDecoder(),
+        new StbiSharpDecoder(),
     };
 
     [Theory]
@@ -39,5 +40,15 @@ public class ImageDecoderContractTests
         Assert.False(decoder.CanDecode(".txt"));
         Assert.False(decoder.CanDecode("png"));
         Assert.False(decoder.CanDecode(""));
+    }
+
+    [Fact]
+    public void BothDecoders_ProduceIdenticalPixels()
+    {
+        var a = new StbImageSharpDecoder().Decode(PngFixtures.RedPng);
+        var b = new StbiSharpDecoder().Decode(PngFixtures.RedPng);
+        Assert.Equal(a.Width, b.Width);
+        Assert.Equal(a.Height, b.Height);
+        Assert.Equal(a.Pixels, b.Pixels);
     }
 }
