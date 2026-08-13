@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using SilkEngine.Core.Assets;
 using SilkEngine.InputSystem;
 using SilkEngine.Render;
 using SilkEngine.Threading;
@@ -113,6 +114,9 @@ public class EngineLoop : IDisposable
                 SceneManager.ActiveScene,
                 Time.DeltaTime
             );
+
+            // 帧末：资产加载完成拾取 + 引用归零条目 Unloaded 迁移
+            AssetManager.ProcessCompleted();
         }
     }
 
