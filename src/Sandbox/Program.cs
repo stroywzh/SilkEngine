@@ -271,7 +271,9 @@ void main() { FragColor = texture(uMainTex, vTexCoord); }",
             mr.Shader = shader;
             mr.Mesh = MeshFactory.CreateQuad(1, 1);
             mr.Material = mat;
-            quad.AddComponent<TextureDemoRunner>().Target = mat;
+            var demo = quad.AddComponent<TextureDemoRunner>();
+            demo.Target = mat;
+            demo.Engine = engine;
             scene.AddRootObject(quad);
 
             var camObj = new GameObject("Cam");
@@ -440,14 +442,15 @@ void main() { FragColor = vec4(abs(vNormal), 1.0); }",
     // LazyAsync 加载 demo 纹理：未就绪时材质无主纹理 → 白色占位，就绪后贴图
     private class TextureDemoRunner : MonoBehaviour
     {
+        public EngineLoop? Engine;
         public Material? Target;
         private AssetRequest<Texture2D>? _request;
 
         public override void OnStart()
         {
             string path = Path.Combine(AppContext.BaseDirectory, "Resources", "test.png");
-            _request = AssetManager.LoadAsync<Texture2D>(path, AsyncLoadMode.LazyAsync);
-            _ = _request.Asset; // LazyAsync 首次访问即触发加载；受 IsDone 保护的 pattern 无法自发触发
+            _request = Engine!.AssetManager.LoadAsync<Texture2D>(path, AsyncLoadMode.LazyAsync);
+            _ = _request.Asset; // LazyAsync 首次访问即触发加载
         }
 
         public override void OnUpdate(float deltaTime)

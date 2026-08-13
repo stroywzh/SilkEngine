@@ -1,19 +1,24 @@
 using SilkEngine.Core.Assets;
 using SilkEngine.Render;
+using SilkEngine.Tests.Core.Assets;
 
 namespace SilkEngine.Tests.Render;
 
-// 与 Part 2 资产测试同集合：本类读写全局 AssetManager.Cache，须串行执行
+// 与 Part 2 资产测试同集合：本类经夹具注册的实例缓存（Services.TryGet ambient 解析）
 [Collection("Assets")]
-public class MaterialMainTextureTests
+public class MaterialMainTextureTests : IClassFixture<AssetsFixture>
 {
+    private readonly AssetManager _am;
+
+    public MaterialMainTextureTests(AssetsFixture fixture) => _am = fixture.Manager;
+
     private static Texture2D MakeTex(string name) =>
         new() { Name = name, ImageData = new ImageData(1, 1, [255, 255, 255, 255]) };
 
     // Part 2 测试惯例：先登记缓存条目（托管化），再经 entry.RefCount 断言
-    private static AssetEntry RegisterManaged(IAsset asset)
+    private AssetEntry RegisterManaged(IAsset asset)
     {
-        var entry = AssetManager.Cache.GetOrAdd(Guid.NewGuid());
+        var entry = _am.Cache.GetOrAdd(Guid.NewGuid());
         entry.Data = asset;
         entry.State = AssetState.Ready;
         return entry;
@@ -69,8 +74,8 @@ public class MaterialMainTextureTests
         var texEntry = RegisterManaged(tex);
         mat.MainTexture = tex; // tex 0 → 1
 
-        AssetManager.TryAddRef(mat);  // mat 0 → 1
-        AssetManager.TryRelease(mat); // mat 1 → 0 → 同步触发 MaterialDisposed → 级联 TryRelease(tex)
+        _am.TryAddRef(mat);  // mat 0 → 1
+        _am.TryRelease(mat); // mat 1 → 0 → 同步触发 MaterialDisposed → 级联 TryRelease(tex)
 
         Assert.Equal(0, matEntry.RefCount);
         Assert.Equal(0, texEntry.RefCount);

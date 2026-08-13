@@ -4,13 +4,14 @@ using SilkEngine.Tests.Core.Assets;
 
 namespace SilkEngine.Tests.Render;
 
-// 与 Part 2 资产测试同集合：本类读写全局 AssetManager.Cache，须串行执行
+// 与 Part 2 资产测试同集合：本类读写实例缓存（每测试新建 AssetManager），串行执行保险
 [Collection("Assets")]
 public class TextureUnloadTests
 {
     [Fact]
     public void ReleaseTexture_RemovesFromCache_AndDisposes()
     {
+        var am = new AssetManager(new RecordingScheduler());
         var backend = new OpenGLRenderBackend();
         var tex = new Texture2D
         {
@@ -28,6 +29,7 @@ public class TextureUnloadTests
     [Fact]
     public void ReleaseTexture_UnknownTexture_IsNoOp()
     {
+        var am = new AssetManager(new RecordingScheduler());
         var backend = new OpenGLRenderBackend();
 
         backend.ReleaseTexture(
@@ -40,14 +42,15 @@ public class TextureUnloadTests
     [Fact]
     public void ProcessUnloadQueue_ForwardsUnloadedTexturesToReleaser()
     {
+        var am = new AssetManager(new RecordingScheduler());
         using var file = PngTestFile.Create();
-        var tex = AssetManager.Load<Texture2D>(file.FilePath);
-        AssetManager.TryAddRef(tex);
-        AssetManager.TryRelease(tex);
-        AssetManager.ProcessCompleted();
+        var tex = am.Load<Texture2D>(file.FilePath);
+        am.TryAddRef(tex);
+        am.TryRelease(tex);
+        am.ProcessCompleted();
         var released = new List<Texture2D>();
 
-        AssetManager.ProcessUnloadQueue(t => released.Add(t));
+        am.ProcessUnloadQueue(t => released.Add(t));
 
         Assert.Single(released);
         Assert.Same(tex, released[0]);
@@ -56,15 +59,16 @@ public class TextureUnloadTests
     [Fact]
     public void UnloadChain_UnloadedTexture_IsReleasedThroughBackend()
     {
+        var am = new AssetManager(new RecordingScheduler());
         var backend = new OpenGLRenderBackend();
         using var file = PngTestFile.Create();
-        var tex = AssetManager.Load<Texture2D>(file.FilePath);
+        var tex = am.Load<Texture2D>(file.FilePath);
         var glTex = backend.TextureRegistry.GetOrCreate(tex);
-        AssetManager.TryAddRef(tex);
-        AssetManager.TryRelease(tex);
+        am.TryAddRef(tex);
+        am.TryRelease(tex);
 
-        AssetManager.ProcessCompleted();
-        AssetManager.ProcessUnloadQueue(backend.ReleaseTexture);
+        am.ProcessCompleted();
+        am.ProcessUnloadQueue(backend.ReleaseTexture);
 
         Assert.True(glTex.IsDisposed);
         Assert.Equal(0, backend.TextureRegistry.Count);

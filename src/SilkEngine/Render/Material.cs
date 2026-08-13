@@ -26,13 +26,13 @@ public class Material : IAsset
     public Texture2D? MainTexture
     {
         get => _mainTexture;
-        set => AssetManager.SetTracked(ref _mainTexture, value);
+        set => AssetManager.SetTrackedAmbient(ref _mainTexture, value);
     }
 
     public Material()
     {
-        // 材质释放（计数归零）→ 级联归还主纹理引用
-        MaterialDisposed += () => AssetManager.TryRelease(_mainTexture);
+        // 材质释放（计数归零）→ 级联归还主纹理引用；释放方管理器实例由 AssetManager.TryRelease 传入
+        MaterialDisposed += manager => manager.TryRelease(_mainTexture);
     }
 
     /// <summary>设置浮点 uniform 值</summary>
@@ -109,9 +109,9 @@ public class Material : IAsset
         return true;
     }
 
-    /// <summary>释放回调：引用计数归零时由 AssetManager 触发（Part 3 的 MainTexture 级联挂接点）</summary>
-    internal event Action? MaterialDisposed;
+    /// <summary>释放回调：引用计数归零时由 AssetManager 触发（主纹理级联挂接点）</summary>
+    internal event Action<AssetManager>? MaterialDisposed;
 
-    /// <summary>引用归零通知（AssetManager.TryRelease 调用；子资产释放逻辑在 Part 3 扩展）</summary>
-    internal void NotifyDisposed() => MaterialDisposed?.Invoke();
+    /// <summary>引用归零通知（AssetManager.TryRelease 调用；携带释放方管理器实例供级联）</summary>
+    internal void NotifyDisposed(AssetManager manager) => MaterialDisposed?.Invoke(manager);
 }

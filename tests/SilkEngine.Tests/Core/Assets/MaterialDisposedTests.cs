@@ -4,11 +4,15 @@ using SilkEngine.Render;
 namespace SilkEngine.Tests.Core.Assets;
 
 [Collection("Assets")]
-public class MaterialDisposedTests
+public class MaterialDisposedTests : IClassFixture<AssetsFixture>
 {
-    private static AssetEntry RegisterManaged(IAsset asset)
+    private readonly AssetManager _am;
+
+    public MaterialDisposedTests(AssetsFixture fixture) => _am = fixture.Manager;
+
+    private AssetEntry RegisterManaged(IAsset asset)
     {
-        var entry = AssetManager.Cache.GetOrAdd(Guid.NewGuid());
+        var entry = _am.Cache.GetOrAdd(Guid.NewGuid());
         entry.Data = asset;
         entry.State = AssetState.Ready;
         return entry;
@@ -19,10 +23,10 @@ public class MaterialDisposedTests
     {
         var mat = new Material { Name = "M" };
         var entry = RegisterManaged(mat);
-        AssetManager.TryAddRef(mat);
+        _am.TryAddRef(mat);
         var fired = 0;
-        mat.MaterialDisposed += () => fired++;
-        AssetManager.Release(mat);
+        mat.MaterialDisposed += _ => fired++;
+        _am.Release(mat);
         Assert.Equal(1, fired);
         Assert.Equal(0, entry.RefCount);
     }
@@ -32,11 +36,11 @@ public class MaterialDisposedTests
     {
         var mat = new Material { Name = "M" };
         RegisterManaged(mat);
-        AssetManager.TryAddRef(mat);
-        AssetManager.TryAddRef(mat);
+        _am.TryAddRef(mat);
+        _am.TryAddRef(mat);
         var fired = 0;
-        mat.MaterialDisposed += () => fired++;
-        AssetManager.Release(mat); // 2 → 1，未归零
+        mat.MaterialDisposed += _ => fired++;
+        _am.Release(mat); // 2 → 1，未归零
         Assert.Equal(0, fired);
     }
 
@@ -45,8 +49,8 @@ public class MaterialDisposedTests
     {
         var mat = new Material { Name = "M" }; // 非托管：无缓存条目
         var fired = 0;
-        mat.MaterialDisposed += () => fired++;
-        AssetManager.Release(mat);
+        mat.MaterialDisposed += _ => fired++;
+        _am.Release(mat);
         Assert.Equal(0, fired);
     }
 
@@ -55,11 +59,11 @@ public class MaterialDisposedTests
     {
         var tex = new Texture2D { Name = "T" };
         var entry = RegisterManaged(tex);
-        AssetManager.TryAddRef(tex);
+        _am.TryAddRef(tex);
         var fired = 0;
         var mat = new Material { Name = "M" };
-        mat.MaterialDisposed += () => fired++;
-        AssetManager.Release(tex);
+        mat.MaterialDisposed += _ => fired++;
+        _am.Release(tex);
         Assert.Equal(0, fired);
         Assert.Equal(0, entry.RefCount);
     }

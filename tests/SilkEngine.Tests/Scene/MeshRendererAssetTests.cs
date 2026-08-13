@@ -1,14 +1,19 @@
 using SilkEngine.Core.Assets;
 using SilkEngine.Render;
+using SilkEngine.Tests.Core.Assets;
 
 namespace SilkEngine.Tests.Scene;
 
 [Collection("Assets")]
-public class MeshRendererAssetTests
+public class MeshRendererAssetTests : IClassFixture<AssetsFixture>
 {
-    private static AssetEntry RegisterManaged(IAsset asset)
+    private readonly AssetManager _am;
+
+    public MeshRendererAssetTests(AssetsFixture fixture) => _am = fixture.Manager;
+
+    private AssetEntry RegisterManaged(IAsset asset)
     {
-        var entry = AssetManager.Cache.GetOrAdd(Guid.NewGuid());
+        var entry = _am.Cache.GetOrAdd(Guid.NewGuid());
         entry.Data = asset;
         entry.State = AssetState.Ready;
         return entry;
@@ -113,7 +118,7 @@ public class MeshRendererAssetTests
         mr.Material = mat; // RefCount 0 → 1
 
         var fired = 0;
-        mat.MaterialDisposed += () => fired++;
+        mat.MaterialDisposed += _ => fired++;
         mr.OnDestroy();    // SetTracked(ref _material, null) → Release → 归零
         Assert.Equal(1, fired);
     }

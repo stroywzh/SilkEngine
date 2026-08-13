@@ -26,6 +26,9 @@ public sealed class AssetRequest<T> : INotifyCompletion, IAssetRequest where T :
     private Action? _continuation;
     private T? _asset;
 
+    /// <summary>创建方管理器（LoadAsync 注入）；LazyAsync 触发经此调用，避免全局解析</summary>
+    internal AssetManager? Manager { get; set; }
+
     /// <summary>是否已完成（成功或失败）</summary>
     public bool IsDone { get; internal set; }
 
@@ -37,7 +40,7 @@ public sealed class AssetRequest<T> : INotifyCompletion, IAssetRequest where T :
     {
         get
         {
-            AssetManager.TriggerLazy(this);
+            Manager?.TriggerLazy(this);
             return _asset;
         }
         internal set => _asset = value;

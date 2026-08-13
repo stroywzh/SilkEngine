@@ -1,6 +1,8 @@
+using SilkEngine.Core;
 using SilkEngine.Core.Assets;
 using SilkEngine.Render;
 using SilkEngine.Threading;
+using SilkEngine.Tests.Core.Assets;
 
 namespace SilkEngine.Tests.Threading;
 
@@ -28,23 +30,33 @@ public class UnloadQueueTests
     [Fact]
     public void RenderThread_FrameStart_ProcessesUnloadQueue()
     {
-        // 准备一个 Unloaded 条目并已入释放队列
-        var tex = new Texture2D { Name = "T" };
-        var entry = AssetManager.Cache.GetOrAdd(Guid.NewGuid());
-        entry.Data = tex;
-        entry.State = AssetState.Ready;
-        AssetManager.TryAddRef(tex);
-        AssetManager.TryRelease(tex);
-        AssetManager.ProcessCompleted();
-        Assert.Equal(AssetState.Unloaded, entry.State);
+        var am = new AssetManager(new RecordingScheduler());
+        // 渲染线程帧首经 Services.TryGet 解析管理器，须注册
+        Services.Register(am);
+        try
+        {
+            // 准备一个 Unloaded 条目并已入释放队列
+            var tex = new Texture2D { Name = "T" };
+            var entry = am.Cache.GetOrAdd(Guid.NewGuid());
+            entry.Data = tex;
+            entry.State = AssetState.Ready;
+            am.TryAddRef(tex);
+            am.TryRelease(tex);
+            am.ProcessCompleted();
+            Assert.Equal(AssetState.Unloaded, entry.State);
 
-        using var fake = new FakeBackend();
-        using var loop = new RenderThreadLoop(fake);
-        loop.Initialize();
-        // 提交一帧 → 渲染线程帧首应处理释放队列
-        loop.SubmitFrame([new RenderPass { Commands = [] }]);
+            using var fake = new FakeBackend();
+            using var loop = new RenderThreadLoop(fake);
+            loop.Initialize();
+            // 提交一帧 → 渲染线程帧首应处理释放队列
+            loop.SubmitFrame([new RenderPass { Commands = [] }]);
 
-        Assert.Null(entry.Data);
-        loop.Dispose();
+            Assert.Null(entry.Data);
+            loop.Dispose();
+        }
+        finally
+        {
+            Services.Unregister<AssetManager>();
+        }
     }
 }

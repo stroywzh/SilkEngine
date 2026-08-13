@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using SilkEngine.Core;
 using SilkEngine.Core.Assets;
 using SilkEngine.InputSystem;
 using SilkEngine.Render;
@@ -15,6 +16,7 @@ public class EngineLoop : IDisposable
     private readonly EngineThreadPool _workerPool = new(2);
     private readonly FrameSnapshotManager _snapshotManager = new();
     private readonly ComponentRegistry _registry = new();
+    private AssetManager? _assetManager;
     private RenderSystem? _renderSystem;
     private DateTime _lastTime;
     private volatile bool _stopRequested,
@@ -24,6 +26,10 @@ public class EngineLoop : IDisposable
 
     public LogicLoop Logic => _logicLoop;
     public IWorkerScheduler Workers => _workerPool;
+
+    /// <summary>资产管理器实例（Initialize 创建并注入共享工作池；未初始化访问抛异常）</summary>
+    public AssetManager AssetManager =>
+        _assetManager ?? throw new InvalidOperationException("EngineLoop.Initialize 尚未执行");
     public bool Embedded { get; set; } = false;
     public bool Paused
     {
@@ -57,7 +63,7 @@ public class EngineLoop : IDisposable
 
         SceneManager.ActiveRegistry = _registry;
         SceneManager.Instance.RegisterScene(_registry);
-        AssetManager.SetScheduler(_workerPool);
+        _assetManager = new AssetManager(_workerPool);
         _snapshotManager.CommitPending(
             _registry,
             SceneManager.Instance._destroyQueue,
@@ -117,7 +123,7 @@ public class EngineLoop : IDisposable
             );
 
             // 帧末：资产加载完成拾取 + 引用归零条目 Unloaded 迁移
-            AssetManager.ProcessCompleted();
+            _assetManager!.ProcessCompleted();
         }
     }
 

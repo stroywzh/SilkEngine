@@ -1,3 +1,4 @@
+using SilkEngine.Core;
 using SilkEngine.Core.Assets;
 using SilkEngine.Core.Assets.Serialization;
 using SilkEngine.Render;
@@ -13,27 +14,27 @@ public class MeshRenderer : Component, ISerializableComponent
     public Shader? Shader
     {
         get => _shader;
-        set => AssetManager.SetTracked(ref _shader, value);
+        set => AssetManager.SetTrackedAmbient(ref _shader, value);
     }
 
     public Mesh? Mesh
     {
         get => _mesh;
-        set => AssetManager.SetTracked(ref _mesh, value);
+        set => AssetManager.SetTrackedAmbient(ref _mesh, value);
     }
 
     public Material? Material
     {
         get => _material;
-        set => AssetManager.SetTracked(ref _material, value);
+        set => AssetManager.SetTrackedAmbient(ref _material, value);
     }
 
     /// <summary>组件销毁：归还全部资产引用（引用归零的托管资产由帧末卸载）</summary>
     public override void OnDestroy()
     {
-        AssetManager.SetTracked(ref _shader, null);
-        AssetManager.SetTracked(ref _mesh, null);
-        AssetManager.SetTracked(ref _material, null);
+        AssetManager.SetTrackedAmbient(ref _shader, null);
+        AssetManager.SetTrackedAmbient(ref _mesh, null);
+        AssetManager.SetTrackedAmbient(ref _material, null);
     }
 
     /// <summary>反序列化：GUID 字符串 → 经属性赋值（SetTracked 计数闭环）</summary>
@@ -57,13 +58,20 @@ public class MeshRenderer : Component, ISerializableComponent
     {
         if (guid is null || !Guid.TryParse(guid, out var g))
             return null;
-        var entry = AssetManager.Cache.Find(g);
+        if (!Services.TryGet<AssetManager>(out var manager))
+            return null;
+        var entry = manager.Cache.Find(g);
         return entry is { Data: T asset } ? asset : null;
     }
 
     private static void WriteGuid(SerializedNode node, string key, IAsset? asset)
     {
-        if (asset != null && AssetManager.TryGetGuid(asset, out var guid) && guid != Guid.Empty)
+        if (
+            asset != null
+            && Services.TryGet<AssetManager>(out var manager)
+            && manager.TryGetGuid(asset, out var guid)
+            && guid != Guid.Empty
+        )
             node.SetString(key, guid.ToString());
     }
 }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading;
+using SilkEngine.Core;
 using SilkEngine.Core.Assets;
 using SilkEngine.Render;
 
@@ -58,8 +59,9 @@ public class RenderThreadLoop : IDisposable
             if (!_rendering)
                 break;
 
-            // 帧首：处理资产释放队列（GL 释放由后端接入）
-            AssetManager.ProcessUnloadQueue(_backend.ReleaseTexture);
+            // 帧首：处理资产释放队列（GL 释放由后端接入；无注册管理器（测试）时跳过）
+            if (Services.TryGet<AssetManager>(out var assetManager))
+                assetManager.ProcessUnloadQueue(_backend.ReleaseTexture);
             try
             {
                 if (_pendingPasses != null)
