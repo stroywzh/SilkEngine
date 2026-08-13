@@ -8,7 +8,7 @@ public enum AsyncLoadMode
     /// <summary>调用即登记并调度工作线程加载</summary>
     NormalAsync,
 
-    /// <summary>登记但不调度，首次访问 Asset 时触发（完整行为由 Part 3 实现，本 Part 抛 NotSupportedException）</summary>
+    /// <summary>登记但不调度，首次访问 Asset 时触发（登记不调度；Asset 首次访问时触发加载）</summary>
     LazyAsync,
 }
 

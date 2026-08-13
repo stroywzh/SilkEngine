@@ -12,7 +12,7 @@ public enum AssetState
     /// <summary>加载失败</summary>
     Failed,
 
-    /// <summary>已卸载（本 Part 仅定义枚举；RefCount==0 的 Unloaded 迁移由 Part 2 实现）</summary>
+    /// <summary>已卸载（RefCount==0 帧末迁移；释放前重新引用可恢复 Ready）</summary>
     Unloaded,
 }
 

@@ -144,7 +144,7 @@ public class SceneManager
             LoadScene(scene, ActiveRegistry);
             return true;
         }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException)
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException or InvalidOperationException)
         {
             Log.Error($"LoadSceneFromFile failed: {path} — {e.Message}");
             return false;

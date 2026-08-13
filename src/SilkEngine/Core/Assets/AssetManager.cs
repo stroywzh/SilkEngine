@@ -179,6 +179,12 @@ public static class AssetManager
             var entry = _cache.Find(guid);
             if (entry is null || entry.State != AssetState.Unloaded)
                 continue;
+            if (entry.RefCount > 0)
+            {
+                // 释放前被重新引用：恢复 Ready，取消卸载
+                entry.State = AssetState.Ready;
+                continue;
+            }
             if (glRelease is not null)
             {
                 if (entry.Data is Texture2D tex)
@@ -187,7 +193,7 @@ public static class AssetManager
                 continue;
             }
             Log.Info($"[AssetManager] Unload asset {guid} (GL release pending: Part 3)");
-            entry.Data = null; // CPU 侧清引用，GC 回收
+            entry.Data = null;
         }
     }
 

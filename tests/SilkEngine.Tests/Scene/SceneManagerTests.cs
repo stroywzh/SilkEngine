@@ -450,4 +450,19 @@ public class SceneManagerTests
             File.Delete(path);
         }
     }
+
+    [Fact]
+    public void LoadSceneFromFile_InvalidFieldTypes_ReturnsFalse()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"badtype_{Guid.NewGuid():N}.scene");
+        try
+        {
+            File.WriteAllText(path, """{ "Name": 123, "GameObjects": [] }""");
+            Assert.False(SceneManager.Instance.LoadSceneFromFile(path));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
 }
