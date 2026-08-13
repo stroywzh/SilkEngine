@@ -243,6 +243,19 @@ public static class AssetManager
             TryAddRef(newAsset);
     }
 
+    /// <summary>按实例引用查询缓存条目 GUID；非托管资产（缓存无条目）返回 false</summary>
+    internal static bool TryGetGuid(IAsset asset, out Guid guid)
+    {
+        var entry = FindEntry(asset);
+        if (entry is not null)
+        {
+            guid = entry.Guid;
+            return true;
+        }
+        guid = Guid.Empty;
+        return false;
+    }
+
     /// <summary>按实例引用查找缓存条目</summary>
     private static AssetEntry? FindEntry(IAsset asset)
     {
