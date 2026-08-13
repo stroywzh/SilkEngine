@@ -13,7 +13,7 @@ public class EngineLoop : IDisposable
 {
     private static int Pid => Process.GetCurrentProcess().Id;
     private readonly IRenderBackend _backend;
-    private readonly LogicLoop _logicLoop;
+    private readonly FixedStepAccumulator _fixedStep = new();
     private readonly EngineThreadPool _workerPool = new(2);
     private readonly FrameSnapshotManager _snapshotManager = new();
     private readonly ComponentRegistry _registry = new();
@@ -26,9 +26,19 @@ public class EngineLoop : IDisposable
         _disposed,
         _canStart;
 
-    public LogicLoop Logic => _logicLoop;
     public IWorkerScheduler Workers => _workerPool;
     public bool Embedded { get; set; } = false;
+
+    /// <summary>固定步长（秒）；与 Time.FixedDeltaTime 双向同步（替代 LogicLoop.FixedDeltaTime）。</summary>
+    public float FixedDeltaTime
+    {
+        get => _fixedStep.FixedDeltaTime;
+        set
+        {
+            _fixedStep.FixedDeltaTime = value;
+            Time.FixedDeltaTime = value;
+        }
+    }
     public bool Paused
     {
         get => _paused;
@@ -46,7 +56,7 @@ public class EngineLoop : IDisposable
     {
         _backend = backend;
         _sceneManager = new SceneManager();
-        _logicLoop = new LogicLoop(_sceneManager);
+        Time.FixedDeltaTime = _fixedStep.FixedDeltaTime;
         _lastTime = DateTime.UtcNow;
         _canStart = false;
     }
@@ -121,10 +131,9 @@ public class EngineLoop : IDisposable
 
             // 所有的游戏逻辑从这里开始处理
             Input.Update();
-
-            _logicLoop.Tick(Time.DeltaTime, _snapshotManager.Current);
+            TickFrame();
             OnRender();
-            _logicLoop.LateTick(Time.DeltaTime, _snapshotManager.Current);
+            _sceneManager.PostRender(_snapshotManager.Current);
 
             // 帧末尾，记录快照
             _snapshotManager.CommitPending(
@@ -147,6 +156,16 @@ public class EngineLoop : IDisposable
         return System.Math.Min(dt, 0.1f);
     }
 
+    /// <summary>固定步长逻辑帧：累加器驱动 FixedTick，随后 Tick/LateTick（原 LogicLoop.Tick 语义）。</summary>
+    private void TickFrame()
+    {
+        int steps = _fixedStep.Advance(Time.DeltaTime);
+        for (int i = 0; i < steps; i++)
+            _sceneManager.FixedTick(_snapshotManager.Current, _fixedStep.FixedDeltaTime);
+        _sceneManager.Tick(_snapshotManager.Current, Time.DeltaTime);
+        _sceneManager.LateTick(_snapshotManager.Current);
+    }
+
     protected virtual void OnRender()
     {
         _renderSystem!.Render(_snapshotManager.Current);
@@ -161,7 +180,6 @@ public class EngineLoop : IDisposable
 
         _disposed = true;
         _stopRequested = true;
-        _logicLoop.Dispose();
         // 反序：RenderSystem(渲染线程先停) → SnapshotManager/Registry → AssetManager → SceneManager(解绑) → WorkerPool(最后停)
         Services.Shutdown();
     }

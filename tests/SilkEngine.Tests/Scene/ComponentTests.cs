@@ -1,6 +1,5 @@
 using SilkEngine.Core;
 using SilkEngine.Scene;
-using SilkEngine.Threading;
 
 namespace SilkEngine.Tests.Scene;
 using Scene = SilkEngine.Scene.Scene;
@@ -58,8 +57,7 @@ public class ComponentTests : IClassFixture<SceneManagerFixture>
         _sm.LoadScene(s, reg);
         mgr.CommitPending(reg, new List<SceneManager.DestroyEntry>(), s, 0f);
         c.Enabled = false;
-        var ml = new LogicLoop(_sm);
-        ml.Tick(0.016f, mgr.Current);
+        _sm.Tick(mgr.Current, 0.016f);
         Assert.False(c.TickCalled);
     }
 
