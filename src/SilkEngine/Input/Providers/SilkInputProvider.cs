@@ -2,7 +2,6 @@ using System;
 using System.Linq;
 using Silk.NET.Input;
 using Silk.NET.Windowing;
-using SilkEngine;
 using SilkEngine.Math;
 
 namespace SilkEngine.InputSystem;

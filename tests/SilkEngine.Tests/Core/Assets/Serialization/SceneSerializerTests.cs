@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
-using SilkEngine;
+using SilkEngine.Core;
+using SilkEngine.Scene;
 using SilkEngine.Scene.Serialization;
 using SilkEngine.Math;
 
@@ -141,7 +142,7 @@ public class SceneSerializerTests
         Assert.Contains("\"Ground\"", json);
         Assert.Contains("\"Transform\"", json);
         Assert.Contains("\"LocalScale\": [", json);
-        Assert.Contains("\"SilkEngine.MeshRenderer\"", json);
+        Assert.Contains("\"SilkEngine.Scene.MeshRenderer\"", json);
         Assert.Contains("\"GameObjects\"", json);
     }
 

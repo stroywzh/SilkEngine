@@ -1,6 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using SilkEngine;
+using SilkEngine.Core;
 
 namespace SilkEngine.Scene.Serialization;
 

@@ -1,7 +1,6 @@
 using System.Collections.Generic;
-using SilkEngine.InputSystem;
 
-namespace SilkEngine;
+namespace SilkEngine.InputSystem;
 
 public class KeyboardState
 {

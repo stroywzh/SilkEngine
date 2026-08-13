@@ -1,4 +1,4 @@
-namespace SilkEngine;
+namespace SilkEngine.Core;
 
 public static class Time
 {

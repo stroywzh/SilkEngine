@@ -2,7 +2,7 @@ using SilkEngine.Core.Assets;
 using SilkEngine.Render;
 using SilkEngine.Scene.Serialization;
 
-namespace SilkEngine;
+namespace SilkEngine.Scene;
 
 /// <summary>网格渲染组件：资产引用字段由源生成器序列化（GUID 路径，经 AssetRefCodec 属性感知规则，键=属性名）。</summary>
 [SerializableInternal]

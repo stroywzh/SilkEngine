@@ -2,9 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
+using SilkEngine.Core;
 using SilkEngine.Scene.Serialization;
+using Object = SilkEngine.Core.Object;
 
-namespace SilkEngine;
+namespace SilkEngine.Scene;
 
 public class SceneManager : IDisposable
 {

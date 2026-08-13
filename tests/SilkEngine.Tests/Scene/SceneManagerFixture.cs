@@ -1,4 +1,4 @@
-using SilkEngine;
+using SilkEngine.Scene;
 
 namespace SilkEngine.Tests.Scene;
 

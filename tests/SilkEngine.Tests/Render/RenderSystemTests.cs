@@ -1,7 +1,8 @@
-using SilkEngine;
+using SilkEngine.Core;
 using SilkEngine.Core.Assets;
 using SilkEngine.Math;
 using SilkEngine.Render;
+using SilkEngine.Scene;
 
 namespace SilkEngine.Tests.Render;
 using Scene = SilkEngine.Scene.Scene;

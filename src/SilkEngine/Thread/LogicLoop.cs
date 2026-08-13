@@ -1,4 +1,6 @@
 using System;
+using SilkEngine.Core;
+using SilkEngine.Scene;
 
 namespace SilkEngine.Threading;
 

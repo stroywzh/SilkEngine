@@ -1,5 +1,5 @@
 using System.Collections.Concurrent;
-using SilkEngine;
+using SilkEngine.Core;
 
 namespace SilkEngine.Tests.Core;
 

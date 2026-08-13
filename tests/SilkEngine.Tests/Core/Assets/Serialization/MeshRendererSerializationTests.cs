@@ -1,5 +1,5 @@
 using System.Text.Json.Nodes;
-using SilkEngine;
+using SilkEngine.Scene;
 using SilkEngine.Core.Assets;
 using SilkEngine.Scene.Serialization;
 using SilkEngine.Render;

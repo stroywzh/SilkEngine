@@ -1,6 +1,4 @@
-using SilkEngine.Render;
-
-namespace SilkEngine;
+namespace SilkEngine.Render;
 
 public static class MeshFactory
 {

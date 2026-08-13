@@ -1,4 +1,3 @@
-using SilkEngine;
 using SilkEngine.Render;
 
 namespace SilkEngine.Tests;

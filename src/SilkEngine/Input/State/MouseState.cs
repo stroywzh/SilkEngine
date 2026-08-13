@@ -1,7 +1,7 @@
 using System;
 using SilkEngine.Math;
 
-namespace SilkEngine;
+namespace SilkEngine.InputSystem;
 
 public class MouseState
 {

@@ -7,8 +7,8 @@ namespace SilkEngine.SourceGen;
 /// </summary>
 internal static class GenConstants
 {
-    /// <summary>Component 基类（Part 3 迁至 SilkEngine.Scene 后更新为 "SilkEngine.Scene.Component"）。</summary>
-    public const string Component = "SilkEngine.Component";
+    /// <summary>Component 基类（Part 3 迁移后位于 SilkEngine.Scene）。</summary>
+    public const string Component = "SilkEngine.Scene.Component";
 
     /// <summary>序列化节点（任务 5 起固定为 SilkEngine.Scene.Serialization）。</summary>
     public const string SerializedNode = "SilkEngine.Scene.Serialization.SerializedNode";

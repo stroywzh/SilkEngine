@@ -1,4 +1,4 @@
-using SilkEngine;
+using SilkEngine.InputSystem;
 using SilkEngine.Math;
 
 namespace SilkEngine.Tests.Input;

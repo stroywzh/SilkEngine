@@ -4,9 +4,10 @@ using SilkEngine.Core;
 using SilkEngine.Core.Assets;
 using SilkEngine.InputSystem;
 using SilkEngine.Render;
+using SilkEngine.Scene;
 using SilkEngine.Threading;
 
-namespace SilkEngine;
+namespace SilkEngine.Core;
 
 public class EngineLoop : IDisposable
 {

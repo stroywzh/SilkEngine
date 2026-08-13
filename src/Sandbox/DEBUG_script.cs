@@ -1,6 +1,7 @@
-using SilkEngine;
+using SilkEngine.Core;
 using SilkEngine.InputSystem;
 using SilkEngine.Math;
+using SilkEngine.Scene;
 
 namespace SandBox;
 

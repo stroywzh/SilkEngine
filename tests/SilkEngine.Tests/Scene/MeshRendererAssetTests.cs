@@ -1,5 +1,6 @@
 using SilkEngine.Core.Assets;
 using SilkEngine.Render;
+using SilkEngine.Scene;
 using SilkEngine.Tests.Core.Assets;
 
 namespace SilkEngine.Tests.Scene;

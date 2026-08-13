@@ -1,6 +1,7 @@
 using SilkEngine.Scene.Serialization;
+using Object = SilkEngine.Core.Object;
 
-namespace SilkEngine;
+namespace SilkEngine.Scene;
 
 public abstract class Component : Object
 {

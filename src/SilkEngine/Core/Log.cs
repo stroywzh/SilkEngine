@@ -4,7 +4,7 @@ using System.Diagnostics;
 using System.Text;
 using System.Threading;
 
-namespace SilkEngine;
+namespace SilkEngine.Core;
 
 public static class Log
 {

@@ -1,6 +1,6 @@
 namespace SilkEngine.Tests.Input
 {
-    using SilkEngine;
+    using SilkEngine.Core;
     using SilkEngine.InputSystem;
     using SilkEngine.Math;
 

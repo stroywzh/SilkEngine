@@ -1,4 +1,5 @@
-using SilkEngine;
+using SilkEngine.Core;
+using SilkEngine.Scene;
 using SilkEngine.Threading;
 using SilkEngine.Tests.Scene;
 

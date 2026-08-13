@@ -1,8 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using SilkEngine.Core;
 
-namespace SilkEngine;
+namespace SilkEngine.Scene;
 
 public sealed class ComponentRegistry
 {

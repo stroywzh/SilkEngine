@@ -1,5 +1,5 @@
 using System;
-using SilkEngine;
+using SilkEngine.Scene;
 using SilkEngine.InputSystem;
 using SilkEngine.Math;
 

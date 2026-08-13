@@ -1,4 +1,5 @@
-using SilkEngine;
+using SilkEngine.Core;
+using SilkEngine.Scene;
 using SilkEngine.Scene.Serialization;
 
 namespace SilkEngine.Tests.Core.Assets.Serialization;
@@ -15,7 +16,7 @@ public class ComponentTypeRegistryTests
     [Fact]
     public void Resolve_MeshRenderer_ReturnsFactory()
     {
-        var factory = ComponentTypeRegistry.Resolve("SilkEngine.MeshRenderer");
+        var factory = ComponentTypeRegistry.Resolve("SilkEngine.Scene.MeshRenderer");
         Assert.NotNull(factory);
         Assert.IsType<MeshRenderer>(factory!());
     }
@@ -23,7 +24,7 @@ public class ComponentTypeRegistryTests
     [Fact]
     public void Resolve_Camera_ReturnsFactory()
     {
-        var factory = ComponentTypeRegistry.Resolve("SilkEngine.Camera");
+        var factory = ComponentTypeRegistry.Resolve("SilkEngine.Scene.Camera");
         Assert.NotNull(factory);
         Assert.IsType<Camera>(factory!());
     }

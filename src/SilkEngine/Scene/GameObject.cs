@@ -2,8 +2,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json.Nodes;
 using SilkEngine.Scene.Serialization;
+using Object = SilkEngine.Core.Object;
 
-namespace SilkEngine;
+namespace SilkEngine.Scene;
 
 public sealed class GameObject : Object
 {

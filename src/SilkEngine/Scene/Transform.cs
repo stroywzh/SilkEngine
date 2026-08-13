@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using SilkEngine.Math;
 
-namespace SilkEngine;
+namespace SilkEngine.Scene;
 
 public sealed class Transform
 {

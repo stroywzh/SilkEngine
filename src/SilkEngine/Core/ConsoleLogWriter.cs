@@ -1,6 +1,6 @@
 using System;
 
-namespace SilkEngine;
+namespace SilkEngine.Core;
 
 public class ConsoleLogWriter : ILogWriter
 {

@@ -1,6 +1,8 @@
 using System.Collections.Generic;
-using SilkEngine;
+using SilkEngine.Core;
+using SilkEngine.Scene;
 using SilkEngine.Tests.Scene;
+using Object = SilkEngine.Core.Object;
 
 namespace SilkEngine.Tests.Core;
 using Scene = SilkEngine.Scene.Scene;

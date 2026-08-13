@@ -1,6 +1,8 @@
 using System.IO;
-using SilkEngine;
+using SilkEngine.Core;
 using SilkEngine.Math;
+using SilkEngine.Scene;
+using Object = SilkEngine.Core.Object;
 
 namespace SilkEngine.Tests.Scene;
 using Scene = SilkEngine.Scene.Scene;
@@ -396,7 +398,7 @@ public class SceneManagerTests : IClassFixture<SceneManagerFixture>
                           "LocalRotation": [0, 0, 0, 1],
                           "LocalScale": [20, 1, 20]
                         },
-                        "SilkEngine.MeshRenderer": {
+                        "SilkEngine.Scene.MeshRenderer": {
                           "Shader": "1f2e3d4c-5b6a-7988-99aa-bbccddeeff00"
                         }
                       }

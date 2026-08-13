@@ -1,4 +1,6 @@
-using SilkEngine;
+using SilkEngine.Core;
+using SilkEngine.Scene;
+using Object = SilkEngine.Core.Object;
 
 namespace SilkEngine.Tests.Scene;
 using Scene = SilkEngine.Scene.Scene;

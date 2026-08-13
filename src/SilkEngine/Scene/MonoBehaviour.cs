@@ -1,4 +1,4 @@
-namespace SilkEngine;
+namespace SilkEngine.Scene;
 
 public abstract class MonoBehaviour : Component
 {

@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
+using SilkEngine.Core;
+using SilkEngine.Scene;
 
 namespace SilkEngine.Render;
 

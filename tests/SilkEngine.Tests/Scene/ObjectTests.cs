@@ -1,4 +1,4 @@
-using SilkEngine;
+using Object = SilkEngine.Core.Object;
 
 namespace SilkEngine.Tests.Scene;
 
