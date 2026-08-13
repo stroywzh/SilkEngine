@@ -26,7 +26,7 @@ public sealed class FrameSnapshot
     }
 }
 
-public sealed class FrameSnapshotManager
+internal sealed class FrameSnapshotManager
 {
     private FrameSnapshot _front = new();
     private FrameSnapshot _back = new();

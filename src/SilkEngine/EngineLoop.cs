@@ -85,12 +85,7 @@ public class EngineLoop : IDisposable
         // 注入注册表与快照管理器（Part 4：替代原 ActiveRegistry 静态赋值）
         _sceneManager.Attach(_registry, _snapshotManager);
         _sceneManager.RegisterScene();
-        _snapshotManager.CommitPending(
-            _registry,
-            _sceneManager._destroyQueue,
-            _sceneManager.ActiveScene,
-            0f
-        );
+        CommitFrame();
 
         _stopRequested = false;
         _lastTime = DateTime.UtcNow;
@@ -136,16 +131,20 @@ public class EngineLoop : IDisposable
             _sceneManager.PostRender(_snapshotManager.Current);
 
             // 帧末尾，记录快照
-            _snapshotManager.CommitPending(
-                _registry,
-                _sceneManager._destroyQueue,
-                _sceneManager.ActiveScene,
-                Time.DeltaTime
-            );
-
-            // 帧末：资产加载完成拾取 + 引用归零条目 Unloaded 迁移
-            _assetManager!.ProcessCompleted();
+            CommitFrame();
         }
+    }
+
+    /// <summary>帧末提交：销毁处理 → 注册应用 → 快照 swap → 资产完成拾取（原 Run 尾部两段内联逻辑）。</summary>
+    private void CommitFrame()
+    {
+        _snapshotManager.CommitPending(
+            _registry,
+            _sceneManager._destroyQueue,
+            _sceneManager.ActiveScene,
+            Time.DeltaTime
+        );
+        AssetManager.ProcessCompleted();
     }
 
     protected virtual float GetDeltaTime()
