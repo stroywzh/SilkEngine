@@ -28,6 +28,7 @@ public sealed class GameObject : Object
 
     /// <summary>反序列化管道：清理挂载数据（组件均已完成 ReadFrom 后调用）。</summary>
     internal void ClearSerializedData() => _serializedData = null;
+
     public Transform Transform { get; }
     private bool _isActive = true;
     public bool IsActive
@@ -43,8 +44,8 @@ public sealed class GameObject : Object
     }
 
     /// <summary>沿父链的层级活跃状态。</summary>
-    public bool IsActiveInHierarchy
-        => _isActive && (Transform.Parent?.GameObject?.IsActiveInHierarchy ?? true);
+    public bool IsActiveInHierarchy =>
+        _isActive && (Transform.Parent?.GameObject?.IsActiveInHierarchy ?? true);
 
     internal void NotifyActivationChanged()
     {
@@ -127,4 +128,22 @@ public sealed class GameObject : Object
         Object.Destroy(c); // 帧末由 CommitPending 执行 OnDestroy + Unregister
         return true;
     }
+
+#if DEBUG
+    public string GetAllComponentName()
+    {
+        System.Text.StringBuilder sb = new(64);
+        sb.Append("AllComponents:\n");
+        foreach (var i in _components)
+        {
+            sb.Append(_components.IndexOf(i));
+            sb.Append("Name|");
+            sb.Append(i.Name);
+            sb.Append("|Type|");
+            sb.Append(i.GetType().Name);
+            sb.Append("\n");
+        }
+        return sb.ToString();
+    }
+#endif
 }
