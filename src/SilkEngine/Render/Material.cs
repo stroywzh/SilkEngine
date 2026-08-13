@@ -93,4 +93,10 @@ public class Material : IAsset
                 return false;
         return true;
     }
+
+    /// <summary>释放回调：引用计数归零时由 AssetManager 触发（Part 3 的 MainTexture 级联挂接点）</summary>
+    internal event Action? MaterialDisposed;
+
+    /// <summary>引用归零通知（AssetManager.TryRelease 调用；子资产释放逻辑在 Part 3 扩展）</summary>
+    internal void NotifyDisposed() => MaterialDisposed?.Invoke();
 }

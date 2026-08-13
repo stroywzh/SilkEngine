@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using SilkEngine.Core.Assets.Importer;
+using SilkEngine.Render;
 using SilkEngine.Threading;
 
 namespace SilkEngine.Core.Assets;
@@ -159,7 +160,11 @@ public static class AssetManager
             return false;
         entry.RefCount--;
         if (entry.RefCount == 0)
+        {
             _pendingUnload.Enqueue(entry.Guid);
+            if (asset is Material material)
+                material.NotifyDisposed();
+        }
         return true;
     }
 

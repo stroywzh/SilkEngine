@@ -102,4 +102,38 @@ public class MeshRendererAssetTests
         Assert.Equal(0, em.RefCount);
         Assert.Equal(0, emat.RefCount);
     }
+
+    [Fact]
+    public void OnDestroy_ZeroMaterialRef_FiresMaterialDisposed()
+    {
+        var mat = new Material { Name = "M" };
+        RegisterManaged(mat);
+        var go = new GameObject();
+        var mr = go.AddComponent<MeshRenderer>();
+        mr.Material = mat; // RefCount 0 → 1
+
+        var fired = 0;
+        mat.MaterialDisposed += () => fired++;
+        mr.OnDestroy();    // SetTracked(ref _material, null) → Release → 归零
+        Assert.Equal(1, fired);
+    }
+
+    [Fact]
+    public void SharedMaterial_OneRendererDestroyed_OthersKeepRef()
+    {
+        var mat = new Material { Name = "M" };
+        var entry = RegisterManaged(mat);
+        var go1 = new GameObject();
+        var go2 = new GameObject();
+        var mr1 = go1.AddComponent<MeshRenderer>();
+        var mr2 = go2.AddComponent<MeshRenderer>();
+        mr1.Material = mat;
+        mr2.Material = mat;
+        Assert.Equal(2, entry.RefCount);
+
+        mr1.OnDestroy();
+
+        Assert.Equal(1, entry.RefCount);
+        Assert.Same(mat, mr2.Material);
+    }
 }
