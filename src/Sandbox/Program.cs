@@ -1,5 +1,6 @@
 using SilkEngine;
 using SilkEngine.Core.Assets;
+using SilkEngine.Core.Assets.Serialization;
 using SilkEngine.InputSystem;
 using SilkEngine.Math;
 using SilkEngine.Render;
@@ -26,6 +27,7 @@ class Program
         // TestNDCQuad();
         // TestCameraOrtho();
         // TestCameraPerspective();
+        // TestSceneSerialization();
 
         // ---------------------------------------------------------
 
@@ -337,6 +339,82 @@ void main() { FragColor = vec4(abs(vNormal), 1.0); }",
             follow.Target = player;
             controller.Camera = follow;
             scene.AddRootObject(camObj);
+        }
+
+        void TestSceneSerialization()
+        {
+            var scene = new Scene("Serialized3D");
+            var shader = new Shader
+            {
+                Name = "Lit",
+                VertexSource =
+                    @"#version 460 core
+layout(location = 0) in vec3 aPos;
+layout(location = 1) in vec3 aNormal;
+layout(location = 2) in vec2 aTexCoord;
+uniform mat4 uModel;
+uniform mat4 uView;
+uniform mat4 uProjection;
+out vec3 vNormal;
+void main() { gl_Position = uProjection * uView * uModel * vec4(aPos, 1.0); vNormal = aNormal; }",
+                FragmentSource =
+                    @"#version 460 core
+in vec3 vNormal;
+out vec4 FragColor;
+void main() { FragColor = vec4(abs(vNormal), 1.0); }",
+            };
+
+            var ground = new GameObject("Ground");
+            ground.Transform.LocalScale = new Vector3(20, 1, 20);
+            var groundMr = ground.AddComponent<MeshRenderer>();
+            groundMr.Shader = shader;
+            groundMr.Mesh = MeshFactory.CreateCube(1f);
+            scene.AddRootObject(ground);
+
+            for (int i = 0; i < 5; i++)
+            for (int j = 0; j < 5; j++)
+            {
+                var cube = new GameObject($"Cube_{i}_{j}");
+                cube.Transform.LocalPosition = new Vector3(i * 3 - 6, 1, j * 3 - 6);
+                var mr = cube.AddComponent<MeshRenderer>();
+                mr.Shader = shader;
+                mr.Mesh = MeshFactory.CreateCube(1f);
+                cube.Transform.SetParent(ground.Transform);   // 层级随场景保存
+            }
+
+            var camObj = new GameObject("FollowCam");
+            camObj.Transform.LocalPosition = new Vector3(0, 4, -10);
+            camObj.AddComponent<Camera>();
+            scene.AddRootObject(camObj);
+
+            // ---- 保存 ----
+            Directory.CreateDirectory("Resources");
+            var path = Path.Combine("Resources", "serialized_3d.scene");
+            File.WriteAllText(path, SceneSerializer.Serialize(scene));
+            Log.Info($"Scene saved to {path}");
+
+            // ---- 加载（往返）----
+            SceneManager.Instance.LoadSceneFromFile(path);
+            Log.Info(
+                $"Scene loaded: '{SceneManager.ActiveScene!.Name}', "
+                + $"roots={SceneManager.ActiveScene.GetRootGameObjects().Length}"
+            );
+
+            // 资产重绑：当前 Shader/Mesh 为非托管资产（GUID 为空，序列化跳过引用）
+            foreach (var go in SceneManager.ActiveScene.GetRootGameObjects())
+                RebindAssets(go);
+
+            void RebindAssets(GameObject go)
+            {
+                var mr = go.GetComponent<MeshRenderer>();
+                if (mr != null)
+                {
+                    mr.Shader ??= shader;
+                    mr.Mesh ??= MeshFactory.CreateCube(1f);
+                }
+                foreach (var child in go.Transform.Children)
+                    RebindAssets(child.GameObject!);
+            }
         }
     }
 
