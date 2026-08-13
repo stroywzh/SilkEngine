@@ -5,7 +5,7 @@ using SilkEngine.Scene.Serialization;
 using SilkEngine.Render;
 using SilkEngine.Tests.Core.Assets;
 
-namespace SilkEngine.Tests.Core.Assets.Serialization;
+namespace SilkEngine.Tests.Scene.Serialization;
 using Scene = SilkEngine.Scene.Scene;
 
 // 反序列化经 Services.TryGet 解析资产管理器（WriteGuid/Resolve ambient），须与注册者同集合串行

@@ -97,7 +97,7 @@ public class EngineLoop : IDisposable
     {
         if (!_canStart)
         {
-            Log.Warn("[EngineLoop]: Invaild Operation,EngineLoop haven't Initialzed yet.");
+            Log.Warn("[EngineLoop]: Invalid Operation,EngineLoop haven't Initialized yet.");
             return;
         }
 

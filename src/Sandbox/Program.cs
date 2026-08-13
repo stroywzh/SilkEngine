@@ -20,7 +20,7 @@ class Program
         // Demos.TestCameraPerspective.Run(engine);
         // Demos.TestPNGQuad.Run(engine);
         // Demos.TestThirdPerson3D.Run(engine);
-        Demos.TestSceneSerialization.Run(engine);
+        Demos.TestPNGQuad.Run(engine);
         // ---------------------------------------------------------
 
         engine.Initialize().Run();

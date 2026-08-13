@@ -3,7 +3,7 @@ using System.Linq;
 using SilkEngine.Scene.Serialization;
 using Xunit;
 
-namespace SilkEngine.Tests.Core.Assets.Serialization;
+namespace SilkEngine.Tests.Scene.Serialization;
 
 public class SerializationAttributesTests
 {

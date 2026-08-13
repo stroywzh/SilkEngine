@@ -66,7 +66,7 @@ public class GameObjectSerializationTests
         var go = new GameObject("GO");
         go.AttachSerializedData(DataWithComponent(3.5f));
         var c = go.AddComponent<Tracker>();
-        Assert.False(c.ReadCalled);   // Tracker 未实现 ISerializableComponent
+        Assert.False(c.ReadCalled);   // Tracker 未覆写 WriteTo/ReadFrom（基类空默认）
     }
 
     [Fact]

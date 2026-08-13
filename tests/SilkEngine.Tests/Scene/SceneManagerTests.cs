@@ -90,7 +90,7 @@ public class SceneManagerTests : IClassFixture<SceneManagerFixture>
     }
 
     [Fact]
-    public void LateTick_CallsLateTick() { /* skip for brevity - covered by LogicLoop tests */ }
+    public void LateTick_CallsLateTick() { /* skip for brevity - 由 EngineLoopTickOrchestrationTests 覆盖 */ }
     [Fact]
     public void PostRender_CallsPostRender() { /* skip for brevity */ }
 

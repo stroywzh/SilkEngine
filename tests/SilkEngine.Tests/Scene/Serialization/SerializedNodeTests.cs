@@ -2,7 +2,7 @@ using System.Text.Json.Nodes;
 using SilkEngine.Scene.Serialization;
 using SilkEngine.Math;
 
-namespace SilkEngine.Tests.Core.Assets.Serialization;
+namespace SilkEngine.Tests.Scene.Serialization;
 
 [CollectionDefinition("Serialization")]
 public class SerializationTestsCollection { }

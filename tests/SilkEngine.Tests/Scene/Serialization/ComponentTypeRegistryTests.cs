@@ -2,7 +2,7 @@ using SilkEngine.Core;
 using SilkEngine.Scene;
 using SilkEngine.Scene.Serialization;
 
-namespace SilkEngine.Tests.Core.Assets.Serialization;
+namespace SilkEngine.Tests.Scene.Serialization;
 
 [Collection("Serialization")]
 public class ComponentTypeRegistryTests

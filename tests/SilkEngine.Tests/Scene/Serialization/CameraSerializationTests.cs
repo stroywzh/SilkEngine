@@ -3,7 +3,7 @@ using SilkEngine.Scene;
 using SilkEngine.Scene.Serialization;
 using SilkEngine.Math;
 
-namespace SilkEngine.Tests.Core.Assets.Serialization;
+namespace SilkEngine.Tests.Scene.Serialization;
 using Scene = SilkEngine.Scene.Scene;
 
 [Collection("Serialization")]

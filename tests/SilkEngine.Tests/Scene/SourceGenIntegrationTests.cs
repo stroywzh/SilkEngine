@@ -1,7 +1,6 @@
 using SilkEngine.Scene;
 using SilkEngine.Scene.Serialization;
 using SilkEngine.Math;
-using SilkEngine.Scene.Serialization;
 
 namespace SilkEngine.Tests.Scene;
 using Scene = SilkEngine.Scene.Scene;

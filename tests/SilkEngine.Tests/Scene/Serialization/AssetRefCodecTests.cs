@@ -5,7 +5,7 @@ using SilkEngine.Scene.Serialization;
 using SilkEngine.Tests.Core.Assets;
 using Xunit;
 
-namespace SilkEngine.Tests.Core.Assets.Serialization;
+namespace SilkEngine.Tests.Scene.Serialization;
 
 // 契约 C3：经 AssetsFixture 注册的 AssetManager 实例访问（AssetRefCodec 内部经 Services 解析，
 // 与本集合内其他夹具串行，避免重复注册/注销竞争）
