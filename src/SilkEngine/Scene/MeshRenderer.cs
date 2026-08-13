@@ -54,7 +54,12 @@ public class MeshRenderer : Component, ISerializableComponent
 
     private static T? Resolve<T>(string? guid)
         where T : class, IAsset
-        => guid == null ? null : AssetManager.LoadAsync<T>(guid, AsyncLoadMode.LazyAsync).Asset;
+    {
+        if (guid is null || !Guid.TryParse(guid, out var g))
+            return null;
+        var entry = AssetManager.Cache.Find(g);
+        return entry is { Data: T asset } ? asset : null;
+    }
 
     private static void WriteGuid(SerializedNode node, string key, IAsset? asset)
     {
