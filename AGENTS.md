@@ -84,6 +84,7 @@ tests/SilkEngine.Tests/ # 320 个 xUnit 测试 (50 文件)
 - Instantiate 不克隆组件
 - 场景卸载只发 OnDestroy 不发 OnDisable
 - 资产数据库: GUID→路径索引, 跨进程 .scene 引用解析（P1 预留, 本阶段按 GUID 直查缓存）
+- Sprite/图片渲染组件（SpriteRenderer）与 UI 系统（Canvas/RawImage）待建；当前图片显示仅经 Material+MeshRenderer（TestPNGQuad 模式）
 - 同类型多组件序列化互相覆盖
 - AssetRequest 续延异常可击穿 EngineLoop
 - FindEntry 线性扫描（规模增长需反向索引）
