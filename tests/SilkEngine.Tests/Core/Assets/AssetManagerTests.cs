@@ -239,6 +239,47 @@ public class AssetManagerTests
     }
 
     [Fact]
+    public void SetScheduler_Null_ThenLoadAsync_UsesLazyDefaultPool()
+    {
+        AssetManager.SetSchedulerForTests(null);
+        try
+        {
+            using var file = PngTestFile.Create();
+            var req = AssetManager.LoadAsync<Texture2D>(file.FilePath);
+            var done = SpinWait.SpinUntil(() =>
+            {
+                AssetManager.ProcessCompleted();
+                return req.IsDone;
+            }, TimeSpan.FromSeconds(5));
+            Assert.True(done, "延迟默认池加载超时");
+            Assert.NotNull(req.Asset);
+        }
+        finally
+        {
+            AssetManager.SetSchedulerForTests(null);
+        }
+    }
+
+    [Fact]
+    public void SetScheduler_InjectedPool_ReceivesScheduleCalls()
+    {
+        var scheduler = new RecordingScheduler();
+        AssetManager.SetScheduler(scheduler);
+        try
+        {
+            using var file = PngTestFile.Create();
+            var req = AssetManager.LoadAsync<Texture2D>(file.FilePath);
+            AssetManager.ProcessCompleted();
+            Assert.True(req.IsDone);
+            Assert.Equal(1, scheduler.ScheduleCalls);
+        }
+        finally
+        {
+            AssetManager.SetSchedulerForTests(null);
+        }
+    }
+
+    [Fact]
     public async Task AwaitOperator_ResumesOnProcessCompleted()
     {
         using var file = PngTestFile.Create();

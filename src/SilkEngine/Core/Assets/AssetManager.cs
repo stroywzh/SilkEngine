@@ -15,7 +15,7 @@ public static class AssetManager
     private static readonly ConcurrentQueue<Guid> _pendingUnload = new();
     private static readonly ConcurrentQueue<Guid> _unloadQueue = new();
     private static readonly ConcurrentDictionary<IAssetRequest, (Guid Guid, string Path)> _lazyPending = new();
-    private static IWorkerScheduler _scheduler = new EngineThreadPool(2);
+    private static IWorkerScheduler? _scheduler;
 
     /// <summary>
     /// 路径 → 稳定 GUID（归一化：反斜杠→斜杠、统一小写；跨运行与平台确定性）
@@ -134,15 +134,20 @@ public static class AssetManager
         }
     }
 
-    /// <summary>测试用：替换调度器（null 恢复默认 EngineThreadPool(2)）</summary>
+    /// <summary>测试用：替换调度器（null 恢复延迟默认——首次调度时才创建）</summary>
     internal static void SetSchedulerForTests(IWorkerScheduler? scheduler) =>
-        _scheduler = scheduler ?? new EngineThreadPool(2);
+        _scheduler = scheduler;
+
+    /// <summary>引擎接入：EngineLoop.Initialize 注入共享工作线程池（避免重复建池）</summary>
+    internal static void SetScheduler(IWorkerScheduler scheduler) => _scheduler = scheduler;
 
     /// <summary>测试断言用：当前缓存</summary>
     internal static AssetCache Cache => _cache;
 
-    private static void ScheduleLoad(Guid guid, string path) =>
-        _scheduler.Schedule(async () =>
+    private static void ScheduleLoad(Guid guid, string path)
+    {
+        var scheduler = _scheduler ??= new EngineThreadPool(2);
+        scheduler.Schedule(async () =>
         {
             AssetLoadResult result;
             try
@@ -157,6 +162,7 @@ public static class AssetManager
             }
             _completed.Enqueue(result);
         });
+    }
 
     private static void CompleteAwaiters(AssetEntry entry, IAsset? asset, Exception? error)
     {

@@ -57,6 +57,7 @@ public class EngineLoop : IDisposable
 
         SceneManager.ActiveRegistry = _registry;
         SceneManager.Instance.RegisterScene(_registry);
+        AssetManager.SetScheduler(_workerPool);
         _snapshotManager.CommitPending(
             _registry,
             SceneManager.Instance._destroyQueue,
