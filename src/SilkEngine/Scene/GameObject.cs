@@ -79,17 +79,15 @@ public sealed class GameObject : Object
         return (T)AddComponent(new T(), registry);
     }
 
-    /// <summary>组件工厂：挂载 → Awake → 反序列化(ReadFrom) → 活跃重算 → 注册。顺序 MUST 为挂载→Awake→ReadFrom→Enable(条件)→注册。</summary>
+    /// <summary>
+    /// 组件工厂：挂载 → ReadFrom(序列化数据) → OnAwake → RecomputeActiveState(Enable) → 注册。
+    /// 顺序遵循 Unity 语义：OnAwake 中看到的字段即为序列化恢复后的值；
+    /// 无挂载数据时 ReadFrom 不调用（基类空默认）。
+    /// </summary>
     internal void InitializeComponent(Component c, ComponentRegistry? registry)
     {
         c.GameObject = this;
         _components.Add(c);
-
-        if (c is MonoBehaviour mb && !mb.Awaked)
-        {
-            mb.Awaked = true;
-            mb.OnAwake();
-        }
 
         if (
             _serializedData != null
@@ -98,6 +96,12 @@ public sealed class GameObject : Object
         )
         {
             c.ReadFrom(new SerializedNode(compNode));
+        }
+
+        if (c is MonoBehaviour mb && !mb.Awaked)
+        {
+            mb.Awaked = true;
+            mb.OnAwake();
         }
 
         c.RecomputeActiveState();

@@ -39,7 +39,7 @@ public class GameObjectSerializationTests
     }
 
     [Fact]
-    public void AddComponent_WithAttachedData_CallsReadFromAfterAwakeBeforeEnable()
+    public void AddComponent_WithAttachedData_CallsReadFromBeforeAwakeBeforeEnable()
     {
         var go = new GameObject("GO");
         go.AttachSerializedData(DataWithComponent(3.5f));
@@ -48,8 +48,8 @@ public class GameObjectSerializationTests
 
         Assert.True(c.ReadCalled);
         Assert.Equal(3.5f, c.Speed);            // 序列化值已生效
-        Assert.Equal(0f, c.SeenAtAwake);        // ReadFrom 在 OnAwake 之后（Awake 时字段仍是默认值）
-        Assert.Equal(3.5f, c.SeenAtEnable);     // ReadFrom 在 RecomputeActiveState(Enable) 之前
+        Assert.Equal(3.5f, c.SeenAtAwake);      // ReadFrom 在 OnAwake 之前（Unity 语义）
+        Assert.Equal(3.5f, c.SeenAtEnable);     // ReadFrom 在 Enable 之前
     }
 
     [Fact]
