@@ -1,4 +1,5 @@
 using SilkEngine;
+using SilkEngine.Core.Assets;
 using SilkEngine.InputSystem;
 using SilkEngine.Math;
 using SilkEngine.Render;
@@ -18,7 +19,9 @@ class Program
 
         // TestSingleCube();
 
-        TestThirdPerson3D();
+        // TestThirdPerson3D();
+
+        TestPNGQuad();
         // TestNDCTriangle();
         // TestNDCQuad();
         // TestCameraOrtho();
@@ -236,6 +239,47 @@ void main() { FragColor = vec4(abs(vNormal), 1.0); }",
             scene.AddRootObject(camObj);
         }
 
+        void TestPNGQuad()
+        {
+            var scene = new Scene("PNG_Quad");
+            SceneManager.Instance.LoadScene(scene);
+
+            var shader = new Shader
+            {
+                Name = "PNG",
+                VertexSource =
+                    @"#version 460 core
+layout(location = 0) in vec3 aPos;
+layout(location = 1) in vec2 aTexCoord;
+uniform mat4 uMVP;
+out vec2 vTexCoord;
+void main() { gl_Position = uMVP * vec4(aPos, 1.0); vTexCoord = aTexCoord; }",
+                FragmentSource =
+                    @"#version 460 core
+in vec2 vTexCoord;
+out vec4 FragColor;
+uniform sampler2D uMainTex;
+void main() { FragColor = texture(uMainTex, vTexCoord); }",
+            };
+
+            var mat = new Material { Name = "PNGMat" };
+            var quad = new GameObject("PNGQuad");
+            quad.Transform.LocalScale = new Vector3(4, 3, 1);
+            var mr = quad.AddComponent<MeshRenderer>();
+            mr.Shader = shader;
+            mr.Mesh = MeshFactory.CreateQuad(1, 1);
+            mr.Material = mat;
+            quad.AddComponent<TextureDemoRunner>().Target = mat;
+            scene.AddRootObject(quad);
+
+            var camObj = new GameObject("Cam");
+            camObj.Transform.LocalPosition = new Vector3(0, 0, -1);
+            var cam = camObj.AddComponent<Camera>();
+            cam.Orthographic = true;
+            cam.OrthographicSize = 5f;
+            scene.AddRootObject(camObj);
+        }
+
         void TestThirdPerson3D()
         {
             var scene = new Scene("ThirdPerson3D");
@@ -293,6 +337,29 @@ void main() { FragColor = vec4(abs(vNormal), 1.0); }",
             follow.Target = player;
             controller.Camera = follow;
             scene.AddRootObject(camObj);
+        }
+    }
+
+    // LazyAsync 加载 demo 纹理：未就绪时材质无主纹理 → 白色占位，就绪后贴图
+    private class TextureDemoRunner : MonoBehaviour
+    {
+        public Material? Target;
+        private AssetRequest<Texture2D>? _request;
+
+            public override void OnStart()
+            {
+                string path = Path.Combine(AppContext.BaseDirectory, "Resources", "test.png");
+                _request = AssetManager.LoadAsync<Texture2D>(path, AsyncLoadMode.LazyAsync);
+                _ = _request.Asset; // LazyAsync 首次访问即触发加载；受 IsDone 保护的 pattern 无法自发触发
+            }
+
+        public override void OnUpdate(float deltaTime)
+        {
+            if (_request is { IsDone: true, Asset: { } tex } && Target is { MainTexture: null })
+            {
+                Target.MainTexture = tex;
+                Log.Info("[Demo] PNG texture applied");
+            }
         }
     }
 }

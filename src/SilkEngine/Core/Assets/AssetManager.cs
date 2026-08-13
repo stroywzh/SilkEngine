@@ -14,6 +14,7 @@ public static class AssetManager
     private static readonly ConcurrentQueue<AssetLoadResult> _completed = new();
     private static readonly ConcurrentQueue<Guid> _pendingUnload = new();
     private static readonly ConcurrentQueue<Guid> _unloadQueue = new();
+    private static readonly ConcurrentDictionary<IAssetRequest, (Guid Guid, string Path)> _lazyPending = new();
     private static IWorkerScheduler _scheduler = new EngineThreadPool(2);
 
     /// <summary>
@@ -61,12 +62,18 @@ public static class AssetManager
                     $"资产 {path} 类型为 {entry.Data?.GetType().Name ?? "null"}，不是 {typeof(T).Name}");
             return AssetRequest<T>.Completed(typed);
         }
-        if (mode == AsyncLoadMode.LazyAsync)
-            throw new NotSupportedException("AsyncLoadMode.LazyAsync 由资产管线 Part 3 实现");
         var request = new AssetRequest<T>();
         if (entry.State == AssetState.Loading && entry.Pending is not null)
         {
             entry.Awaiters.Add(request);
+            return request;
+        }
+        if (mode == AsyncLoadMode.LazyAsync)
+        {
+            entry.State = AssetState.Loading;
+            entry.Pending = request;
+            entry.Data = null;
+            _lazyPending[request] = (guid, path);
             return request;
         }
         entry.State = AssetState.Loading;
@@ -74,6 +81,20 @@ public static class AssetManager
         entry.Data = null;
         ScheduleLoad(guid, path);
         return request;
+    }
+
+    /// <summary>
+    /// LazyAsync 触发点：AssetRequest.Asset 首次访问调用。
+    /// <br/>登记存在且条目仍由该请求持有（Loading + Pending 匹配）才真正调度，幂等去重
+    /// </summary>
+    internal static void TriggerLazy(IAssetRequest request)
+    {
+        if (!_lazyPending.TryRemove(request, out var pending))
+            return;
+        var entry = _cache.Find(pending.Guid);
+        if (entry is null || entry.State != AssetState.Loading || !ReferenceEquals(entry.Pending, request))
+            return;
+        ScheduleLoad(pending.Guid, pending.Path);
     }
 
     /// <summary>

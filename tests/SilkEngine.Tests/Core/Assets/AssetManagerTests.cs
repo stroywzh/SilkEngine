@@ -207,11 +207,29 @@ public class AssetManagerTests
     }
 
     [Fact]
-    public void LoadAsync_LazyAsync_ThrowsNotSupported()
+    public void LoadAsync_LazyAsync_FirstAssetAccess_TriggersLoad()
     {
         using var file = PngTestFile.Create();
-        Assert.Throws<NotSupportedException>(() =>
-            AssetManager.LoadAsync<Texture2D>(file.FilePath, AsyncLoadMode.LazyAsync));
+        var scheduler = new RecordingScheduler();
+        AssetManager.SetSchedulerForTests(scheduler);
+        try
+        {
+            var req = AssetManager.LoadAsync<Texture2D>(file.FilePath, AsyncLoadMode.LazyAsync);
+            Assert.False(req.IsDone);
+            Assert.Equal(0, scheduler.ScheduleCalls); // 登记不调度
+            Assert.Null(req.Asset);                    // 首次访问 → 触发调度；帧末前仍为 null
+            Assert.Equal(1, scheduler.ScheduleCalls);  // 已触发且仅触发一次
+            Assert.Null(req.Asset);
+            Assert.Equal(1, scheduler.ScheduleCalls);  // 重复访问不重复调度
+
+            AssetManager.ProcessCompleted();
+            Assert.True(req.IsDone);
+            Assert.Equal(1, req.Asset!.ImageData.Width);
+        }
+        finally
+        {
+            AssetManager.SetSchedulerForTests(null);
+        }
     }
 
     [Fact]

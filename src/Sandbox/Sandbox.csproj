@@ -8,4 +8,7 @@
     <ItemGroup>
       <ProjectReference Include="..\..\src\SilkEngine\SilkEngine.csproj" />
     </ItemGroup>
+    <ItemGroup>
+      <None Update="Resources\test.png" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
 </Project>

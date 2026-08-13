@@ -24,12 +24,24 @@ internal interface IAssetRequest
 public sealed class AssetRequest<T> : INotifyCompletion, IAssetRequest where T : IAsset
 {
     private Action? _continuation;
+    private T? _asset;
 
     /// <summary>是否已完成（成功或失败）</summary>
     public bool IsDone { get; internal set; }
 
-    /// <summary>加载完成的资产；未完成/失败时为 null</summary>
-    public T? Asset { get; internal set; }
+    /// <summary>
+    /// 加载完成的资产；未完成/失败时为 null
+    /// <br/>LazyAsync 模式首次访问触发实际加载调度（触发后重复访问不再触发）
+    /// </summary>
+    public T? Asset
+    {
+        get
+        {
+            AssetManager.TriggerLazy(this);
+            return _asset;
+        }
+        internal set => _asset = value;
+    }
 
     /// <summary>加载进度（0~1，完成时为 1）</summary>
     public float Progress { get; internal set; }
