@@ -17,6 +17,7 @@ public class OpenGLRenderBackend : RenderBackendBase
     private readonly Dictionary<Shader, OpenGLShader> _shaderCache = new();
     private readonly Dictionary<Mesh, OpenGLMesh> _meshCache = new();
     private readonly Dictionary<Material, OpenGLMaterial> _materialCache = new();
+    private readonly OpenGLTextureRegistry _textureRegistry = new(t => new OpenGLTexture(t));
 
     private float _clearR = 0.1f,
         _clearG = 0.1f,
@@ -111,7 +112,7 @@ public class OpenGLRenderBackend : RenderBackendBase
             {
                 if (!_materialCache.TryGetValue(cmd.Material, out glMaterial))
                 {
-                    glMaterial = new OpenGLMaterial(_gl, cmd.Material, glShader);
+                    glMaterial = new OpenGLMaterial(_gl, cmd.Material, glShader, _textureRegistry);
                     _materialCache[cmd.Material] = glMaterial;
                 }
             }
@@ -180,6 +181,11 @@ public class OpenGLRenderBackend : RenderBackendBase
         _shaderCache.Clear();
         _meshCache.Clear();
         _materialCache.Clear();
+
+        foreach (var t in _textureRegistry.Values)
+        {
+            t.Dispose();
+        }
 
         _window?.Dispose();
         _gl?.Dispose();

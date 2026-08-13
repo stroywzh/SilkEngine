@@ -1,5 +1,6 @@
 using System;
 using Silk.NET.OpenGL;
+using SilkEngine.Core.Assets;
 
 namespace SilkEngine.Render.OpenGL;
 
@@ -9,19 +10,24 @@ namespace SilkEngine.Render.OpenGL;
 /// </summary>
 public class OpenGLMaterial : IMaterial
 {
+    /// <summary>主纹理采样器 uniform 名</summary>
+    public const string SamplerUniformName = "uMainTex";
+
     private readonly GL _gl;
     private readonly Material _data;
     private readonly OpenGLShader _shader;
+    private readonly OpenGLTextureRegistry _textures;
     private bool _disposed;
 
     /// <summary>
     /// 从 Material 数据创建 OpenGL 材质，绑定指定着色器
     /// </summary>
-    public OpenGLMaterial(GL gl, Material data, OpenGLShader shader)
+    public OpenGLMaterial(GL gl, Material data, OpenGLShader shader, OpenGLTextureRegistry textures)
     {
         _gl = gl;
         _data = data;
         _shader = shader;
+        _textures = textures;
     }
 
     /// <inheritdoc />
@@ -58,7 +64,24 @@ public class OpenGLMaterial : IMaterial
                 }
             }
         }
+
+        int samplerLoc = _gl.GetUniformLocation(_shader.GetProgram(), SamplerUniformName);
+        if (samplerLoc != -1)
+        {
+            var texture = ResolveTexture(_data);
+            var glTex = _textures.GetOrCreate(texture);
+            glTex.EnsureCreated(_gl);
+            _gl.ActiveTexture(TextureUnit.Texture0);
+            _gl.BindTexture(TextureTarget.Texture2D, glTex.Handle);
+            _gl.Uniform1(samplerLoc, 0);
+        }
     }
+
+    /// <summary>
+    /// 解析材质实际绑定纹理：无主纹理（含 LazyAsync 未就绪）→ 引擎白色占位
+    /// </summary>
+    public static Texture2D ResolveTexture(Material material) =>
+        material.MainTexture ?? DefaultTextures.White;
 
     /// <inheritdoc />
     public void Dispose()
