@@ -9,7 +9,7 @@ public class GeneratorDiagnosticTests
     public void ExternalAssembly_SerializableInternal_ErrorsSeng001()
     {
         var (_, diags) = GeneratorHarness.Run("""
-            using SilkEngine;
+            using SilkEngine.Scene;
             using SilkEngine.Scene.Serialization;
 
             [SerializableInternal]
@@ -22,7 +22,7 @@ public class GeneratorDiagnosticTests
     public void SerializableInternal_NonWhitelistField_ErrorsSeng002()
     {
         var (_, diags) = GeneratorHarness.Run("""
-            using SilkEngine;
+            using SilkEngine.Scene;
             using SilkEngine.Scene.Serialization;
 
             [SerializableInternal]
@@ -39,7 +39,7 @@ public class GeneratorDiagnosticTests
     public void SerializableInternal_ExcludedField_NoSeng002()
     {
         var (_, diags) = GeneratorHarness.Run("""
-            using SilkEngine;
+            using SilkEngine.Scene;
             using SilkEngine.Scene.Serialization;
 
             [SerializableInternal]
@@ -56,7 +56,7 @@ public class GeneratorDiagnosticTests
     public void SerializableInternal_Unregistered_ErrorsSeng003()
     {
         var (_, diags) = GeneratorHarness.Run("""
-            using SilkEngine;
+            using SilkEngine.Scene;
             using SilkEngine.Scene.Serialization;
 
             [SerializableInternal]
@@ -69,7 +69,7 @@ public class GeneratorDiagnosticTests
     public void SerializableInternal_Registered_NoSeng003()
     {
         var (_, diags) = GeneratorHarness.Run("""
-            using SilkEngine;
+            using SilkEngine.Scene;
             using SilkEngine.Scene.Serialization;
 
             namespace SilkEngine.Scene.Serialization
@@ -96,7 +96,7 @@ public class GeneratorDiagnosticTests
     public void SerializableInternal_OnNonComponent_ErrorsSeng004()
     {
         var (_, diags) = GeneratorHarness.Run("""
-            using SilkEngine;
+            using SilkEngine.Core;
             using SilkEngine.Scene.Serialization;
 
             [SerializableInternal]

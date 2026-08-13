@@ -1,7 +1,7 @@
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
-using SilkEngine;
+using SilkEngine.Scene;
 using SilkEngine.SourceGen;
 
 namespace SilkEngine.SourceGen.Tests;

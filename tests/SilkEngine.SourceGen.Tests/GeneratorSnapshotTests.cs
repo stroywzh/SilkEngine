@@ -7,7 +7,7 @@ public class GeneratorSnapshotTests
 {
     private const string WhitelistSnippet = """
         using System;
-        using SilkEngine;
+        using SilkEngine.Scene;
         using SilkEngine.Math;
 
         public partial class SampleWhitelist : MonoBehaviour
@@ -22,7 +22,7 @@ public class GeneratorSnapshotTests
         """;
 
     private const string RecursionSnippet = """
-        using SilkEngine;
+        using SilkEngine.Scene;
         using SilkEngine.Scene.Serialization;
 
         public partial class SampleStats : MonoBehaviour
@@ -40,7 +40,7 @@ public class GeneratorSnapshotTests
 
     private const string StjSnippet = """
         using System;
-        using SilkEngine;
+        using SilkEngine.Scene;
 
         public partial class SampleStj : MonoBehaviour
         {
@@ -50,7 +50,7 @@ public class GeneratorSnapshotTests
         """;
 
     private const string AssetSnippet = """
-        using SilkEngine;
+        using SilkEngine.Scene;
         using SilkEngine.Render;
 
         public partial class SampleAssets : Component
