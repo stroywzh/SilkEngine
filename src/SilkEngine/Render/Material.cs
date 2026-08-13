@@ -20,6 +20,21 @@ public class Material : IAsset
     /// <summary>Matrix4x4 类型 uniform 参数</summary>
     public Dictionary<string, float[]> Matrices { get; } = new();
 
+    private Texture2D? _mainTexture;
+
+    /// <summary>主纹理槽（引用计数由 AssetManager 托管：赋值 +1、替换/清空 -1）</summary>
+    public Texture2D? MainTexture
+    {
+        get => _mainTexture;
+        set => AssetManager.SetTracked(ref _mainTexture, value);
+    }
+
+    public Material()
+    {
+        // 材质释放（计数归零）→ 级联归还主纹理引用
+        MaterialDisposed += () => AssetManager.TryRelease(_mainTexture);
+    }
+
     /// <summary>设置浮点 uniform 值</summary>
     public void SetFloat(string name, float value) => Floats[name] = value;
 
