@@ -9,7 +9,7 @@
 - 静态类模式：`Time` / `SceneManager` / `Input` / `Log` 为全局门面
 - 线程通过 `ThreadFactory.CreateThread` 统一创建（禁止直接 `new Thread()`）
 - `allow(ArbirtaryCode)` requires safe code blocks explicitly: 仅 "unsafe" 标为 unsafe；所有其他代码逻辑应为 safe
-- Priority: automated testing exists with full coverage (185 xUnit tests)
+- Priority: automated testing exists with full coverage (320 xUnit tests)
 
 ## 架构
 
@@ -29,7 +29,8 @@
 - **FrameSnapshot/ComponentRegistry**: 帧原子性核心。ComponentRegistry 类型索引注册表（持久化 ComponentGroup），FrameSnapshotManager 双缓冲快照，帧末 CommitPending 统一应用销毁/注册并 swap（零分配）。销毁幂等（`_destroyPending`/`_destroyed` 双标志），LoadScene 场景切换注销旧场景全部组件
 - **LogicLoop**: 固定步长累加器 + 基于快照的 SceneManager 派发 (FixedTick/Tick/LateTick)
 - **Scene System**: Object → GameObject(内置Transform) → Component(活跃状态机: `RecomputeActiveState` 单一真理源, OnEnable/OnDisable/OnDestroy 下沉至 Component, Enabled/IsActive/SetParent 三路幂等重放) → MonoBehaviour(OnAwake/OnStart/OnUpdate/OnFixedUpdate/OnLateUpdate/OnPostRender)。工厂 `InitializeComponent`(挂载→OnAwake→OnEnable→注册)，GO 层级活跃门控 `IsActiveInHierarchy` 级联通知，`Started` 标志位 Start 补发，`AddObjectToScene` 运行时增删
-- **Render**: RenderSystem(顶层管理) → RenderCollector(收集) → IRenderPipeline/ForwardPipeline(策略) → RenderPass[] → RenderThreadLoop → IRenderBackend(ExecutePass+Present)。相机矩阵经 `SingleDrawCommand.ViewMatrix/ProjectionMatrix` 携带，后端按 uModel 同款模式上传，不突变 Material
+- **Render**: RenderSystem(顶层管理) → RenderCollector(收集) → IRenderPipeline/ForwardPipeline(策略) → RenderPass[] → RenderThreadLoop → IRenderBackend(ExecutePass+Present)。相机矩阵经 `SingleDrawCommand.ViewMatrix/ProjectionMatrix` 携带，后端按 uModel 同款模式上传，不突变 Material；`Material.MainTexture` + `DefaultTextures.White` 占位 + OpenGLTexture 惰性缓存 + uMVP 同款上传
+- **Asset System**: AssetManager 门面（Load 同步/LoadAsync 异步+LazyAsync/AssetRequest awaitable 主线程帧末恢复）、AssetCache（GUID=路径 MD5、引用计数、状态机 Loading/Ready/Failed/Unloaded）、导入层（IImageDecoder 双实现 StbImageSharp/StbiSharp + ImporterFactory）、引用计数自动化闭环（SetTracked 赋值计数、OnDestroy 级联、MaterialDisposed、帧末 Unloaded 迁移、渲染线程帧首 GL 释放）、序列化（ISerializableComponent + SerializedNode 零反射、ComponentTypeRegistry、GameObject 数据管道工厂 ReadFrom 钩子、SceneSerializer、LoadSceneFromFile）
 - **Input**: Input门面 → KeyboardState/MouseState(双缓冲) → IInputProvider → SilkInputProvider
 - **Threading**: ThreadFactory + EngineThreadPool(IWorkerScheduler) + RenderThreadLoop
 - **Math**: 自研 Mathf/Vector2/Vector3/Quaternion/Matrix4x4 (左手系, 行主序约定; GL 上传 UniformMatrix4 transpose=true)
@@ -41,24 +42,24 @@
 PumpEvents → GetDeltaTime → Input.Update → LogicLoop.Tick(活跃且未 Started 组件补发 OnStart, 仅一次)
 → RenderSystem.Render(Collector→Pipeline→SubmitFrame阻塞等GPU)
 → LogicLoop.LateTick(PostRender)
-→ FrameSnapshotManager.CommitPending(销毁+注册+快照swap)
+→ FrameSnapshotManager.CommitPending(销毁+注册+快照swap) → AssetManager.ProcessCompleted(帧末完成队列拾取+Unloaded 迁移)
 ```
 
 ### 项目结构
 
 ```
-src/SilkEngine/        # 引擎类库 (60 .cs)
+src/SilkEngine/        # 引擎类库 (82 .cs)
   Math/ Scene/ Render/ Thread/ Core/ Input/
-src/Sandbox/              # 演示程序
-tests/SilkEngine.Tests/ # 185 个 xUnit 测试
+src/Sandbox/              # 演示程序 (Resources/test.png)
+tests/SilkEngine.Tests/ # 320 个 xUnit 测试 (50 文件)
 ```
 
 ## 测试
 
 - 框架: xUnit 2.9.3，目标 net10.0
-- 185 个测试覆盖 Math / Scene / Threading / Input / Render / Core / MeshFactory
+- 320 个测试覆盖 Math / Scene / Threading / Input / Render / Core / MeshFactory / Assets / Serialization
 - TDD 强制: 所有业务逻辑代码必须先写测试→失败→实现→通过
-- 测试文件按模块分目录: Math/ Scene/ Threading/ Input/ Render/ Core/
+- 测试文件按模块分目录: Math/ Scene/ Threading/ Input/ Render/ Core/ (Assets/Serialization 位于 Core 下)
 
 ## 约束
 
@@ -82,5 +83,11 @@ tests/SilkEngine.Tests/ # 185 个 xUnit 测试
 - SetParent 无环检测
 - Instantiate 不克隆组件
 - 场景卸载只发 OnDestroy 不发 OnDisable
+- 资产数据库: GUID→路径索引, 跨进程 .scene 引用解析（P1 预留, 本阶段按 GUID 直查缓存）
+- 同类型多组件序列化互相覆盖
+- AssetRequest 续延异常可击穿 EngineLoop
+- FindEntry 线性扫描（规模增长需反向索引）
+- Log 写入者全局共享的测试并行竞争（既有 flaky）
+- 既有 FrameSnapshotTests 零分配测试的并行 flaky
 - OpenGLMaterial 同名 uniform 覆盖风险
 - 预留未接线: IComputeShader, RenderPacket, DrawIndirect
