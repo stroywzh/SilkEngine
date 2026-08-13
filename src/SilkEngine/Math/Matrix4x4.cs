@@ -134,6 +134,13 @@ public struct Matrix4x4 : IEquatable<Matrix4x4>
     public static Matrix4x4 CreateTRS(Vector3 pos, Quaternion rot, Vector3 scale) =>
         CreateTranslation(pos) * CreateRotation(rot) * CreateScale(scale);
 
+    /// <summary>组合 MVP 矩阵（GL 列主序上传约定）：projection * view * model</summary>
+    public static Matrix4x4 ComposeMVP(
+        Matrix4x4 projection,
+        Matrix4x4 view,
+        Matrix4x4 model
+    ) => projection * view * model;
+
     public static Matrix4x4 CreateLookAt(Vector3 eye, Vector3 target, Vector3 up)
     {
         Vector3 fwd = (target - eye).Normalized;

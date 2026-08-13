@@ -91,4 +91,17 @@ public class Matrix4x4Tests
         Assert.Equal(0f, (ortho * new Vector3(0, 0, 0.1f)).Z, 3);
         Assert.Equal(1f, (ortho * new Vector3(0, 0, 100f)).Z, 3);
     }
+
+    [Fact]
+    public void ComposeMVP_AppliesProjectionThenViewThenModel()
+    {
+        var proj = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 4f, 1f, 0.1f, 100f);
+        var view = Matrix4x4.CreateLookAt(new Vector3(0, 0, 5), Vector3.Zero, Vector3.Up);
+        var model = Matrix4x4.CreateTranslation(new Vector3(1, 2, 0));
+
+        var mvp = Matrix4x4.ComposeMVP(proj, view, model);
+
+        Assert.Equal(proj * view * model, mvp);
+        Assert.NotEqual(model * view * proj, mvp);
+    }
 }

@@ -152,6 +152,23 @@ public class OpenGLRenderBackend : RenderBackendBase
             {
                 UploadMatrix(glShader, "uProjection", sdc3.ProjectionMatrix.Value);
             }
+            if (
+                cmd is SingleDrawCommand sdc4
+                && sdc4.ProjectionMatrix.HasValue
+                && sdc4.ViewMatrix.HasValue
+                && sdc4.ModelMatrix.HasValue
+            )
+            {
+                UploadMatrix(
+                    glShader,
+                    "uMVP",
+                    Math.Matrix4x4.ComposeMVP(
+                        sdc4.ProjectionMatrix.Value,
+                        sdc4.ViewMatrix.Value,
+                        sdc4.ModelMatrix.Value
+                    )
+                );
+            }
             glMesh.Draw();
         }
     }
