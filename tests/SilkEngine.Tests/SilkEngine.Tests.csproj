@@ -15,4 +15,8 @@
     <ItemGroup>
       <ProjectReference Include="..\..\src\SilkEngine\SilkEngine.csproj" />
     </ItemGroup>
+    <ItemGroup>
+      <ProjectReference Include="..\..\src\SilkEngine.SourceGen\SilkEngine.SourceGen.csproj"
+                        OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    </ItemGroup>
 </Project>
