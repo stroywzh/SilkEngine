@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using SilkEngine.Core;
 
 namespace SilkEngine.Core.Assets;
 
@@ -68,14 +69,21 @@ public sealed class AssetRequest<T> : INotifyCompletion, IAssetRequest where T :
     /// <summary>await 机制：登记续延（单请求单续延，等待者合并发生在 AssetEntry 层）</summary>
     public void OnCompleted(Action continuation) => _continuation = continuation;
 
-    /// <summary>主线程帧末调用：填值 → IsDone → 唤醒续延</summary>
+    /// <summary>主线程帧末调用：填值 → IsDone → 唤醒续延；续延异常捕获并记录，不击穿帧末链路。</summary>
     internal void Complete(T? asset, Exception? error)
     {
         Asset = asset;
         Error = error;
         Progress = 1f;
         IsDone = true;
-        _continuation?.Invoke();
+        try
+        {
+            _continuation?.Invoke();
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"[AssetRequest] continuation failed: {ex}");
+        }
     }
 
     void IAssetRequest.Complete(IAsset? asset, Exception? error)

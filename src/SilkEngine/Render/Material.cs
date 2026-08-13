@@ -66,23 +66,7 @@ public class Material : IAsset
 
     public override int GetHashCode()
     {
-        if (_hash == null)
-        {
-            var h = new HashCode();
-            h.Add(Name);
-            foreach (var kv in Floats)
-            {
-                h.Add(kv.Key);
-                h.Add(kv.Value);
-            }
-            foreach (var kv in Vectors)
-            {
-                h.Add(kv.Key);
-                h.Add(kv.Value.GetHashCode());
-            }
-            h.Add(Matrices.Count);
-            _hash = h.ToHashCode();
-        }
+        _hash ??= HashCode.Combine(Name);   // 仅 init-only Name；可变字典不入哈希（Equals 仍内容比较）
         return _hash.Value;
     }
 

@@ -1,3 +1,4 @@
+using SilkEngine.Core;
 using SilkEngine.Core.Assets;
 
 namespace SilkEngine.Tests.Core.Assets;
@@ -6,6 +7,12 @@ namespace SilkEngine.Tests.Core.Assets;
 public class AssetRequestTests
 {
     private sealed class FakeAsset : IAsset { }
+
+    private class TestWriter : ILogWriter
+    {
+        public List<string> Messages = new();
+        public void Write(string msg) => Messages.Add(msg);
+    }
 
     [Fact]
     public void GetAwaiter_ReturnsSelf()
@@ -75,5 +82,29 @@ public class AssetRequestTests
         Assert.Same(tex, req.Asset);
         Assert.Null(req.Error);
         Assert.Equal(1f, req.Progress);
+    }
+
+    [Fact]
+    public void Complete_ContinuationThrows_DoesNotBreak_AndLogs()
+    {
+        var tw = new TestWriter();
+        Log.AddWriter(tw);
+        try
+        {
+            var req = new AssetRequest<Texture2D>();
+            req.OnCompleted(() => throw new InvalidOperationException("boom"));
+            var tex = new Texture2D();
+            req.Complete(tex, null);                       // 续延抛异常不得击穿
+            Assert.True(req.IsDone);
+            Assert.Same(tex, req.Asset);
+            Assert.Equal(1f, req.Progress);
+            Assert.Contains(
+                tw.Messages,
+                m => m.Contains("continuation failed") && m.Contains("boom"));
+        }
+        finally
+        {
+            Log.RemoveWriter(tw);
+        }
     }
 }

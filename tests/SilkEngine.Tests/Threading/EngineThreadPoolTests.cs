@@ -13,6 +13,12 @@ public class EngineThreadPoolTests
         public void Write(string msg) => _messages.Add(msg);
     }
 
+    private class ConcurrentTestWriter : ILogWriter
+    {
+        public System.Collections.Concurrent.ConcurrentQueue<string> Messages = new();
+        public void Write(string msg) => Messages.Enqueue(msg);
+    }
+
     [Fact]
     public void EnqueueWork_ExecutesTask()
     {
@@ -108,6 +114,27 @@ public class EngineThreadPoolTests
         finally
         {
             Log.RemoveWriter(writer);
+        }
+    }
+
+    [Fact]
+    public void WorkerLoop_FailedTask_LogsFullException()
+    {
+        var tw = new ConcurrentTestWriter();
+        Log.AddWriter(tw);
+        try
+        {
+            using var pool = new EngineThreadPool(1);
+            pool.EnqueueWork(async () => throw new InvalidOperationException("pool-boom-42"));
+            SpinWait.SpinUntil(() => tw.Messages.Any(m => m.Contains("pool-boom-42")), 5000);
+            Assert.Contains(
+                tw.Messages,
+                m => m.Contains("pool-boom-42") && m.Contains("System.InvalidOperationException"));
+            // 旧实现仅 {ex.Message}（无类型名）→ 该断言红灯；{ex} 全量含类型与堆栈
+        }
+        finally
+        {
+            Log.RemoveWriter(tw);
         }
     }
 }

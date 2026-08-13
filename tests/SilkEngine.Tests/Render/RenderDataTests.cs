@@ -1,3 +1,4 @@
+using SilkEngine.Math;
 using SilkEngine.Render;
 
 namespace SilkEngine.Tests.Render;
@@ -57,5 +58,27 @@ public class RenderDataTests
         var b = new Material { Name = "M" };
         b.SetFloat("f", 2f);
         Assert.False(a.Equals(b));
+    }
+
+    [Fact]
+    public void Material_Hash_ExcludesMutableDictionaries()
+    {
+        var a = new Material { Name = "M" };
+        a.SetFloat("f", 1f);
+        a.SetVector3("v", new Vector3(1, 2, 3));
+        var b = new Material { Name = "M" };
+        b.SetFloat("f", 2f);
+        Assert.Equal(a.GetHashCode(), b.GetHashCode());  // 字典差异不入哈希（旧实现：内容入哈希 → 不相等）
+        Assert.False(a.Equals(b));                       // Equals 仍区分内容
+    }
+
+    [Fact]
+    public void Material_Hash_StableAfterSetFloat()
+    {
+        var m = new Material { Name = "M" };
+        int h1 = m.GetHashCode();
+        m.SetFloat("f", 1f);                             // 可变字典变更不击穿缓存哈希
+        m.SetMatrix4x4("m", Matrix4x4.Identity);
+        Assert.Equal(h1, m.GetHashCode());
     }
 }

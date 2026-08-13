@@ -94,7 +94,7 @@ public class EngineThreadPool : IWorkerScheduler, IDisposable
                     }
                     catch (Exception ex)
                     {
-                        Log.Error($"[PoolWorker] Task failed: {ex.Message}");
+                        Log.Error($"[PoolWorker] Task failed: {ex}");
                     }
                 }
             }
@@ -113,7 +113,7 @@ public class EngineThreadPool : IWorkerScheduler, IDisposable
                 }
                 catch (Exception ex)
                 {
-                    Log.Error($"[PoolWorker] Drain failed: {ex.Message}");
+                    Log.Error($"[PoolWorker] Drain failed: {ex}");
                 }
     }
 
