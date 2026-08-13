@@ -388,8 +388,6 @@ void main() { FragColor = vec4(abs(vNormal), 1.0); }",
             camObj.AddComponent<CameraFollow>().Target = ground;
             camObj.AddComponent<PlayerController>().Camera = camObj.GetComponent<CameraFollow>();
 
-            Log.Info(camObj.GetAllComponentName());
-
             scene.AddRootObject(camObj);
 
             // ---- 保存 ----
@@ -412,11 +410,10 @@ void main() { FragColor = vec4(abs(vNormal), 1.0); }",
                 RebindAssets(go);
 
             // 用户组件运行时重挂：反序列化不重建未注册组件；组件引用需手动重连
-            // 注：Camera 同样未实现 ISerializableComponent，加载后需一并补挂
+            // Camera 已实现 ISerializableComponent，加载后由反序列化重建
             var loadedCam = SceneManager
                 .ActiveScene!.GetRootGameObjects()
-                .First(go => go.Name == "FollowCam");
-            loadedCam.AddComponent<Camera>();
+                .First(go => go.GetComponent<Camera>() != null);
             var follow = loadedCam.AddComponent<CameraFollow>();
             follow.Target = SceneManager
                 .ActiveScene.GetRootGameObjects()
