@@ -6,8 +6,12 @@ namespace SilkEngine.Tests.Scene;
 using Scene = SilkEngine.Scene;
 
 [Collection("SceneManager")]
-public class SceneManagerTests
+public class SceneManagerTests : IClassFixture<SceneManagerFixture>
 {
+    private readonly SceneManager _sm;
+
+    public SceneManagerTests(SceneManagerFixture fixture) => _sm = fixture.Manager;
+
     private class Tracker : MonoBehaviour
     {
         public bool Awake, Start, Tick, Destroy;
@@ -25,9 +29,9 @@ public class SceneManagerTests
         var s = new Scene("T"); var go = new GameObject(); var c = go.AddComponent<Tracker>(); s.AddRootObject(go);
         var reg = new ComponentRegistry();
         var mgr = new FrameSnapshotManager();
-        SceneManager.Instance.LoadScene(s, reg);
+        _sm.LoadScene(s, reg);
         mgr.CommitPending(reg, new List<SceneManager.DestroyEntry>(), s, 0f);
-        SceneManager.Instance.Tick(mgr.Current, 0.016f);
+        _sm.Tick(mgr.Current, 0.016f);
         Assert.True(c.Awake); Assert.True(c.Start);
     }
 
@@ -37,9 +41,9 @@ public class SceneManagerTests
         var s = new Scene("T"); var go = new GameObject(); var c = go.AddComponent<Tracker>(); s.AddRootObject(go);
         var reg = new ComponentRegistry();
         var mgr = new FrameSnapshotManager();
-        SceneManager.Instance.LoadScene(s, reg);
+        _sm.LoadScene(s, reg);
         mgr.CommitPending(reg, new List<SceneManager.DestroyEntry>(), s, 0f);
-        SceneManager.Instance.Tick(mgr.Current, 0.16f);
+        _sm.Tick(mgr.Current, 0.16f);
         Assert.True(c.Tick); Assert.Equal(0.16f, c.TickDt);
     }
 
@@ -49,9 +53,9 @@ public class SceneManagerTests
         var s = new Scene("T"); var go = new GameObject(); var c = go.AddComponent<Tracker>(); s.AddRootObject(go);
         var reg = new ComponentRegistry();
         var mgr = new FrameSnapshotManager();
-        SceneManager.Instance.LoadScene(s, reg);
+        _sm.LoadScene(s, reg);
         mgr.CommitPending(reg, new List<SceneManager.DestroyEntry>(), s, 0f);
-        SceneManager.Instance.FixedTick(mgr.Current, 0.02f);
+        _sm.FixedTick(mgr.Current, 0.02f);
         Assert.Equal(0.02f, c.FixedDt);
     }
 
@@ -61,22 +65,22 @@ public class SceneManagerTests
         var s = new Scene("T"); var go = new GameObject(); var c = go.AddComponent<Tracker>(); go.IsActive = false; s.AddRootObject(go);
         var reg = new ComponentRegistry();
         var mgr = new FrameSnapshotManager();
-        SceneManager.Instance.LoadScene(s, reg);
+        _sm.LoadScene(s, reg);
         mgr.CommitPending(reg, new List<SceneManager.DestroyEntry>(), s, 0f);
-        SceneManager.Instance.Tick(mgr.Current, 0.16f);
+        _sm.Tick(mgr.Current, 0.16f);
         Assert.False(c.Tick);
     }
 
     [Fact]
     public void Destroy_AfterCommitPending()
     {
-        SceneManager.Instance._destroyQueue.Clear();
+        _sm._destroyQueue.Clear();
         var s = new Scene("T"); var go = new GameObject(); var c = go.AddComponent<Tracker>(); s.AddRootObject(go);
         var reg = new ComponentRegistry();
         var mgr = new FrameSnapshotManager();
-        SceneManager.Instance.LoadScene(s, reg);
+        _sm.LoadScene(s, reg);
         Object.Destroy(c); Assert.False(c.Destroy);
-        mgr.CommitPending(reg, SceneManager.Instance._destroyQueue, s, 0.1f);
+        mgr.CommitPending(reg, _sm._destroyQueue, s, 0.1f);
         Assert.True(c.Destroy);
     }
 
@@ -94,7 +98,7 @@ public class SceneManagerTests
         child.Transform.SetParent(parent.Transform);
         var c = child.AddComponent<Tracker>();
         s.AddRootObject(parent);
-        SceneManager.Instance.LoadScene(s);
+        _sm.LoadScene(s);
 
         Object.Destroy(parent);
         Assert.False(child.IsActive);
@@ -104,17 +108,17 @@ public class SceneManagerTests
     [Fact]
     public void Destroy_AfterCommitPending_RemovesFromScene()
     {
-        SceneManager.Instance._destroyQueue.Clear();
+        _sm._destroyQueue.Clear();
         var s = new Scene("T");
         var go = new GameObject();
         var c = go.AddComponent<Tracker>();
         s.AddRootObject(go);
         var reg = new ComponentRegistry();
         var mgr = new FrameSnapshotManager();
-        SceneManager.Instance.LoadScene(s, reg);
+        _sm.LoadScene(s, reg);
 
         Object.Destroy(go);
-        mgr.CommitPending(reg, SceneManager.Instance._destroyQueue, s, 0.1f);
+        mgr.CommitPending(reg, _sm._destroyQueue, s, 0.1f);
         Assert.True(c.Destroy);
         Assert.Empty(s.GetRootGameObjects());
     }
@@ -122,18 +126,18 @@ public class SceneManagerTests
     [Fact]
     public void Destroy_Delayed_NotRemovedImmediately()
     {
-        SceneManager.Instance._destroyQueue.Clear();
+        _sm._destroyQueue.Clear();
         var s = new Scene("T");
         var go = new GameObject();
         s.AddRootObject(go);
         var reg = new ComponentRegistry();
         var mgr = new FrameSnapshotManager();
-        SceneManager.Instance.LoadScene(s, reg);
+        _sm.LoadScene(s, reg);
 
         Object.Destroy(go, 1f);
-        mgr.CommitPending(reg, SceneManager.Instance._destroyQueue, s, 0.5f);
+        mgr.CommitPending(reg, _sm._destroyQueue, s, 0.5f);
         Assert.Single(s.GetRootGameObjects());
-        mgr.CommitPending(reg, SceneManager.Instance._destroyQueue, s, 0.6f);
+        mgr.CommitPending(reg, _sm._destroyQueue, s, 0.6f);
         Assert.Empty(s.GetRootGameObjects());
     }
 
@@ -150,7 +154,7 @@ public class SceneManagerTests
         reg.ApplyPending();
         mgr.CommitPending(reg, new List<SceneManager.DestroyEntry>(), s, 0f);
 
-        SceneManager.Instance.Tick(mgr.Current, 0.16f);
+        _sm.Tick(mgr.Current, 0.16f);
         Assert.True(c.Tick);
     }
 
@@ -169,7 +173,7 @@ public class SceneManagerTests
 
         reg.ApplyPending();
         mgr.CommitPending(reg, new List<SceneManager.DestroyEntry>(), s, 0f);
-        SceneManager.Instance.Tick(mgr.Current, 0.16f);
+        _sm.Tick(mgr.Current, 0.16f);
 
         Assert.Equal([1, 2], order);
     }
@@ -190,7 +194,7 @@ public class SceneManagerTests
         var c = go.AddComponent<Tracker>();
         s.AddRootObject(go);
 
-        SceneManager.Instance.LoadScene(s, reg);
+        _sm.LoadScene(s, reg);
         Assert.Single(reg.GetOfType<Tracker>());
         Assert.True(c.Awake);
     }
@@ -203,9 +207,9 @@ public class SceneManagerTests
         var go = new GameObject();
         var c = go.AddComponent<Tracker>();
         s.AddRootObject(go);
-        SceneManager.Instance.LoadScene(s);
+        _sm.LoadScene(s);
 
-        SceneManager.Instance.RegisterScene(reg);
+        _sm.RegisterScene(reg);
         Assert.Single(reg.GetOfType<Tracker>());
     }
 
@@ -218,19 +222,19 @@ public class SceneManagerTests
         s.AddRootObject(go);
         var reg = new ComponentRegistry();
         var mgr = new FrameSnapshotManager();
-        SceneManager.Instance.LoadScene(s, reg);
+        _sm.LoadScene(s, reg);
         mgr.CommitPending(reg, new List<SceneManager.DestroyEntry>(), s, 0f);
 
         c.Enabled = false;
-        SceneManager.Instance.Tick(mgr.Current, 0.016f);
+        _sm.Tick(mgr.Current, 0.016f);
         Assert.False(c.Start);              // 禁用 → 不 Start
 
         c.Enabled = true;
-        SceneManager.Instance.Tick(mgr.Current, 0.016f);
+        _sm.Tick(mgr.Current, 0.016f);
         Assert.True(c.Start);               // 后启用 → 补 Start
 
         c.Start = false;
-        SceneManager.Instance.Tick(mgr.Current, 0.016f);
+        _sm.Tick(mgr.Current, 0.016f);
         Assert.False(c.Start);              // 仅一次
     }
 
@@ -243,14 +247,14 @@ public class SceneManagerTests
         var go1 = new GameObject();
         var c1 = go1.AddComponent<Tracker>();
         s1.AddRootObject(go1);
-        SceneManager.Instance.LoadScene(s1, reg);
+        _sm.LoadScene(s1, reg);
         mgr.CommitPending(reg, new List<SceneManager.DestroyEntry>(), s1, 0f);
 
         var s2 = new Scene("B");
         var go2 = new GameObject();
         var c2 = go2.AddComponent<Tracker>();
         s2.AddRootObject(go2);
-        SceneManager.Instance.LoadScene(s2, reg);
+        _sm.LoadScene(s2, reg);
         mgr.CommitPending(reg, new List<SceneManager.DestroyEntry>(), s2, 0f);
 
         Assert.True(c1.Destroy);                        // 旧场景组件收到 OnDestroy
@@ -267,13 +271,13 @@ public class SceneManagerTests
         try
         {
             var s = new Scene("T");
-            SceneManager.Instance.LoadScene(s, reg);
+            _sm.LoadScene(s, reg);
             var go = new GameObject();
             var c = go.AddComponent<AwakeCounter>();
             Assert.Equal(1, c.AwakeCount);          // 工厂已 Awake
 
-            Assert.True(SceneManager.AddObjectToScene(go));
-            Assert.False(SceneManager.AddObjectToScene(go));   // 重复 → false
+            Assert.True(_sm.AddObjectToScene(go));
+            Assert.False(_sm.AddObjectToScene(go));   // 重复 → false
 
             reg.ApplyPending();
             Assert.Single(reg.GetOfType<AwakeCounter>());       // Register 去重
@@ -301,13 +305,13 @@ public class SceneManagerTests
             var go1 = new GameObject();
             var c1 = go1.AddComponent<Tracker>();
             s1.AddRootObject(go1);
-            SceneManager.Instance.LoadScene(s1);
+            _sm.LoadScene(s1);
 
             var s2 = new Scene("B");
             var go2 = new GameObject();
             var c2 = go2.AddComponent<Tracker>();
             s2.AddRootObject(go2);
-            SceneManager.Instance.LoadScene(s2);
+            _sm.LoadScene(s2);
 
             Assert.True(c1.Destroy);
             var all = reg.GetOfType<Tracker>();
@@ -329,7 +333,7 @@ public class SceneManagerTests
     [Fact]
     public void Destroy_ComponentThenGameObject_OnDestroyOnce()
     {
-        SceneManager.Instance._destroyQueue.Clear();
+        _sm._destroyQueue.Clear();
         var reg = new ComponentRegistry();
         var mgr = new FrameSnapshotManager();
         var scene = new Scene("T");
@@ -337,11 +341,11 @@ public class SceneManagerTests
         var c = go.AddComponent<DestroyCounter>(reg);
         scene.AddRootObject(go);
         reg.ApplyPending();
-        mgr.CommitPending(reg, SceneManager.Instance._destroyQueue, scene, 0f);
+        mgr.CommitPending(reg, _sm._destroyQueue, scene, 0f);
 
         Object.Destroy(c);
         Object.Destroy(go);
-        mgr.CommitPending(reg, SceneManager.Instance._destroyQueue, scene, 0f);
+        mgr.CommitPending(reg, _sm._destroyQueue, scene, 0f);
         Assert.Equal(1, c.DestroyCount);
     }
 
@@ -354,13 +358,13 @@ public class SceneManagerTests
         var go = new GameObject();
         var c = go.AddComponent<DestroyCounter>();
         s.AddRootObject(go);
-        SceneManager.Instance.LoadScene(s, reg);
-        SceneManager.Instance.LoadScene(s, reg);   // 重载
+        _sm.LoadScene(s, reg);
+        _sm.LoadScene(s, reg);   // 重载
 
         Assert.Equal(1, c.DestroyCount);           // 卸载时 OnDestroy 一次
 
         Object.Destroy(c);
-        mgr.CommitPending(reg, SceneManager.Instance._destroyQueue, s, 0f);
+        mgr.CommitPending(reg, _sm._destroyQueue, s, 0f);
         Assert.Equal(2, c.DestroyCount);           // 显式销毁仍有效（非僵尸）
     }
 
@@ -402,11 +406,11 @@ public class SceneManagerTests
                 """
             );
 
-            var ok = SceneManager.Instance.LoadSceneFromFile(path);
+            var ok = _sm.LoadSceneFromFile(path);
 
             Assert.True(ok);
-            Assert.Equal("FileScene", SceneManager.ActiveScene!.Name);
-            var go = SceneManager.ActiveScene.GetRootGameObjects()[0];
+            Assert.Equal("FileScene", _sm.ActiveScene!.Name);
+            var go = _sm.ActiveScene.GetRootGameObjects()[0];
             Assert.Equal("Ground", go.Name);
             Assert.Equal(new Vector3(20, 1, 20), go.Transform.LocalScale);
             Assert.NotNull(go.GetComponent<MeshRenderer>());
@@ -427,7 +431,7 @@ public class SceneManagerTests
         try
         {
             var path = Path.Combine(Path.GetTempPath(), $"nope_{Guid.NewGuid():N}.scene");
-            Assert.False(SceneManager.Instance.LoadSceneFromFile(path));
+            Assert.False(_sm.LoadSceneFromFile(path));
             Assert.Contains(tw.Messages, m => m.Contains("LoadSceneFromFile failed"));
         }
         finally
@@ -443,7 +447,7 @@ public class SceneManagerTests
         try
         {
             File.WriteAllText(path, "{ not json");
-            Assert.False(SceneManager.Instance.LoadSceneFromFile(path));
+            Assert.False(_sm.LoadSceneFromFile(path));
         }
         finally
         {
@@ -458,11 +462,22 @@ public class SceneManagerTests
         try
         {
             File.WriteAllText(path, """{ "Name": 123, "GameObjects": [] }""");
-            Assert.False(SceneManager.Instance.LoadSceneFromFile(path));
+            Assert.False(_sm.LoadSceneFromFile(path));
         }
         finally
         {
             File.Delete(path);
         }
+    }
+
+    [Fact]
+    public void Dispose_DetachesDestroyHandler()
+    {
+        var sm = new SceneManager();
+        sm.Dispose();
+        sm._destroyQueue.Clear();
+        var obj = new GameObject("X");
+        Object.Destroy(obj);
+        Assert.Empty(sm._destroyQueue); // 解绑后销毁事件不再入队
     }
 }

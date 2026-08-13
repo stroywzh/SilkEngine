@@ -1,12 +1,17 @@
 using SilkEngine;
 using SilkEngine.Threading;
+using SilkEngine.Tests.Scene;
 
 namespace SilkEngine.Tests;
 using EngineScene = SilkEngine.Scene;
 
 [Collection("SceneManager")]
-public class LogicLoopTests
+public class LogicLoopTests : IClassFixture<SceneManagerFixture>
 {
+    private readonly SceneManager _sm;
+
+    public LogicLoopTests(SceneManagerFixture fixture) => _sm = fixture.Manager;
+
     private class Counter : MonoBehaviour
     {
         public int Tick, Fixed, Late, Post;
@@ -16,14 +21,14 @@ public class LogicLoopTests
         public override void OnPostRender() => Post++;
     }
 
-    private static (LogicLoop Loop, Counter Counter, ComponentRegistry Reg, FrameSnapshotManager Mgr) Setup()
+    private (LogicLoop Loop, Counter Counter, ComponentRegistry Reg, FrameSnapshotManager Mgr) Setup()
     {
         var s = new EngineScene("T"); var go = new GameObject(); var c = go.AddComponent<Counter>(); s.AddRootObject(go);
         var reg = new ComponentRegistry();
         var mgr = new FrameSnapshotManager();
-        SceneManager.Instance.LoadScene(s, reg);
+        _sm.LoadScene(s, reg);
         mgr.CommitPending(reg, new List<SceneManager.DestroyEntry>(), s, 0f);
-        return (new LogicLoop(), c, reg, mgr);
+        return (new LogicLoop(_sm), c, reg, mgr);
     }
 
     [Fact]
@@ -66,7 +71,7 @@ public class LogicLoopTests
         reg.ApplyPending();
         mgr.CommitPending(reg, new List<SceneManager.DestroyEntry>(), s, 0f);
 
-        var ml = new LogicLoop();
+        var ml = new LogicLoop(_sm);
         ml.Tick(0.016f, mgr.Current);
         Assert.Equal(1, c.Tick);
     }

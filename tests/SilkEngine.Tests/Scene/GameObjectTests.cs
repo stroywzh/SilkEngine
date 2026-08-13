@@ -4,8 +4,12 @@ namespace SilkEngine.Tests.Scene;
 using Scene = SilkEngine.Scene;
 
 [Collection("SceneManager")]
-public class GameObjectTests
+public class GameObjectTests : IClassFixture<SceneManagerFixture>
 {
+    private readonly SceneManager _sm;
+
+    public GameObjectTests(SceneManagerFixture fixture) => _sm = fixture.Manager;
+
     private class TestComponent : Component { }
 
     [Fact] public void HasTransform() => Assert.NotNull(new GameObject().Transform);
@@ -99,7 +103,7 @@ public class GameObjectTests
     [Fact]
     public void RemoveComponent_CallsDisableAndDefersDestroy()
     {
-        SceneManager.Instance._destroyQueue.Clear();
+        _sm._destroyQueue.Clear();
         var reg = new ComponentRegistry();
         var mgr = new FrameSnapshotManager();
         var go = new GameObject();
@@ -107,14 +111,14 @@ public class GameObjectTests
         var scene = new Scene("T");
         scene.AddRootObject(go);
         reg.ApplyPending();
-        mgr.CommitPending(reg, SceneManager.Instance._destroyQueue, scene, 0f);
+        mgr.CommitPending(reg, _sm._destroyQueue, scene, 0f);
 
         Assert.True(go.RemoveComponent<LifecycleTracker>(reg));
         Assert.Null(go.GetComponent<LifecycleTracker>());
         Assert.True(c.Disabled);
         Assert.False(c.Destroyed); // 帧末才销毁
 
-        mgr.CommitPending(reg, SceneManager.Instance._destroyQueue, scene, 0f);
+        mgr.CommitPending(reg, _sm._destroyQueue, scene, 0f);
         Assert.True(c.Destroyed);
         Assert.Empty(reg.GetOfType<LifecycleTracker>());
     }
@@ -199,7 +203,7 @@ public class GameObjectTests
     [Fact]
     public void RemoveComponent_UnderInactiveParent_NoDisableFired()
     {
-        SceneManager.Instance._destroyQueue.Clear();
+        _sm._destroyQueue.Clear();
         var parent = new GameObject("P");
         parent.IsActive = false;
         var child = new GameObject(parent.Transform, "C");
@@ -213,7 +217,7 @@ public class GameObjectTests
     [Fact]
     public void Destroy_AfterCommitPending_GetComponentReturnsNull()
     {
-        SceneManager.Instance._destroyQueue.Clear();
+        _sm._destroyQueue.Clear();
         var reg = new ComponentRegistry();
         var mgr = new FrameSnapshotManager();
         var scene = new Scene("T");
@@ -221,10 +225,10 @@ public class GameObjectTests
         var c = go.AddComponent<TestComponent>(reg);
         scene.AddRootObject(go);
         reg.ApplyPending();
-        mgr.CommitPending(reg, SceneManager.Instance._destroyQueue, scene, 0f);
+        mgr.CommitPending(reg, _sm._destroyQueue, scene, 0f);
 
         Object.Destroy(c);
-        mgr.CommitPending(reg, SceneManager.Instance._destroyQueue, scene, 0f);
+        mgr.CommitPending(reg, _sm._destroyQueue, scene, 0f);
         Assert.Null(go.GetComponent<TestComponent>());   // 已从 _components 移除
     }
 

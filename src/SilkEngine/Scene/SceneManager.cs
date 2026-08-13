@@ -6,7 +6,7 @@ using SilkEngine.Core.Assets.Serialization;
 
 namespace SilkEngine;
 
-public class SceneManager
+public class SceneManager : IDisposable
 {
     internal struct DestroyEntry
     {
@@ -14,22 +14,28 @@ public class SceneManager
         public float Delay;
     }
 
-    internal List<DestroyEntry> _destroyQueue = new(); // 实例成员（原 static）
+    internal List<DestroyEntry> _destroyQueue = new();
 
+    /// <summary>
+    /// 过渡期保留（Part 4 由 Attach(ComponentRegistry, FrameSnapshotManager) 注入替代后移除；
+    /// GameObject 回退链与 EngineLoop.Initialize 仍写此静态）
+    /// </summary>
     internal static ComponentRegistry? ActiveRegistry { get; set; }
 
-    public static readonly SceneManager Instance;
+    private readonly Action<Object, float> _destroyHandler;
 
-    static SceneManager()
+    /// <summary>实例构造订阅全局销毁事件（引擎单实例；测试经 Dispose 解绑防累积）</summary>
+    public SceneManager()
     {
-        Instance = new SceneManager();
-        Object.DestroyHandler += (obj, delay) =>
-            Instance._destroyQueue.Add(new DestroyEntry { Target = obj, Delay = delay });
+        _destroyHandler = (obj, delay) =>
+            _destroyQueue.Add(new DestroyEntry { Target = obj, Delay = delay });
+        Object.DestroyHandler += _destroyHandler;
     }
 
-    public SceneManager() { } // 不再订阅
+    /// <summary>解绑 DestroyHandler（Services.Shutdown 反序释放 / 测试夹具调用）</summary>
+    public void Dispose() => Object.DestroyHandler -= _destroyHandler;
 
-    public static Scene? ActiveScene { get; internal set; }
+    public Scene? ActiveScene { get; internal set; }
 
     public void LoadScene(Scene scene) => LoadScene(scene, ActiveRegistry);
 
@@ -117,7 +123,7 @@ public class SceneManager
     }
 
     /// <summary>运行时向活动场景添加 GameObject（含子树），仅注册；Awake/Enable 由组件工厂保证，不重复触发。</summary>
-    public static bool AddObjectToScene(GameObject go)
+    public bool AddObjectToScene(GameObject go)
     {
         if (ActiveScene == null
             || ActiveScene._rootObjects.Contains(go)
@@ -130,7 +136,7 @@ public class SceneManager
     }
 
     /// <summary>便捷重载：从组件定位其 GameObject。</summary>
-    public static bool AddObjectToScene(MonoBehaviour mb) => AddObjectToScene(mb.GameObject);
+    public bool AddObjectToScene(MonoBehaviour mb) => AddObjectToScene(mb.GameObject);
 
     /// <summary>
     /// 从 .scene JSON 文件加载场景：读文件 → SceneSerializer.Deserialize → LoadScene（带 ActiveRegistry）。

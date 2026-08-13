@@ -38,7 +38,7 @@ class Program
         void TestSingleCube()
         {
             var scene = new Scene("SingleCube");
-            SceneManager.Instance.LoadScene(scene);
+            engine.SceneManager.LoadScene(scene);
 
             var shader = new Shader
             {
@@ -75,7 +75,7 @@ void main() { FragColor = vec4(abs(vNormal), 1.0); }",
         void TestNDCTriangle()
         {
             var scene = new Scene("NDC_Triangle");
-            SceneManager.Instance.LoadScene(scene);
+            engine.SceneManager.LoadScene(scene);
 
             var shader = new Shader
             {
@@ -127,13 +127,13 @@ void main() { FragColor = vec4(vColor, 1.0); }",
             mr.Shader = shader;
             mr.Mesh = mesh;
             // scene.AddRootObject(go);
-            SceneManager.AddObjectToScene(go);
+            engine.SceneManager.AddObjectToScene(go);
         }
 
         void TestNDCQuad()
         {
             var scene = new Scene("NDC_Quad");
-            SceneManager.Instance.LoadScene(scene);
+            engine.SceneManager.LoadScene(scene);
 
             var shader = new Shader
             {
@@ -162,7 +162,7 @@ void main() { FragColor = vec4(vTexCoord.x, vTexCoord.y, 0.3, 1.0); }",
         void TestCameraOrtho()
         {
             var scene = new Scene("Camera_Ortho");
-            SceneManager.Instance.LoadScene(scene);
+            engine.SceneManager.LoadScene(scene);
 
             var shader = new Shader
             {
@@ -203,7 +203,7 @@ void main() { FragColor = vec4(vTexCoord.x, vTexCoord.y, 0.3, 1.0); }",
         void TestCameraPerspective()
         {
             var scene = new Scene("Camera_Persp");
-            SceneManager.Instance.LoadScene(scene);
+            engine.SceneManager.LoadScene(scene);
 
             var shader = new Shader
             {
@@ -244,7 +244,7 @@ void main() { FragColor = vec4(abs(vNormal), 1.0); }",
         void TestPNGQuad()
         {
             var scene = new Scene("PNG_Quad");
-            SceneManager.Instance.LoadScene(scene);
+            engine.SceneManager.LoadScene(scene);
 
             var shader = new Shader
             {
@@ -287,7 +287,7 @@ void main() { FragColor = texture(uMainTex, vTexCoord); }",
         void TestThirdPerson3D()
         {
             var scene = new Scene("ThirdPerson3D");
-            SceneManager.Instance.LoadScene(scene);
+            engine.SceneManager.LoadScene(scene);
 
             var shader = new Shader
             {
@@ -401,24 +401,22 @@ void main() { FragColor = vec4(abs(vNormal), 1.0); }",
             Thread.Sleep(1000);
 
             // ---- 加载（往返）----
-            SceneManager.Instance.LoadSceneFromFile(path);
+            engine.SceneManager.LoadSceneFromFile(path);
             Log.Info(
-                $"Scene loaded: '{SceneManager.ActiveScene!.Name}', "
-                    + $"roots={SceneManager.ActiveScene.GetRootGameObjects().Length}"
+                $"Scene loaded: '{engine.SceneManager.ActiveScene!.Name}', "
+                    + $"roots={engine.SceneManager.ActiveScene.GetRootGameObjects().Length}"
             );
 
             // 资产重绑：当前 Shader/Mesh 为非托管资产（GUID 为空，序列化跳过引用）
-            foreach (var go in SceneManager.ActiveScene.GetRootGameObjects())
+            foreach (var go in engine.SceneManager.ActiveScene.GetRootGameObjects())
                 RebindAssets(go);
 
             // 用户组件运行时重挂：反序列化不重建未注册组件；组件引用需手动重连
             // Camera 已实现 ISerializableComponent，加载后由反序列化重建
-            var loadedCam = SceneManager
-                .ActiveScene!.GetRootGameObjects()
+            var loadedCam = engine.SceneManager.ActiveScene!.GetRootGameObjects()
                 .First(go => go.GetComponent<Camera>() != null);
             var follow = loadedCam.AddComponent<CameraFollow>();
-            follow.Target = SceneManager
-                .ActiveScene.GetRootGameObjects()
+            follow.Target = engine.SceneManager.ActiveScene.GetRootGameObjects()
                 .First(go => go.Name == "Ground");
 
             void RebindAssets(GameObject go)

@@ -12,6 +12,7 @@ public class EngineLoop : IDisposable
 {
     private static int Pid => Process.GetCurrentProcess().Id;
     private readonly IRenderBackend _backend;
+    private readonly SceneManager _sceneManager;
     private readonly LogicLoop _logicLoop;
     private readonly EngineThreadPool _workerPool = new(2);
     private readonly FrameSnapshotManager _snapshotManager = new();
@@ -30,6 +31,9 @@ public class EngineLoop : IDisposable
     /// <summary>资产管理器实例（Initialize 创建并注入共享工作池；未初始化访问抛异常）</summary>
     public AssetManager AssetManager =>
         _assetManager ?? throw new InvalidOperationException("EngineLoop.Initialize 尚未执行");
+
+    /// <summary>场景管理器实例（ctor 创建并订阅 Object.DestroyHandler；宿主经此取用）</summary>
+    public SceneManager SceneManager => _sceneManager;
     public bool Embedded { get; set; } = false;
     public bool Paused
     {
@@ -40,7 +44,8 @@ public class EngineLoop : IDisposable
     public EngineLoop(IRenderBackend backend)
     {
         _backend = backend;
-        _logicLoop = new LogicLoop();
+        _sceneManager = new SceneManager();
+        _logicLoop = new LogicLoop(_sceneManager);
         _lastTime = DateTime.UtcNow;
         _canStart = false;
     }
@@ -62,12 +67,12 @@ public class EngineLoop : IDisposable
         _lastTime = DateTime.UtcNow;
 
         SceneManager.ActiveRegistry = _registry;
-        SceneManager.Instance.RegisterScene(_registry);
+        _sceneManager.RegisterScene(_registry);
         _assetManager = new AssetManager(_workerPool);
         _snapshotManager.CommitPending(
             _registry,
-            SceneManager.Instance._destroyQueue,
-            SceneManager.ActiveScene,
+            _sceneManager._destroyQueue,
+            _sceneManager.ActiveScene,
             0f
         );
 
@@ -117,8 +122,8 @@ public class EngineLoop : IDisposable
             // 帧末尾，记录快照
             _snapshotManager.CommitPending(
                 _registry,
-                SceneManager.Instance._destroyQueue,
-                SceneManager.ActiveScene,
+                _sceneManager._destroyQueue,
+                _sceneManager.ActiveScene,
                 Time.DeltaTime
             );
 

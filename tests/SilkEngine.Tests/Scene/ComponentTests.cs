@@ -5,8 +5,12 @@ namespace SilkEngine.Tests.Scene;
 using Scene = SilkEngine.Scene;
 
 [Collection("SceneManager")]
-public class ComponentTests
+public class ComponentTests : IClassFixture<SceneManagerFixture>
 {
+    private readonly SceneManager _sm;
+
+    public ComponentTests(SceneManagerFixture fixture) => _sm = fixture.Manager;
+
     private class EnabledTracker : MonoBehaviour
     {
         public bool EnabledCalled, DisabledCalled, TickCalled;
@@ -50,10 +54,10 @@ public class ComponentTests
         s.AddRootObject(go);
         var reg = new ComponentRegistry();
         var mgr = new FrameSnapshotManager();
-        SceneManager.Instance.LoadScene(s, reg);
+        _sm.LoadScene(s, reg);
         mgr.CommitPending(reg, new List<SceneManager.DestroyEntry>(), s, 0f);
         c.Enabled = false;
-        var ml = new LogicLoop();
+        var ml = new LogicLoop(_sm);
         ml.Tick(0.016f, mgr.Current);
         Assert.False(c.TickCalled);
     }
@@ -159,7 +163,7 @@ public class ComponentTests
         var reg = new ComponentRegistry();
         c.AwakeCount = 0;
 
-        SceneManager.Instance.LoadScene(s, reg);
+        _sm.LoadScene(s, reg);
         Assert.Equal(0, c.AwakeCount);   // LoadScene 不再触发 Awake（工厂已保证）
     }
 
