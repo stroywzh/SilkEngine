@@ -128,4 +128,32 @@ public class ServicesTests
         Services.Unregister<SvcA>();
         Assert.Throws<InvalidOperationException>(() => Services.Get<SvcA>());
     }
+
+    private sealed class TestWriter : ILogWriter
+    {
+        public List<string> Messages = new();
+        public void Write(string msg) => Messages.Add(msg);
+    }
+
+    [Fact]
+    public void Register_LogSwitchOn_EmitsInfo()
+    {
+        var tw = new TestWriter();
+        var minLevel = Log.MinLevel;
+        Log.MinLevel = LogLevel.Debug;
+        Log.AddWriter(tw);
+        try
+        {
+            LogConfig.Services = true;
+            Services.Register(new SvcA());
+            Assert.Contains(tw.Messages, m => m.Contains("[Services]") && m.Contains("Register"));
+        }
+        finally
+        {
+            Services.Unregister<SvcA>();
+            Log.RemoveWriter(tw);
+            LogConfig.Services = true;
+            Log.MinLevel = minLevel;
+        }
+    }
 }

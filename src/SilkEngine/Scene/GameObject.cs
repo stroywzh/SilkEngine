@@ -110,6 +110,9 @@ public sealed class GameObject : Object
 
         // 回退链（协调裁决 C1）：Services 未注册时 TryGet 静默不注册（保留旧测试语义）
         (registry ?? (Services.TryGet<SceneManager>(out var sm) ? sm?.Registry : null))?.Register(c);
+
+        if (LogConfig.Lifecycle)
+            Log.Info($"[Lifecycle] Added component {c.GetType().Name} to '{Name}'");
     }
 
     public T? GetComponent<T>()
@@ -132,6 +135,8 @@ public sealed class GameObject : Object
         _components.Remove(c);
         c.MarkRemoved();
         Object.Destroy(c); // 帧末由 CommitPending 执行 OnDestroy + Unregister
+        if (LogConfig.Lifecycle)
+            Log.Info($"[Lifecycle] Removed component {typeof(T).Name} from '{Name}'");
         return true;
     }
 

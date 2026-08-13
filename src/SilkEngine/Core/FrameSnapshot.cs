@@ -65,6 +65,8 @@ internal sealed class FrameSnapshotManager
                 go._destroyed = true;
                 activeScene?._rootObjects.Remove(go);
             }
+            if (LogConfig.Scene)
+                Log.Info($"[Scene] Destroyed '{e.Target.Name}'");
             destroys.RemoveAt(i);
         }
 

@@ -40,7 +40,11 @@ public sealed class AssetManager
         var guid = PathToGuid(path);
         var hit = _cache.Find(guid);
         if (hit is { State: AssetState.Ready, Data: T ready })
+        {
+            if (LogConfig.Assets)
+                Log.Info($"[Assets] Cache hit '{path}'");
             return ready;
+        }
         if (hit is { State: AssetState.Loading })
             throw new InvalidOperationException($"资产 {path} 正在异步加载中，同步 Load 不可用");
         var importer = ImporterFactory.Create(Path.GetExtension(path));
@@ -127,6 +131,8 @@ public sealed class AssetManager
                 entry.State = AssetState.Ready;
                 entry.Data = result.asset;
                 CompleteAwaiters(entry, result.asset, null);
+                if (LogConfig.Assets)
+                    Log.Info($"[Assets] Load completed '{result.guid}'");
             }
         }
 
@@ -165,7 +171,8 @@ public sealed class AssetManager
                 entry.Data = null;
                 continue;
             }
-            Log.Info($"[AssetManager] Unload asset {guid} (GL release pending)");
+            if (LogConfig.Assets)
+                Log.Info($"[Assets] Unloaded '{guid}'");
             entry.Data = null;
         }
     }
@@ -260,6 +267,8 @@ public sealed class AssetManager
 
     private void ScheduleLoad(Guid guid, string path)
     {
+        if (LogConfig.Assets)
+            Log.Info($"[Assets] Load started '{path}' (guid: {guid})");
         _scheduler.Schedule(async () =>
         {
             AssetLoadResult result;

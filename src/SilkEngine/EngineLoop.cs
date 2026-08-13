@@ -42,7 +42,14 @@ public class EngineLoop : IDisposable
     public bool Paused
     {
         get => _paused;
-        set => _paused = value;
+        set
+        {
+            if (_paused == value)
+                return;
+            _paused = value;
+            if (LogConfig.EngineLoop)
+                Log.Info(value ? "[EngineLoop] Paused" : "[EngineLoop] Resumed");
+        }
     }
 
     /// <summary>场景管理器实例（ctor 创建并订阅 Object.DestroyHandler；宿主经此取用）</summary>
@@ -101,9 +108,13 @@ public class EngineLoop : IDisposable
             return;
         }
 
-        Log.Info(
-            $"[EngineLoop]: EngineLoop Started. \nManaged threads: \nMain(heartbeat):PID{Pid}\nWorkerThreadCount:{_workerPool.WorkerThreadCount}\nRenderThread:PID{Pid}."
-        );
+        if (LogConfig.EngineLoop)
+            Log.Info(
+                $"[EngineLoop]: EngineLoop Started. \nManaged threads: \nMain(heartbeat):PID{Pid}\nWorkerThreadCount:{_workerPool.WorkerThreadCount}\nRenderThread:PID{Pid}."
+            );
+
+        if (LogConfig.EngineLoop)
+            Log.Info("[EngineLoop] Run started");
 
         while (!_renderSystem!.ShouldClose && !_stopRequested)
         {
@@ -133,6 +144,9 @@ public class EngineLoop : IDisposable
             // 帧末尾，记录快照
             CommitFrame();
         }
+
+        if (LogConfig.EngineLoop)
+            Log.Info("[EngineLoop] Run finished");
     }
 
     /// <summary>帧末提交：销毁处理 → 注册应用 → 快照 swap → 资产完成拾取（原 Run 尾部两段内联逻辑）。</summary>

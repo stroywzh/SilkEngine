@@ -1,3 +1,4 @@
+using SilkEngine.Core;
 using SilkEngine.Core.Assets;
 using SilkEngine.Core.Assets.Importer;
 using SilkEngine.Threading;
@@ -220,5 +221,34 @@ public class AssetManagerTests
         await task;
         Assert.NotNull(awaited);
         Assert.Equal(255, awaited!.ImageData.Pixels[0]);
+    }
+
+    private class TestWriter : ILogWriter
+    {
+        public List<string> Messages = new();
+        public void Write(string msg) => Messages.Add(msg);
+    }
+
+    [Fact]
+    public void LoadAsync_LogSwitchOn_EmitsStart()
+    {
+        using var file = PngTestFile.Create();
+        var tw = new TestWriter();
+        var minLevel = Log.MinLevel;
+        Log.MinLevel = LogLevel.Debug;
+        Log.AddWriter(tw);
+        try
+        {
+            LogConfig.Assets = true;
+            var am = new AssetManager(new RecordingScheduler());
+            am.LoadAsync<Texture2D>(file.FilePath);
+            Assert.Contains(tw.Messages, m => m.Contains("[Assets]") && m.Contains("Load"));
+        }
+        finally
+        {
+            Log.RemoveWriter(tw);
+            LogConfig.Assets = true;
+            Log.MinLevel = minLevel;
+        }
     }
 }

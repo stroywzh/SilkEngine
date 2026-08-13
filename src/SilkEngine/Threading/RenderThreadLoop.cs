@@ -36,7 +36,8 @@ public class RenderThreadLoop : IDisposable
         _renderThread = ThreadFactory.CreateThread(RenderLoop, "RenderThread");
         _rendering = true;
         _renderThread.Start();
-        Log.Info("[RenderThread] RenderThread Initialize Finished");
+        if (LogConfig.Render)
+            Log.Info("[RenderThread] RenderThread Initialize Finished");
     }
 
     public void PumpEvents() => _backend.PumpWindowEvents();
@@ -79,8 +80,12 @@ public class RenderThreadLoop : IDisposable
             {
                 Log.Error($"[RenderThread] ExecutePass failed: {ex}");
             }
+            if (LogConfig.Render)
+                Log.Info($"[Render] Frame submitted (passes: {_pendingPasses?.Count ?? 0})");
             _frameDone.Set();
         }
+        if (LogConfig.Render)
+            Log.Info("[Render] Render thread stopped");
         _backend.ClearContext();
     }
 

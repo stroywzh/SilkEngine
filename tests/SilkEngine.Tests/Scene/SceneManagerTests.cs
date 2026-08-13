@@ -478,4 +478,48 @@ public class SceneManagerTests : IClassFixture<SceneManagerFixture>
         Object.Destroy(obj);
         Assert.Empty(sm._destroyQueue); // 解绑后销毁事件不再入队
     }
+
+    [Fact]
+    public void LoadScene_LogSwitchOn_EmitsInfo()
+    {
+        var tw = new TestWriter();
+        var minLevel = Log.MinLevel;
+        Log.MinLevel = LogLevel.Debug;
+        Log.AddWriter(tw);
+        try
+        {
+            LogConfig.Scene = true;
+            var s = new Scene("T");
+            _sm.LoadScene(s);
+            Assert.Contains(tw.Messages, m => m.Contains("[Scene]") && m.Contains("Loaded"));
+        }
+        finally
+        {
+            Log.RemoveWriter(tw);
+            LogConfig.Scene = true;
+            Log.MinLevel = minLevel;
+        }
+    }
+
+    [Fact]
+    public void LoadScene_LogSwitchOff_EmitsNothing()
+    {
+        var tw = new TestWriter();
+        var minLevel = Log.MinLevel;
+        Log.MinLevel = LogLevel.Debug;
+        Log.AddWriter(tw);
+        try
+        {
+            LogConfig.Scene = false;
+            var s = new Scene("T");
+            _sm.LoadScene(s);
+            Assert.DoesNotContain(tw.Messages, m => m.Contains("[Scene]"));
+        }
+        finally
+        {
+            Log.RemoveWriter(tw);
+            LogConfig.Scene = true;
+            Log.MinLevel = minLevel;
+        }
+    }
 }

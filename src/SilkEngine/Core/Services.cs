@@ -24,6 +24,8 @@ internal static class Services
                 throw new InvalidOperationException($"服务重复注册: {typeof(T).FullName}");
             if (service is IDisposable d)
                 _disposables.Add((typeof(T), d));
+            if (LogConfig.Services)
+                Log.Info($"[Services] Registered {typeof(T).FullName}");
         }
     }
 
@@ -63,6 +65,8 @@ internal static class Services
         {
             _services.Remove(typeof(T));
             _disposables.RemoveAll(e => e.Type == typeof(T));
+            if (LogConfig.Services)
+                Log.Info($"[Services] Unregistered {typeof(T).FullName}");
         }
     }
 
@@ -71,10 +75,13 @@ internal static class Services
     {
         lock (_lock)
         {
+            int count = _disposables.Count;
             for (int i = _disposables.Count - 1; i >= 0; i--)
                 _disposables[i].Disposable.Dispose();
             _disposables.Clear();
             _services.Clear();
+            if (LogConfig.Services)
+                Log.Info($"[Services] Shutdown (disposed {count})");
         }
     }
 }

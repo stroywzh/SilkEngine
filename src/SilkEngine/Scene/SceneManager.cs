@@ -66,6 +66,8 @@ public class SceneManager : IDisposable
                 InvokeRecursive(go, c => registry.Register(c));
             registry.ApplyPending();
         }
+        if (LogConfig.Scene)
+            Log.Info($"[Scene] Loaded '{scene.Name}' (roots: {scene.GetRootGameObjects().Length})");
     }
 
     internal void RegisterScene()
@@ -132,9 +134,15 @@ public class SceneManager : IDisposable
         if (ActiveScene == null
             || ActiveScene._rootObjects.Contains(go)
             || go.Transform.Parent != null)
+        {
+            if (LogConfig.Scene)
+                Log.Info($"[Scene] AddObjectToScene failed for '{go.Name}' (already in scene / no active scene / has parent)");
             return false;
+        }
         ActiveScene.AddRootObject(go);
         InvokeRecursive(go, c => _registry?.Register(c));
+        if (LogConfig.Scene)
+            Log.Info($"[Scene] Added object '{go.Name}'");
         return true;
     }
 
@@ -151,6 +159,8 @@ public class SceneManager : IDisposable
         {
             var scene = SceneSerializer.Deserialize(File.ReadAllText(path));
             LoadScene(scene, _registry);
+            if (LogConfig.Scene)
+                Log.Info($"[Scene] Loaded scene from file '{path}'");
             return true;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException or InvalidOperationException)
