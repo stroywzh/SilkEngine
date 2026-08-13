@@ -101,6 +101,16 @@ public static class AssetManager
                 CompleteAwaiters(entry, result.asset, null);
             }
         }
+
+        // 帧末卸载复核：仅检查归零候选（RefCount==0 且未被同帧重新引用）
+        while (_pendingUnload.TryDequeue(out var unloadGuid))
+        {
+            var entry = _cache.Find(unloadGuid);
+            if (entry is null || entry.RefCount != 0 || entry.State != AssetState.Ready)
+                continue;
+            entry.State = AssetState.Unloaded;
+            _unloadQueue.Enqueue(unloadGuid);
+        }
     }
 
     /// <summary>测试用：替换调度器（null 恢复默认 EngineThreadPool(2)）</summary>
@@ -134,6 +144,22 @@ public static class AssetManager
         foreach (var awaiter in entry.Awaiters)
             awaiter.Complete(asset, error);
         entry.Awaiters.Clear();
+    }
+
+    /// <summary>
+    /// 渲染线程帧首调用：处理待释放队列（本 Part 占位：Log + CPU 数据清引用；
+    /// GL 资源真正释放 glDeleteTextures 由 Part 3 接入）
+    /// </summary>
+    internal static void ProcessUnloadQueue()
+    {
+        while (_unloadQueue.TryDequeue(out var guid))
+        {
+            var entry = _cache.Find(guid);
+            if (entry is null || entry.State != AssetState.Unloaded)
+                continue;
+            Log.Info($"[AssetManager] Unload asset {guid} (GL release pending: Part 3)");
+            entry.Data = null; // CPU 侧清引用，GC 回收
+        }
     }
 
     /// <summary>

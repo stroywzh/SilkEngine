@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading;
+using SilkEngine.Core.Assets;
 using SilkEngine.Render;
 
 namespace SilkEngine.Threading;
@@ -56,6 +57,9 @@ public class RenderThreadLoop : IDisposable
             _commandsReady.Reset();
             if (!_rendering)
                 break;
+
+            // 帧首：处理资产释放队列（GL 释放由后端接入，Part 3）
+            AssetManager.ProcessUnloadQueue();
             try
             {
                 if (_pendingPasses != null)
