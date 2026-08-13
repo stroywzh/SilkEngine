@@ -122,4 +122,30 @@ public class SerializedNodeTests
         Assert.Null(node.GetString("S"));
         Assert.Equal("{}", node.AsJson());
     }
+
+    [Fact]
+    public void ContainsKey_TrueWhenPresent_FalseWhenMissing()
+    {
+        var node = new SerializedNode(JsonNode.Parse("""{ "Speed": 3.5 }""")!.AsObject());
+        Assert.True(node.ContainsKey("Speed"));
+        Assert.False(node.ContainsKey("Missing"));
+    }
+
+    [Fact]
+    public void SetRawThenGetRaw_RoundtripsJsonNode()
+    {
+        var node = new SerializedNode(new JsonObject());
+        node.SetRaw("K", JsonNode.Parse("""[1, 2]"""));
+        Assert.Equal("[1,2]", node.GetRaw("K")!.ToJsonString());
+    }
+
+    [Fact]
+    public void SetRaw_Null_RemovesKey()
+    {
+        var node = new SerializedNode(new JsonObject());
+        node.SetRaw("K", JsonNode.Parse("1"));
+        node.SetRaw("K", null);
+        Assert.Null(node.GetRaw("K"));
+        Assert.Equal("{}", node.AsJson());
+    }
 }

@@ -63,6 +63,22 @@ public sealed class SerializedNode
     public void SetQuaternion(string key, Quaternion value) =>
         _obj[key] = new JsonArray(value.X, value.Y, value.Z, value.W);
 
+    /// <summary>键是否存在（区分"缺失"与"默认值"，递归展开与缺失保留语义用）。</summary>
+    public bool ContainsKey(string key) => _obj.ContainsKey(key);
+
+    /// <summary>写入 JsonNode 子树（STJ 兜底用）；null 移除键。</summary>
+    public void SetRaw(string key, JsonNode? node)
+    {
+        if (node is null)
+            _obj.Remove(key);
+        else
+            _obj[key] = node;
+    }
+
+    /// <summary>读取 JsonNode 子树（STJ 兜底用）；缺失返回 null。</summary>
+    public JsonNode? GetRaw(string key) =>
+        _obj.TryGetPropertyValue(key, out var node) ? node : null;
+
     private static float GetAt(JsonArray arr, int index)
     {
         var v = arr[index];

@@ -21,4 +21,22 @@ internal static class GenConstants
 
     /// <summary>组件类型注册表（任务 5 下沉后更新为 "SilkEngine.Scene.Serialization.ComponentTypeRegistry"）。</summary>
     public const string ComponentTypeRegistry = "SilkEngine.Core.Assets.Serialization.ComponentTypeRegistry";
+
+    /// <summary>白名单标量（原生类型化 get/set）。</summary>
+    public const string Int32 = "global::System.Int32";
+    public const string Single = "global::System.Single";
+    public const string Boolean = "global::System.Boolean";
+    public const string String = "global::System.String";
+    public const string Guid = "global::System.Guid";
+    public const string Vector3 = "global::SilkEngine.Math.Vector3";
+    public const string Quaternion = "global::SilkEngine.Math.Quaternion";
+
+    /// <summary>白名单资产引用（→ GUID；AssetRefCodec 任务 5 创建后接通编译）。</summary>
+    public const string Shader = "global::SilkEngine.Render.Shader";
+    public const string Mesh = "global::SilkEngine.Render.Mesh";
+    public const string Material = "global::SilkEngine.Render.Material";
+    public const string Texture2D = "global::SilkEngine.Core.Assets.Texture2D";
+
+    /// <summary>资产编解码桥（任务 5 创建，最终位置；任务 4 仅生成文本、不参与编译）。</summary>
+    public const string AssetRefCodec = "SilkEngine.Scene.Serialization.AssetRefCodec";
 }

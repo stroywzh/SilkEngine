@@ -3,4 +3,5 @@
   <Project Path="src/SilkEngine.SourceGen/SilkEngine.SourceGen.csproj" />
   <Project Path="src/Sandbox/Sandbox.csproj" />
   <Project Path="tests/SilkEngine.Tests/SilkEngine.Tests.csproj" />
+  <Project Path="tests/SilkEngine.SourceGen.Tests/SilkEngine.SourceGen.Tests.csproj" />
 </Solution>
