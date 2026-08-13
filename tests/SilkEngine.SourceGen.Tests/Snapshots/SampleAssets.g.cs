@@ -3,12 +3,12 @@
 
 partial class SampleAssets
 {
-    public override void WriteTo(global::SilkEngine.Core.Assets.Serialization.SerializedNode node)
+    public override void WriteTo(global::SilkEngine.Scene.Serialization.SerializedNode node)
     {
         global::SilkEngine.Scene.Serialization.AssetRefCodec.Write(node, "Shader", Shader);
     }
 
-    public override void ReadFrom(global::SilkEngine.Core.Assets.Serialization.SerializedNode node)
+    public override void ReadFrom(global::SilkEngine.Scene.Serialization.SerializedNode node)
     {
         Shader = global::SilkEngine.Scene.Serialization.AssetRefCodec.Read<global::SilkEngine.Render.Shader>(node, "Shader");
     }

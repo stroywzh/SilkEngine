@@ -70,12 +70,11 @@ public class GeneratorDiagnosticTests
     {
         var (_, diags) = GeneratorHarness.Run("""
             using SilkEngine;
-            using SilkEngine.Core.Assets.Serialization;
             using SilkEngine.Scene.Serialization;
 
-            namespace SilkEngine.Core.Assets.Serialization
+            namespace SilkEngine.Scene.Serialization
             {
-                // 任务 5 前 Register<T>() 尚不存在：本地同名前缀类型承载泛型注册（CS0436 警告可忽略）
+                // 本地同名前缀类型承载 Register<T>（CS0436 遮蔽警告可忽略），保持片段自包含
                 public static class ComponentTypeRegistry
                 {
                     public static void Register<T>() where T : class, new() { }

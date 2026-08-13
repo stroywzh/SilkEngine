@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
-using SilkEngine.Core.Assets.Serialization;
+using SilkEngine.Scene.Serialization;
 
 namespace SilkEngine;
 

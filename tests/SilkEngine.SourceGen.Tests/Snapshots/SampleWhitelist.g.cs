@@ -3,7 +3,7 @@
 
 partial class SampleWhitelist
 {
-    public override void WriteTo(global::SilkEngine.Core.Assets.Serialization.SerializedNode node)
+    public override void WriteTo(global::SilkEngine.Scene.Serialization.SerializedNode node)
     {
         node.SetFloat("Speed", Speed);
         node.SetBool("Lit", Lit);
@@ -13,7 +13,7 @@ partial class SampleWhitelist
         node.SetQuaternion("Rotation", Rotation);
     }
 
-    public override void ReadFrom(global::SilkEngine.Core.Assets.Serialization.SerializedNode node)
+    public override void ReadFrom(global::SilkEngine.Scene.Serialization.SerializedNode node)
     {
         if (node.ContainsKey("Speed")) Speed = node.GetFloat("Speed");
         if (node.ContainsKey("Lit")) Lit = node.GetBool("Lit");

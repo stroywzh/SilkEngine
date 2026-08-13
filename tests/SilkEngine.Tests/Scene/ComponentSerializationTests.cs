@@ -1,6 +1,6 @@
 using System.Text.Json.Nodes;
 using SilkEngine;
-using SilkEngine.Core.Assets.Serialization;
+using SilkEngine.Scene.Serialization;
 using Xunit;
 
 namespace SilkEngine.Tests.Scene;

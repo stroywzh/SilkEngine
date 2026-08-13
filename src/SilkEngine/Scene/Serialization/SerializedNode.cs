@@ -1,7 +1,7 @@
 using System.Text.Json.Nodes;
 using SilkEngine.Math;
 
-namespace SilkEngine.Core.Assets.Serialization;
+namespace SilkEngine.Scene.Serialization;
 
 /// <summary>
 /// 类型化 getter/setter，包装 System.Text.Json 的 JsonObject。

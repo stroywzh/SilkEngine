@@ -1,3 +1,5 @@
+using SilkEngine.Scene.Serialization;
+
 namespace SilkEngine.Core.Assets.Serialization;
 
 /// <summary>

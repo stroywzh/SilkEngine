@@ -1,4 +1,4 @@
-using SilkEngine.Core.Assets.Serialization;
+using SilkEngine.Scene.Serialization;
 
 namespace SilkEngine;
 

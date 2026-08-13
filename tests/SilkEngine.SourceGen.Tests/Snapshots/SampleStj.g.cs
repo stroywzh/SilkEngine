@@ -3,13 +3,13 @@
 
 partial class SampleStj
 {
-    public override void WriteTo(global::SilkEngine.Core.Assets.Serialization.SerializedNode node)
+    public override void WriteTo(global::SilkEngine.Scene.Serialization.SerializedNode node)
     {
         node.SetRaw("Tags", Tags == null ? null : global::System.Text.Json.JsonSerializer.SerializeToNode(Tags));
         node.SetRaw("Stamp", global::System.Text.Json.JsonSerializer.SerializeToNode(Stamp));
     }
 
-    public override void ReadFrom(global::SilkEngine.Core.Assets.Serialization.SerializedNode node)
+    public override void ReadFrom(global::SilkEngine.Scene.Serialization.SerializedNode node)
     {
         var __rawTags = node.GetRaw("Tags");
         if (__rawTags != null)

@@ -3,13 +3,13 @@
 
 partial class SampleOuter
 {
-    public override void WriteTo(global::SilkEngine.Core.Assets.Serialization.SerializedNode node)
+    public override void WriteTo(global::SilkEngine.Scene.Serialization.SerializedNode node)
     {
         node.SetFloat("Power", Power);
         if (Stats != null) node.SetFloat("Stats_HP", Stats.HP);
     }
 
-    public override void ReadFrom(global::SilkEngine.Core.Assets.Serialization.SerializedNode node)
+    public override void ReadFrom(global::SilkEngine.Scene.Serialization.SerializedNode node)
     {
         if (node.ContainsKey("Power")) Power = node.GetFloat("Power");
         if (node.ContainsKey("Stats_HP"))

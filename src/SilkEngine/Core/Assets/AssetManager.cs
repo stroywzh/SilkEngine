@@ -251,6 +251,13 @@ public sealed class AssetManager
     /// <summary>测试断言用：当前缓存</summary>
     internal AssetCache Cache => _cache;
 
+    /// <summary>GUID → 缓存资产（Data 为 T 即返回，与旧 MeshRenderer.Resolve 行为一致）；未命中/类型不符返回 null。</summary>
+    public T? TryResolve<T>(Guid guid) where T : class, IAsset
+    {
+        var entry = _cache.Find(guid);
+        return entry is { Data: T asset } ? asset : null;
+    }
+
     private void ScheduleLoad(Guid guid, string path)
     {
         _scheduler.Schedule(async () =>

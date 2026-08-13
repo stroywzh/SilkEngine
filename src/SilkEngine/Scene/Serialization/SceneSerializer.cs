@@ -1,7 +1,8 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using SilkEngine;
 
-namespace SilkEngine.Core.Assets.Serialization;
+namespace SilkEngine.Scene.Serialization;
 
 /// <summary>
 /// 场景序列化器：Serialize(Scene)→.scene JSON 字符串；Deserialize(string)→Scene。

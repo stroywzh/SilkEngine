@@ -10,8 +10,8 @@ internal static class GenConstants
     /// <summary>Component 基类（Part 3 迁至 SilkEngine.Scene 后更新为 "SilkEngine.Scene.Component"）。</summary>
     public const string Component = "SilkEngine.Component";
 
-    /// <summary>序列化节点（任务 5 下沉后更新为 "SilkEngine.Scene.Serialization.SerializedNode"）。</summary>
-    public const string SerializedNode = "SilkEngine.Core.Assets.Serialization.SerializedNode";
+    /// <summary>序列化节点（任务 5 起固定为 SilkEngine.Scene.Serialization）。</summary>
+    public const string SerializedNode = "SilkEngine.Scene.Serialization.SerializedNode";
 
     /// <summary>字段排除特性（任务 2 创建，最终位置）。</summary>
     public const string NoSerializeFieldAttribute = "SilkEngine.Scene.Serialization.NoSerializeFieldAttribute";
@@ -19,8 +19,8 @@ internal static class GenConstants
     /// <summary>引擎内部序列化组件标记（任务 2 创建，最终位置）。</summary>
     public const string SerializableInternalAttribute = "SilkEngine.Scene.Serialization.SerializableInternalAttribute";
 
-    /// <summary>组件类型注册表（任务 5 下沉后更新为 "SilkEngine.Scene.Serialization.ComponentTypeRegistry"）。</summary>
-    public const string ComponentTypeRegistry = "SilkEngine.Core.Assets.Serialization.ComponentTypeRegistry";
+    /// <summary>组件类型注册表（任务 5 起固定为 SilkEngine.Scene.Serialization）。</summary>
+    public const string ComponentTypeRegistry = "SilkEngine.Scene.Serialization.ComponentTypeRegistry";
 
     /// <summary>白名单标量（原生类型化 get/set）。</summary>
     public const string Int32 = "global::System.Int32";

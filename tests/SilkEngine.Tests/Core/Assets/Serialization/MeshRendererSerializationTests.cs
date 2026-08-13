@@ -1,7 +1,7 @@
 using System.Text.Json.Nodes;
 using SilkEngine;
 using SilkEngine.Core.Assets;
-using SilkEngine.Core.Assets.Serialization;
+using SilkEngine.Scene.Serialization;
 using SilkEngine.Render;
 using SilkEngine.Tests.Core.Assets;
 

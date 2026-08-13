@@ -1,6 +1,6 @@
 using SilkEngine.Core;
 using SilkEngine.Core.Assets;
-using SilkEngine.Core.Assets.Serialization;
+using SilkEngine.Scene.Serialization;
 using SilkEngine.Render;
 
 namespace SilkEngine;

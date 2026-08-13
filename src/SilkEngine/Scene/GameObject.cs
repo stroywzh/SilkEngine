@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json.Nodes;
-using SilkEngine.Core.Assets.Serialization;
+using SilkEngine.Scene.Serialization;
 
 namespace SilkEngine;
 

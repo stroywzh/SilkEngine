@@ -1,5 +1,5 @@
 using SilkEngine;
-using SilkEngine.Core.Assets.Serialization;
+using SilkEngine.Scene.Serialization;
 
 namespace SilkEngine.Tests.Core.Assets.Serialization;
 
@@ -52,4 +52,15 @@ public class ComponentTypeRegistryTests
         Assert.NotNull(factory);
         Assert.IsType<Camera>(factory!());
     }
+
+    [Fact]
+    public void Register_Generic_ThenResolve()
+    {
+        ComponentTypeRegistry.Register<GenCameraProbe>();
+        var factory = ComponentTypeRegistry.Resolve(typeof(GenCameraProbe).FullName!);
+        Assert.NotNull(factory);
+        Assert.IsType<GenCameraProbe>(factory!());
+    }
 }
+
+public partial class GenCameraProbe : Component { }

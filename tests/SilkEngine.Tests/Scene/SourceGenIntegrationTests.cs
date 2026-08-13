@@ -1,5 +1,5 @@
 using SilkEngine;
-using SilkEngine.Core.Assets.Serialization;
+using SilkEngine.Scene.Serialization;
 using SilkEngine.Math;
 using SilkEngine.Scene.Serialization;
 
