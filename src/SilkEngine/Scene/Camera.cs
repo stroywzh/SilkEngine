@@ -3,7 +3,7 @@ using SilkEngine.Math;
 
 namespace SilkEngine;
 
-public class Camera : Component, ISerializableComponent
+public class Camera : Component
 {
     public float FieldOfView { get; set; } = 60f;
     public float NearClipPlane { get; set; } = 0.1f;
@@ -31,7 +31,7 @@ public class Camera : Component, ISerializableComponent
     }
 
     /// <summary>反序列化：恢复相机参数（缺失字段保留默认值）。</summary>
-    public void ReadFrom(SerializedNode node)
+    public override void ReadFrom(SerializedNode node)
     {
         FieldOfView = node.GetFloat("FieldOfView") is var f && f != 0f ? f : FieldOfView;
         NearClipPlane = node.GetFloat("NearClipPlane") is var n && n != 0f ? n : NearClipPlane;
@@ -41,7 +41,7 @@ public class Camera : Component, ISerializableComponent
     }
 
     /// <summary>序列化：写出全部相机参数。</summary>
-    public void WriteTo(SerializedNode node)
+    public override void WriteTo(SerializedNode node)
     {
         node.SetFloat("FieldOfView", FieldOfView);
         node.SetFloat("NearClipPlane", NearClipPlane);

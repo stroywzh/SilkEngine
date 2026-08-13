@@ -8,7 +8,7 @@ namespace SilkEngine.Tests.Scene;
 [Collection("Serialization")]
 public class GameObjectSerializationTests
 {
-    private class TestSerializable : MonoBehaviour, ISerializableComponent
+    private class TestSerializable : MonoBehaviour
     {
         public float Speed;
         public float SeenAtAwake;
@@ -16,12 +16,12 @@ public class GameObjectSerializationTests
         public bool ReadCalled;
         public override void OnAwake() => SeenAtAwake = Speed;
         public override void OnEnable() => SeenAtEnable = Speed;
-        public void ReadFrom(SerializedNode node)
+        public override void ReadFrom(SerializedNode node)
         {
             ReadCalled = true;
             Speed = node.GetFloat("Speed");
         }
-        public void WriteTo(SerializedNode node) => node.SetFloat("Speed", Speed);
+        public override void WriteTo(SerializedNode node) => node.SetFloat("Speed", Speed);
     }
 
     private static JsonObject DataWithComponent(float speed)

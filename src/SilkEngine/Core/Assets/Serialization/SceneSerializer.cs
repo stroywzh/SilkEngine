@@ -18,8 +18,9 @@ public static class SceneSerializer
     {
         var root = new JsonObject { ["Name"] = scene.Name, ["GameObjects"] = new JsonArray() };
         var arr = root["GameObjects"]!.AsArray();
+        var warnedOnce = new HashSet<string>();
         foreach (var go in scene.GetRootGameObjects())
-            arr.Add(WriteGameObject(go));
+            arr.Add(WriteGameObject(go, warnedOnce));
         return root.ToJsonString(Options);
     }
 
@@ -41,7 +42,7 @@ public static class SceneSerializer
         return scene;
     }
 
-    private static JsonObject WriteGameObject(GameObject go)
+    private static JsonObject WriteGameObject(GameObject go, HashSet<string> warnedOnce)
     {
         var node = new JsonObject { ["Name"] = go.Name, ["Components"] = new JsonObject() };
         var comps = node["Components"]!.AsObject();
@@ -54,18 +55,17 @@ public static class SceneSerializer
         };
         foreach (var c in go._components)
         {
-            if (c is ISerializableComponent s)
-            {
-                var compNode = new JsonObject();
-                s.WriteTo(new SerializedNode(compNode));
-                comps[c.GetType().FullName!] = compNode;
-            }
+            var compNode = new JsonObject();
+            c.WriteTo(new SerializedNode(compNode));
+            comps[c.GetType().FullName!] = compNode;
+            if (compNode.Count == 0 && warnedOnce.Add(c.GetType().FullName!))
+                Log.Warn($"[SceneSerializer] component '{c.GetType().FullName}' 序列化内容为空（无字段/字段全排除/未标记 SerializableInternal）");
         }
         if (t.Children.Count > 0)
         {
             var children = new JsonArray();
             foreach (var ch in t.Children)
-                children.Add(WriteGameObject(ch.GameObject!));
+                children.Add(WriteGameObject(ch.GameObject!, warnedOnce));
             node["Children"] = children;
         }
         return node;

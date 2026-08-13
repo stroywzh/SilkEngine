@@ -93,12 +93,11 @@ public sealed class GameObject : Object
 
         if (
             _serializedData != null
-            && c is ISerializableComponent s
             && _serializedData["Components"] is JsonObject comps
             && comps[c.GetType().FullName!] is JsonObject compNode
         )
         {
-            s.ReadFrom(new SerializedNode(compNode));
+            c.ReadFrom(new SerializedNode(compNode));
         }
 
         c.RecomputeActiveState();

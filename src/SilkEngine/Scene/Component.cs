@@ -1,3 +1,5 @@
+using SilkEngine.Core.Assets.Serialization;
+
 namespace SilkEngine;
 
 public abstract class Component : Object
@@ -55,4 +57,10 @@ public abstract class Component : Object
     public virtual void OnDisable() { }
 
     public virtual void OnDestroy() { }
+
+    /// <summary>序列化出口：将组件字段写入节点。基类空默认 no-op；SceneSerializer.Serialize 对全部组件调用。</summary>
+    public virtual void WriteTo(SerializedNode node) { }
+
+    /// <summary>序列化入口：从节点恢复字段。基类空默认 no-op；组件工厂在反序列化管道内调用。</summary>
+    public virtual void ReadFrom(SerializedNode node) { }
 }

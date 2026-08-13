@@ -15,7 +15,7 @@ public class SceneSerializerTests
         public void Write(string msg) => Messages.Add(msg);
     }
 
-    private class TestSerializable : MonoBehaviour, ISerializableComponent
+    private class TestSerializable : MonoBehaviour
     {
         public float Speed;
         public string? GuidRef;
@@ -23,7 +23,7 @@ public class SceneSerializerTests
         public Quaternion Rotation;
         public bool Lit = true;
 
-        public void ReadFrom(SerializedNode node)
+        public override void ReadFrom(SerializedNode node)
         {
             Speed = node.GetFloat("Speed");
             GuidRef = node.GetString("GuidRef");
@@ -32,7 +32,7 @@ public class SceneSerializerTests
             Lit = node.GetBool("Lit");
         }
 
-        public void WriteTo(SerializedNode node)
+        public override void WriteTo(SerializedNode node)
         {
             node.SetFloat("Speed", Speed);
             node.SetString("GuidRef", GuidRef);
@@ -209,4 +209,46 @@ public class SceneSerializerTests
     {
         Assert.ThrowsAny<System.Text.Json.JsonException>(() => SceneSerializer.Deserialize("{ not json"));
     }
+
+    [Fact]
+    public void Serialize_PlainComponent_EmitsEmptyNodeWithTypeKey()
+    {
+        var scene = new Scene("T");
+        var go = new GameObject("GO");
+        go.AddComponent<PlainProbe>();
+        scene.AddRootObject(go);
+
+        var json = SceneSerializer.Serialize(scene);
+
+        Assert.Contains(typeof(PlainProbe).FullName!, json);
+    }
+
+    [Fact]
+    public void Serialize_EmptyContentComponent_WarnsOncePerType()
+    {
+        var tw = new TestWriter();
+        Log.AddWriter(tw);
+        try
+        {
+            var scene = new Scene("T");
+            var a = new GameObject("A");
+            a.AddComponent<PlainProbe>();
+            var b = new GameObject("B");
+            b.AddComponent<PlainProbe>();
+            scene.AddRootObject(a);
+            scene.AddRootObject(b);
+
+            SceneSerializer.Serialize(scene);
+
+            var warns = tw.Messages.Where(m => m.Contains("PlainProbe")).ToList();
+            Assert.Single(warns);
+        }
+        finally
+        {
+            Log.RemoveWriter(tw);
+        }
+    }
 }
+
+/// <summary>无字段组件探针：序列化内容为空，用于空节点 Warn 用例。</summary>
+public partial class PlainProbe : Component { }

@@ -5,7 +5,7 @@ using SilkEngine.Render;
 
 namespace SilkEngine;
 
-public class MeshRenderer : Component, ISerializableComponent
+public class MeshRenderer : Component
 {
     private Shader? _shader;
     private Mesh? _mesh;
@@ -38,7 +38,7 @@ public class MeshRenderer : Component, ISerializableComponent
     }
 
     /// <summary>反序列化：GUID 字符串 → 经属性赋值（SetTracked 计数闭环）</summary>
-    public void ReadFrom(SerializedNode node)
+    public override void ReadFrom(SerializedNode node)
     {
         Shader = Resolve<Shader>(node.GetString("Shader"));
         Mesh = Resolve<Mesh>(node.GetString("Mesh"));
@@ -46,7 +46,7 @@ public class MeshRenderer : Component, ISerializableComponent
     }
 
     /// <summary>序列化：仅写出托管资产（缓存有条目）的 GUID；null/非托管跳过</summary>
-    public void WriteTo(SerializedNode node)
+    public override void WriteTo(SerializedNode node)
     {
         WriteGuid(node, "Shader", Shader);
         WriteGuid(node, "Mesh", Mesh);
