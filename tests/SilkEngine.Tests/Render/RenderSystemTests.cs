@@ -1,4 +1,5 @@
 using SilkEngine;
+using SilkEngine.Core.Assets;
 using SilkEngine.Math;
 using SilkEngine.Render;
 
@@ -170,6 +171,7 @@ public class FakeRenderBackend : IRenderBackend
     public void Present() => PresentCount++;
     public IntPtr CreateBuffer(int size) => IntPtr.Zero;
     public void DrawIndirect(IntPtr buf, int off, int cnt) { }
+    public void ReleaseTexture(Texture2D texture) { }
     public void Dispose() { }
 }
 

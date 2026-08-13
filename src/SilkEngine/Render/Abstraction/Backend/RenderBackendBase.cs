@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using SilkEngine.Core.Assets;
 
 namespace SilkEngine.Render;
 
@@ -51,6 +52,9 @@ public abstract class RenderBackendBase : IRenderBackend
 
     /// <inheritdoc />
     public virtual void DrawIndirect(IntPtr buffer, int offset, int drawCount) { }
+
+    /// <inheritdoc />
+    public virtual void ReleaseTexture(Texture2D texture) { }
 
     /// <inheritdoc />
     public virtual void Dispose()

@@ -58,8 +58,8 @@ public class RenderThreadLoop : IDisposable
             if (!_rendering)
                 break;
 
-            // 帧首：处理资产释放队列（GL 释放由后端接入，Part 3）
-            AssetManager.ProcessUnloadQueue();
+            // 帧首：处理资产释放队列（GL 释放由后端接入）
+            AssetManager.ProcessUnloadQueue(_backend.ReleaseTexture);
             try
             {
                 if (_pendingPasses != null)

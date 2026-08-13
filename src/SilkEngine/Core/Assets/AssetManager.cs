@@ -147,16 +147,24 @@ public static class AssetManager
     }
 
     /// <summary>
-    /// 渲染线程帧首调用：处理待释放队列（本 Part 占位：Log + CPU 数据清引用；
-    /// GL 资源真正释放 glDeleteTextures 由 Part 3 接入）
+    /// 渲染线程帧首调用：处理待释放队列
+    /// <br/>glRelease 为 null 时维持 Part 2 行为（Log 占位 + CPU 数据清引用）；
+    /// 传委托时（渲染线程传 _backend.ReleaseTexture）对队列中 Texture2D 条目执行 GL 释放
     /// </summary>
-    internal static void ProcessUnloadQueue()
+    internal static void ProcessUnloadQueue(Action<Texture2D>? glRelease = null)
     {
         while (_unloadQueue.TryDequeue(out var guid))
         {
             var entry = _cache.Find(guid);
             if (entry is null || entry.State != AssetState.Unloaded)
                 continue;
+            if (glRelease is not null)
+            {
+                if (entry.Data is Texture2D tex)
+                    glRelease(tex);
+                entry.Data = null;
+                continue;
+            }
             Log.Info($"[AssetManager] Unload asset {guid} (GL release pending: Part 3)");
             entry.Data = null; // CPU 侧清引用，GC 回收
         }

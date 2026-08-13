@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using SilkEngine.Core.Assets;
 using Silk.NET.OpenGL;
 using Silk.NET.Windowing;
 
@@ -79,6 +80,19 @@ public class OpenGLRenderBackend : RenderBackendBase
 
     /// <inheritdoc />
     public override void Present() => _window!.SwapBuffers();
+
+    /// <inheritdoc />
+    public override void ReleaseTexture(Texture2D texture)
+    {
+        if (_textureRegistry.TryRemove(texture, out var glTex))
+        {
+            glTex.Dispose();
+            Log.Info($"[Render] Released GL texture: {texture.Name}");
+        }
+    }
+
+    /// <summary>纹理缓存（渲染线程与测试使用）</summary>
+    internal OpenGLTextureRegistry TextureRegistry => _textureRegistry;
 
     private void ExecuteCommands(IReadOnlyList<DrawCommand> commands)
     {
