@@ -1,5 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Text.Json;
+using SilkEngine.Core.Assets.Serialization;
 
 namespace SilkEngine;
 
@@ -128,4 +131,23 @@ public class SceneManager
 
     /// <summary>便捷重载：从组件定位其 GameObject。</summary>
     public static bool AddObjectToScene(MonoBehaviour mb) => AddObjectToScene(mb.GameObject);
+
+    /// <summary>
+    /// 从 .scene JSON 文件加载场景：读文件 → SceneSerializer.Deserialize → LoadScene（带 ActiveRegistry）。
+    /// 返回是否成功；失败（文件缺失/无权限/JSON 格式错误）记录错误日志且不抛未捕获异常。
+    /// </summary>
+    public bool LoadSceneFromFile(string path)
+    {
+        try
+        {
+            var scene = SceneSerializer.Deserialize(File.ReadAllText(path));
+            LoadScene(scene, ActiveRegistry);
+            return true;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException)
+        {
+            Log.Error($"LoadSceneFromFile failed: {path} — {e.Message}");
+            return false;
+        }
+    }
 }

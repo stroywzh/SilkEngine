@@ -1,4 +1,6 @@
+using System.IO;
 using SilkEngine;
+using SilkEngine.Math;
 
 namespace SilkEngine.Tests.Scene;
 using Scene = SilkEngine.Scene;
@@ -360,5 +362,92 @@ public class SceneManagerTests
         Object.Destroy(c);
         mgr.CommitPending(reg, SceneManager.Instance._destroyQueue, s, 0f);
         Assert.Equal(2, c.DestroyCount);           // 显式销毁仍有效（非僵尸）
+    }
+
+    private class TestWriter : ILogWriter
+    {
+        public List<string> Messages = new();
+        public void Write(string msg) => Messages.Add(msg);
+    }
+
+    [Fact]
+    public void LoadSceneFromFile_LoadsAndRegistersScene()
+    {
+        var reg = new ComponentRegistry();
+        SceneManager.ActiveRegistry = reg;
+        var path = Path.Combine(Path.GetTempPath(), $"scene_{Guid.NewGuid():N}.scene");
+        try
+        {
+            File.WriteAllText(
+                path,
+                """
+                {
+                  "Name": "FileScene",
+                  "GameObjects": [
+                    {
+                      "Name": "Ground",
+                      "Components": {
+                        "Transform": {
+                          "LocalPosition": [0, 0, 0],
+                          "LocalRotation": [0, 0, 0, 1],
+                          "LocalScale": [20, 1, 20]
+                        },
+                        "SilkEngine.MeshRenderer": {
+                          "Shader": "1f2e3d4c-5b6a-7988-99aa-bbccddeeff00"
+                        }
+                      }
+                    }
+                  ]
+                }
+                """
+            );
+
+            var ok = SceneManager.Instance.LoadSceneFromFile(path);
+
+            Assert.True(ok);
+            Assert.Equal("FileScene", SceneManager.ActiveScene!.Name);
+            var go = SceneManager.ActiveScene.GetRootGameObjects()[0];
+            Assert.Equal("Ground", go.Name);
+            Assert.Equal(new Vector3(20, 1, 20), go.Transform.LocalScale);
+            Assert.NotNull(go.GetComponent<MeshRenderer>());
+            Assert.Single(reg.GetOfType<MeshRenderer>());
+        }
+        finally
+        {
+            File.Delete(path);
+            SceneManager.ActiveRegistry = null;
+        }
+    }
+
+    [Fact]
+    public void LoadSceneFromFile_MissingFile_ReturnsFalseAndLogs()
+    {
+        var tw = new TestWriter();
+        Log.AddWriter(tw);
+        try
+        {
+            var path = Path.Combine(Path.GetTempPath(), $"nope_{Guid.NewGuid():N}.scene");
+            Assert.False(SceneManager.Instance.LoadSceneFromFile(path));
+            Assert.Contains(tw.Messages, m => m.Contains("LoadSceneFromFile failed"));
+        }
+        finally
+        {
+            Log.RemoveWriter(tw);
+        }
+    }
+
+    [Fact]
+    public void LoadSceneFromFile_InvalidJson_ReturnsFalse()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"bad_{Guid.NewGuid():N}.scene");
+        try
+        {
+            File.WriteAllText(path, "{ not json");
+            Assert.False(SceneManager.Instance.LoadSceneFromFile(path));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
     }
 }
