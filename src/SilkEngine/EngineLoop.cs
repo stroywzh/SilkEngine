@@ -12,11 +12,11 @@ public class EngineLoop : IDisposable
 {
     private static int Pid => Process.GetCurrentProcess().Id;
     private readonly IRenderBackend _backend;
-    private readonly SceneManager _sceneManager;
     private readonly LogicLoop _logicLoop;
     private readonly EngineThreadPool _workerPool = new(2);
     private readonly FrameSnapshotManager _snapshotManager = new();
     private readonly ComponentRegistry _registry = new();
+    private readonly SceneManager _sceneManager;
     private AssetManager? _assetManager;
     private RenderSystem? _renderSystem;
     private DateTime _lastTime;
@@ -27,19 +27,19 @@ public class EngineLoop : IDisposable
 
     public LogicLoop Logic => _logicLoop;
     public IWorkerScheduler Workers => _workerPool;
-
-    /// <summary>资产管理器实例（Initialize 创建并注入共享工作池；未初始化访问抛异常）</summary>
-    public AssetManager AssetManager =>
-        _assetManager ?? throw new InvalidOperationException("EngineLoop.Initialize 尚未执行");
-
-    /// <summary>场景管理器实例（ctor 创建并订阅 Object.DestroyHandler；宿主经此取用）</summary>
-    public SceneManager SceneManager => _sceneManager;
     public bool Embedded { get; set; } = false;
     public bool Paused
     {
         get => _paused;
         set => _paused = value;
     }
+
+    /// <summary>场景管理器实例（ctor 创建并订阅 Object.DestroyHandler；宿主经此取用）</summary>
+    public SceneManager SceneManager => _sceneManager;
+
+    /// <summary>资产管理器实例（Initialize 创建并注入共享工作池；未初始化访问抛异常）</summary>
+    public AssetManager AssetManager =>
+        _assetManager ?? throw new InvalidOperationException("EngineLoop.Initialize 尚未执行");
 
     public EngineLoop(IRenderBackend backend)
     {
@@ -63,12 +63,17 @@ public class EngineLoop : IDisposable
             Input.SetProvider(inputProvider);
         }
 
-        _stopRequested = false;
-        _lastTime = DateTime.UtcNow;
+        _assetManager = new AssetManager(_workerPool);
+        Services.Register(_workerPool);
+        Services.Register(_sceneManager);
+        Services.Register(_assetManager);
+        Services.Register(_registry);
+        Services.Register(_snapshotManager);
+        Services.Register(_renderSystem);
 
+        // 过渡期（Part 4 移除）：ActiveRegistry 静态暂保留，Attach(registry, snapshot) 注入后删除
         SceneManager.ActiveRegistry = _registry;
         _sceneManager.RegisterScene(_registry);
-        _assetManager = new AssetManager(_workerPool);
         _snapshotManager.CommitPending(
             _registry,
             _sceneManager._destroyQueue,
@@ -76,6 +81,8 @@ public class EngineLoop : IDisposable
             0f
         );
 
+        _stopRequested = false;
+        _lastTime = DateTime.UtcNow;
         _canStart = true;
         return this;
     }
@@ -115,7 +122,6 @@ public class EngineLoop : IDisposable
             Input.Update();
 
             _logicLoop.Tick(Time.DeltaTime, _snapshotManager.Current);
-            // _renderSystem!.Render(_snapshotManager.Current);
             OnRender();
             _logicLoop.LateTick(Time.DeltaTime, _snapshotManager.Current);
 
@@ -154,8 +160,8 @@ public class EngineLoop : IDisposable
 
         _disposed = true;
         _stopRequested = true;
-        _workerPool.Dispose();
-        _renderSystem?.Dispose();
         _logicLoop.Dispose();
+        // 反序：RenderSystem(渲染线程先停) → SnapshotManager/Registry → AssetManager → SceneManager(解绑) → WorkerPool(最后停)
+        Services.Shutdown();
     }
 }
