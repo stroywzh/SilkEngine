@@ -46,6 +46,9 @@ public class CameraFollow : MonoBehaviour
         if (Target == null)
             return;
 
+        // if (!Input.Mouse.MiddleButton)
+        //     return;
+
         var mouse = Input.Mouse.MoveVector;
         _yaw += mouse.X * Sensitivity;
         _pitch = Math.Clamp(_pitch - mouse.Y * Sensitivity, -1.2f, 1.2f);

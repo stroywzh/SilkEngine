@@ -8,7 +8,8 @@
 - 4.多线程等到后续再说。现在先保持MainThread跑EngineLoop（和LogicLoop），带着两个WorkerThread和一个RenderThread跑
 - 5.Log是否可以加入stopwatch？
 - [ ]6.SceneManager对于MonoBehaviour的更新方式有点让人头疼，太tm狗屎了。
-  - 部分解决，但是现在的行为实现不完整
+  - [x]部分解决，但是现在的行为实现不完整
+  - [ ]现在的实际设计不满意，等待后续再说吧
 - 7.（久远的后续）顺序初始化+顺序更新（这个可以参考已有的UpdateContainer和UpdateManager）
 
 # 参考

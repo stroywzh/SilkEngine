@@ -12,7 +12,7 @@ class Program
     {
         var backend = new OpenGLRenderBackend();
         var engine = new EngineLoop(backend);
-        // Input.EnableLog = true;
+        Input.EnableLog = true;
 
         // -------------------- 逐个取消注释测试 --------------------
 
@@ -272,7 +272,7 @@ void main() { FragColor = vec4(abs(vNormal), 1.0); }",
             for (int j = 0; j < 5; j++)
             {
                 var cube = new GameObject($"Cube_{i}_{j}");
-                cube.Transform.LocalPosition = new Vector3(i * 3 - 6, 0.5f, j * 3 - 6);
+                cube.Transform.LocalPosition = new Vector3(i * 3 - 6, 1, j * 3 - 6);
                 var mr = cube.AddComponent<MeshRenderer>();
                 mr.Shader = shader;
                 mr.Mesh = MeshFactory.CreateCube(1f);
