@@ -53,6 +53,11 @@ public class EngineThreadPool : IWorkerScheduler, IDisposable
         CancellationToken token = default
     )
     {
+        if (!_running)
+        {
+            Log.Warn("[EngineThreadPool] EnqueueWork ignored: pool is shut down");
+            return;
+        }
         if (token.IsCancellationRequested)
             return;
         var item = new WorkItem { Work = work, Token = token };
