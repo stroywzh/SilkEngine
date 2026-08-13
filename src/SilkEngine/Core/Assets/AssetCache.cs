@@ -17,4 +17,7 @@ public sealed class AssetCache
 
     /// <summary>条目数量（测试断言用）</summary>
     public int Count => _entries.Count;
+
+    /// <summary>全部条目快照（引用查找/测试断言用）</summary>
+    internal IEnumerable<AssetEntry> All() => _entries.Values;
 }

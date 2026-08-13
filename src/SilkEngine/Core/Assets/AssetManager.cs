@@ -11,6 +11,8 @@ public static class AssetManager
 {
     private static readonly AssetCache _cache = new();
     private static readonly ConcurrentQueue<AssetLoadResult> _completed = new();
+    private static readonly ConcurrentQueue<Guid> _pendingUnload = new();
+    private static readonly ConcurrentQueue<Guid> _unloadQueue = new();
     private static IWorkerScheduler _scheduler = new EngineThreadPool(2);
 
     /// <summary>
@@ -131,5 +133,62 @@ public static class AssetManager
         foreach (var awaiter in entry.Awaiters)
             awaiter.Complete(asset, error);
         entry.Awaiters.Clear();
+    }
+
+    /// <summary>
+    /// 托管资产引用 +1；非托管实例（缓存中无条目）no-op 返回 false
+    /// <br/>按实例引用查找条目（Shader/Material 重写了 Equals，禁止 == 语义比较）
+    /// </summary>
+    public static bool TryAddRef(IAsset asset)
+    {
+        var entry = FindEntry(asset);
+        if (entry is null || entry.Data is null)
+            return false;
+        entry.RefCount++;
+        return true;
+    }
+
+    /// <summary>
+    /// 托管资产引用 -1（下限 0）；归零时入卸载候选队列（帧末 ProcessCompleted 复核）
+    /// <br/>非托管实例或已归零条目返回 false
+    /// </summary>
+    public static bool TryRelease(IAsset asset)
+    {
+        var entry = FindEntry(asset);
+        if (entry is null || entry.RefCount <= 0)
+            return false;
+        entry.RefCount--;
+        if (entry.RefCount == 0)
+            _pendingUnload.Enqueue(entry.Guid);
+        return true;
+    }
+
+    /// <summary>用户 API：无主资产显式归还；不调用则常驻缓存</summary>
+    public static void Release(IAsset asset) => TryRelease(asset);
+
+    /// <summary>
+    /// 赋值点自动计数：新值 +1、旧值 -1；同一实例赋值短路
+    /// <br/>非 IAsset 类型或非托管实例透明 no-op（向后兼容）
+    /// </summary>
+    public static void SetTracked<T>(ref T field, T value)
+        where T : class
+    {
+        if (ReferenceEquals(field, value))
+            return;
+        var old = field;
+        field = value;
+        if (old is IAsset oldAsset)
+            TryRelease(oldAsset);
+        if (value is IAsset newAsset)
+            TryAddRef(newAsset);
+    }
+
+    /// <summary>按实例引用查找缓存条目</summary>
+    private static AssetEntry? FindEntry(IAsset asset)
+    {
+        foreach (var entry in _cache.All())
+            if (ReferenceEquals(entry.Data, asset))
+                return entry;
+        return null;
     }
 }
