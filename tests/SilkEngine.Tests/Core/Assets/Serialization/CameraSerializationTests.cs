@@ -4,7 +4,7 @@ using SilkEngine.Core.Assets.Serialization;
 using SilkEngine.Math;
 
 namespace SilkEngine.Tests.Core.Assets.Serialization;
-using Scene = SilkEngine.Scene;
+using Scene = SilkEngine.Scene.Scene;
 
 [Collection("Serialization")]
 public class CameraSerializationTests

@@ -14,7 +14,7 @@ public static class SceneSerializer
     private static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
 
     /// <summary>场景 → .scene JSON 字符串（根对象列表，子对象经 Children 递归嵌套）。</summary>
-    public static string Serialize(Scene scene)
+    public static string Serialize(SilkEngine.Scene.Scene scene)
     {
         var root = new JsonObject { ["Name"] = scene.Name, ["GameObjects"] = new JsonArray() };
         var arr = root["GameObjects"]!.AsArray();
@@ -24,12 +24,12 @@ public static class SceneSerializer
     }
 
     /// <summary>.scene JSON 字符串 → 新场景（组件经工厂创建并读取序列化数据）。</summary>
-    public static Scene Deserialize(string json)
+    public static SilkEngine.Scene.Scene Deserialize(string json)
     {
         var root = JsonNode.Parse(json)?.AsObject()
             ?? throw new JsonException("Scene JSON root is not an object");
 
-        var scene = new Scene(root["Name"]?.GetValue<string>() ?? "Untitled");
+        var scene = new SilkEngine.Scene.Scene(root["Name"]?.GetValue<string>() ?? "Untitled");
         if (root["GameObjects"] is JsonArray arr)
         {
             foreach (var n in arr)

@@ -12,7 +12,7 @@ public sealed class ComponentGroup
 public sealed class FrameSnapshot
 {
     public long FrameCount { get; internal set; }
-    public Scene? ActiveScene { get; internal set; }
+    public SilkEngine.Scene.Scene? ActiveScene { get; internal set; }
     internal List<ComponentGroup> Groups { get; } = [];
 
     public IReadOnlyList<T> GetComponents<T>()
@@ -37,7 +37,7 @@ public sealed class FrameSnapshotManager
     internal void CommitPending(
         ComponentRegistry registry,
         List<SceneManager.DestroyEntry> destroys,
-        Scene? activeScene,
+        SilkEngine.Scene.Scene? activeScene,
         float deltaTime
     )
     {

@@ -1,7 +1,7 @@
 using SilkEngine;
 
 namespace SilkEngine.Tests.Scene;
-using Scene = SilkEngine.Scene;
+using Scene = SilkEngine.Scene.Scene;
 
 [Collection("SceneManager")]
 public class GameObjectTests : IClassFixture<SceneManagerFixture>

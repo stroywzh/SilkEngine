@@ -1,7 +1,7 @@
 using SilkEngine;
 
 namespace SilkEngine.Tests.Scene;
-using Scene = SilkEngine.Scene;
+using Scene = SilkEngine.Scene.Scene;
 
 public class SceneTests
 {

@@ -4,7 +4,7 @@ using SilkEngine.Math;
 using SilkEngine.Render;
 
 namespace SilkEngine.Tests.Render;
-using Scene = SilkEngine.Scene;
+using Scene = SilkEngine.Scene.Scene;
 
 public class RenderCollectorTests
 {

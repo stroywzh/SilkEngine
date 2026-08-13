@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace SilkEngine;
+namespace SilkEngine.Scene;
 
 public class Scene
 {

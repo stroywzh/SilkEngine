@@ -35,11 +35,11 @@ public class SceneManager : IDisposable
     /// <summary>解绑 DestroyHandler（Services.Shutdown 反序释放 / 测试夹具调用）</summary>
     public void Dispose() => Object.DestroyHandler -= _destroyHandler;
 
-    public Scene? ActiveScene { get; internal set; }
+    public SilkEngine.Scene.Scene? ActiveScene { get; internal set; }
 
-    public void LoadScene(Scene scene) => LoadScene(scene, ActiveRegistry);
+    public void LoadScene(SilkEngine.Scene.Scene scene) => LoadScene(scene, ActiveRegistry);
 
-    public void LoadScene(Scene scene, ComponentRegistry? registry = null)
+    public void LoadScene(SilkEngine.Scene.Scene scene, ComponentRegistry? registry = null)
     {
         if (ActiveScene != null && registry != null)
         {

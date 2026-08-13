@@ -3,7 +3,7 @@ using SilkEngine;
 using SilkEngine.Tests.Scene;
 
 namespace SilkEngine.Tests.Core;
-using Scene = SilkEngine.Scene;
+using Scene = SilkEngine.Scene.Scene;
 
 [Collection("SceneManager")]
 public class FrameSnapshotTests : IClassFixture<SceneManagerFixture>

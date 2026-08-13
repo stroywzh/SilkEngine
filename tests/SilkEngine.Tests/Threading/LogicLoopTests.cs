@@ -3,7 +3,7 @@ using SilkEngine.Threading;
 using SilkEngine.Tests.Scene;
 
 namespace SilkEngine.Tests;
-using EngineScene = SilkEngine.Scene;
+using EngineScene = SilkEngine.Scene.Scene;
 
 [Collection("SceneManager")]
 public class LogicLoopTests : IClassFixture<SceneManagerFixture>

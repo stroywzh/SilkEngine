@@ -5,6 +5,7 @@ using SilkEngine.InputSystem;
 using SilkEngine.Math;
 using SilkEngine.Render;
 using SilkEngine.Render.OpenGL;
+using SilkEngine.Scene;
 
 namespace SandBox;
 

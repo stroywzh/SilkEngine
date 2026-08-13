@@ -3,7 +3,7 @@ using SilkEngine;
 using SilkEngine.Math;
 
 namespace SilkEngine.Tests.Scene;
-using Scene = SilkEngine.Scene;
+using Scene = SilkEngine.Scene.Scene;
 
 [Collection("SceneManager")]
 public class SceneManagerTests : IClassFixture<SceneManagerFixture>
