@@ -8,6 +8,7 @@ namespace SilkEngine.Scene;
 public sealed class ComponentRegistry
 {
     private readonly Dictionary<Type, ComponentGroup> _groups = new();
+    private readonly Dictionary<Type, List<MonoBehaviour>> _mbIndex = new();
     private readonly List<Component> _pendingAdds = [];
 
     public void Register(Component c)
@@ -25,6 +26,12 @@ public sealed class ComponentRegistry
         _pendingAdds.Remove(c);
         if (_groups.TryGetValue(c.GetType(), out var g))
             g.Components.Remove(c);
+        if (c is MonoBehaviour mb && _mbIndex.TryGetValue(c.GetType(), out var mbList))
+        {
+            mbList.Remove(mb);
+            if (mbList.Count == 0)
+                _mbIndex.Remove(c.GetType());
+        }
     }
 
     public void ApplyPending()
@@ -38,6 +45,12 @@ public sealed class ComponentRegistry
                 _groups[t] = g;
             }
             g.Components.Add(c);
+            if (c is MonoBehaviour mb)
+            {
+                if (!_mbIndex.TryGetValue(t, out var list))
+                    _mbIndex[t] = list = new List<MonoBehaviour>();
+                list.Add(mb);
+            }
         }
         _pendingAdds.Clear();
     }
@@ -54,4 +67,7 @@ public sealed class ComponentRegistry
             return g.Components as IReadOnlyList<T> ?? g.Components.Cast<T>().ToList();
         return System.Array.Empty<T>();
     }
+
+    /// <summary>MonoBehaviour 基类索引：按具体类型归类的列表视图（SceneManager 派发消费，零分配）。</summary>
+    internal IEnumerable<List<MonoBehaviour>> MonoBehaviourGroups => _mbIndex.Values;
 }

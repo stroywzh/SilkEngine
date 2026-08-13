@@ -87,7 +87,7 @@ public class SceneManager : IDisposable
 
     public void Tick(FrameSnapshot snapshot, float dt)
     {
-        foreach (var mb in GetActiveMBs(snapshot))
+        foreach (var mb in GetActiveMBs())
         {
             if (!mb.Started)
             {
@@ -100,35 +100,30 @@ public class SceneManager : IDisposable
 
     public void FixedTick(FrameSnapshot snapshot, float fdt)
     {
-        foreach (var mb in GetActiveMBs(snapshot))
+        foreach (var mb in GetActiveMBs())
             mb.OnFixedUpdate(fdt);
     }
 
     public void LateTick(FrameSnapshot snapshot)
     {
-        foreach (var mb in GetActiveMBs(snapshot))
+        foreach (var mb in GetActiveMBs())
             mb.OnLateUpdate();
     }
 
     public void PostRender(FrameSnapshot snapshot)
     {
-        foreach (var mb in GetActiveMBs(snapshot))
+        foreach (var mb in GetActiveMBs())
             mb.OnPostRender();
     }
 
-    private static IEnumerable<MonoBehaviour> GetActiveMBs(FrameSnapshot snapshot)
+    private IEnumerable<MonoBehaviour> GetActiveMBs()
     {
-        foreach (var g in snapshot.Groups)
-        {
-            if (
-                g.ComponentType != typeof(MonoBehaviour)
-                && !g.ComponentType.IsSubclassOf(typeof(MonoBehaviour))
-            )
-                continue;
-            foreach (var c in g.Components)
-                if (c is MonoBehaviour mb && mb.GameObject.IsActiveInHierarchy && mb.Enabled)
+        if (Registry is null)
+            yield break;
+        foreach (var list in Registry.MonoBehaviourGroups)
+            foreach (var mb in list)
+                if (mb.GameObject.IsActiveInHierarchy && mb.Enabled)
                     yield return mb;
-        }
     }
 
     /// <summary>运行时向活动场景添加 GameObject（含子树）；注册进已注入注册表，不重复触发生命周期。</summary>

@@ -31,6 +31,7 @@ public class SceneManagerTests : IClassFixture<SceneManagerFixture>
         var s = new Scene("T"); var go = new GameObject(); var c = go.AddComponent<Tracker>(); s.AddRootObject(go);
         var reg = new ComponentRegistry();
         var mgr = new FrameSnapshotManager();
+        _sm.Attach(reg, mgr);
         _sm.LoadScene(s, reg);
         mgr.CommitPending(reg, new List<SceneManager.DestroyEntry>(), s, 0f);
         _sm.Tick(mgr.Current, 0.016f);
@@ -43,6 +44,7 @@ public class SceneManagerTests : IClassFixture<SceneManagerFixture>
         var s = new Scene("T"); var go = new GameObject(); var c = go.AddComponent<Tracker>(); s.AddRootObject(go);
         var reg = new ComponentRegistry();
         var mgr = new FrameSnapshotManager();
+        _sm.Attach(reg, mgr);
         _sm.LoadScene(s, reg);
         mgr.CommitPending(reg, new List<SceneManager.DestroyEntry>(), s, 0f);
         _sm.Tick(mgr.Current, 0.16f);
@@ -55,6 +57,7 @@ public class SceneManagerTests : IClassFixture<SceneManagerFixture>
         var s = new Scene("T"); var go = new GameObject(); var c = go.AddComponent<Tracker>(); s.AddRootObject(go);
         var reg = new ComponentRegistry();
         var mgr = new FrameSnapshotManager();
+        _sm.Attach(reg, mgr);
         _sm.LoadScene(s, reg);
         mgr.CommitPending(reg, new List<SceneManager.DestroyEntry>(), s, 0f);
         _sm.FixedTick(mgr.Current, 0.02f);
@@ -152,6 +155,7 @@ public class SceneManagerTests : IClassFixture<SceneManagerFixture>
         var go = new GameObject();
         var c = go.AddComponent<Tracker>(reg);
         s.AddRootObject(go);
+        _sm.Attach(reg, mgr);
 
         reg.ApplyPending();
         mgr.CommitPending(reg, new List<SceneManager.DestroyEntry>(), s, 0f);
@@ -168,6 +172,7 @@ public class SceneManagerTests : IClassFixture<SceneManagerFixture>
         var s = new Scene("T");
         var go = new GameObject();
         var order = new List<int>();
+        _sm.Attach(reg, mgr);
 
         var a = go.AddComponent<Ordered>(reg); a.Id = 1; a.Order = order;
         var b = go.AddComponent<Ordered>(reg); b.Id = 2; b.Order = order;
@@ -225,6 +230,7 @@ public class SceneManagerTests : IClassFixture<SceneManagerFixture>
         s.AddRootObject(go);
         var reg = new ComponentRegistry();
         var mgr = new FrameSnapshotManager();
+        _sm.Attach(reg, mgr);
         _sm.LoadScene(s, reg);
         mgr.CommitPending(reg, new List<SceneManager.DestroyEntry>(), s, 0f);
 
