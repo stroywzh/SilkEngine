@@ -6,6 +6,7 @@ using SilkEngine.Render;
 using SilkEngine.Tests.Core.Assets;
 
 namespace SilkEngine.Tests.Core.Assets.Serialization;
+using Scene = SilkEngine.Scene.Scene;
 
 // 反序列化经 Services.TryGet 解析资产管理器（WriteGuid/Resolve ambient），须与注册者同集合串行
 [Collection("Assets")]
@@ -106,5 +107,30 @@ public class MeshRendererSerializationTests : IClassFixture<AssetsFixture>
         Assert.Null(mr.Shader);
         Assert.Null(mr.Mesh);
         Assert.Null(mr.Material);
+    }
+
+    [Fact]
+    public void RoundtripDeserialize_TrackedAsset_RefcountedAndReleasedOnDestroy()
+    {
+        var guid = Guid.NewGuid();
+        var shader = new Shader { Name = "Lit" };
+        var entry = _am.Cache.GetOrAdd(guid);
+        entry.Data = shader;
+        entry.State = AssetState.Ready;
+
+        var scene = new Scene("MR");
+        var go = new GameObject("R");
+        var mr = go.AddComponent<MeshRenderer>();
+        mr.Shader = shader;                    // 引用 +1
+        scene.AddRootObject(go);
+
+        var mr2 = SceneSerializer.Deserialize(SceneSerializer.Serialize(scene))
+            .GetRootGameObjects()[0].GetComponent<MeshRenderer>()!;
+
+        Assert.Same(shader, mr2.Shader);
+        Assert.Equal(2, entry.RefCount);       // 原始引用 + 反序列化引用（生成代码经属性 setter → SetTracked）
+
+        mr2.OnDestroy();                       // 归还引用
+        Assert.Equal(1, entry.RefCount);
     }
 }

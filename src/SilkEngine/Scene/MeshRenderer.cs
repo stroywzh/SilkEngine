@@ -1,11 +1,12 @@
-using SilkEngine.Core;
 using SilkEngine.Core.Assets;
-using SilkEngine.Scene.Serialization;
 using SilkEngine.Render;
+using SilkEngine.Scene.Serialization;
 
 namespace SilkEngine;
 
-public class MeshRenderer : Component
+/// <summary>网格渲染组件：资产引用字段由源生成器序列化（GUID 路径，经 AssetRefCodec 属性感知规则，键=属性名）。</summary>
+[SerializableInternal]
+public partial class MeshRenderer : Component
 {
     private Shader? _shader;
     private Mesh? _mesh;
@@ -14,7 +15,7 @@ public class MeshRenderer : Component
     public Shader? Shader
     {
         get => _shader;
-        set => AssetManager.SetTrackedAmbient(ref _shader, value);
+        set => AssetManager.SetTrackedAmbient(ref _shader, value);   // P1 落盘形式为准（C1）
     }
 
     public Mesh? Mesh
@@ -29,49 +30,11 @@ public class MeshRenderer : Component
         set => AssetManager.SetTrackedAmbient(ref _material, value);
     }
 
-    /// <summary>组件销毁：归还全部资产引用（引用归零的托管资产由帧末卸载）</summary>
+    /// <summary>组件销毁：归还全部资产引用（引用归零的托管资产由帧末卸载）。</summary>
     public override void OnDestroy()
     {
         AssetManager.SetTrackedAmbient(ref _shader, null);
         AssetManager.SetTrackedAmbient(ref _mesh, null);
         AssetManager.SetTrackedAmbient(ref _material, null);
-    }
-
-    /// <summary>反序列化：GUID 字符串 → 经属性赋值（SetTracked 计数闭环）</summary>
-    public override void ReadFrom(SerializedNode node)
-    {
-        Shader = Resolve<Shader>(node.GetString("Shader"));
-        Mesh = Resolve<Mesh>(node.GetString("Mesh"));
-        Material = Resolve<Material>(node.GetString("Material"));
-    }
-
-    /// <summary>序列化：仅写出托管资产（缓存有条目）的 GUID；null/非托管跳过</summary>
-    public override void WriteTo(SerializedNode node)
-    {
-        WriteGuid(node, "Shader", Shader);
-        WriteGuid(node, "Mesh", Mesh);
-        WriteGuid(node, "Material", Material);
-    }
-
-    private static T? Resolve<T>(string? guid)
-        where T : class, IAsset
-    {
-        if (guid is null || !Guid.TryParse(guid, out var g))
-            return null;
-        if (!Services.TryGet<AssetManager>(out var manager))
-            return null;
-        var entry = manager.Cache.Find(g);
-        return entry is { Data: T asset } ? asset : null;
-    }
-
-    private static void WriteGuid(SerializedNode node, string key, IAsset? asset)
-    {
-        if (
-            asset != null
-            && Services.TryGet<AssetManager>(out var manager)
-            && manager.TryGetGuid(asset, out var guid)
-            && guid != Guid.Empty
-        )
-            node.SetString(key, guid.ToString());
     }
 }

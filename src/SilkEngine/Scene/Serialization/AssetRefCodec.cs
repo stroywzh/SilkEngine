@@ -10,29 +10,31 @@ namespace SilkEngine.Scene.Serialization;
 /// </summary>
 public static class AssetRefCodec
 {
-    /// <summary>写出托管资产 GUID；null/非托管（缓存无条目）/空 GUID 跳过（不写键）。</summary>
+    /// <summary>写出托管资产 GUID；null/非托管（缓存无条目）/空 GUID/管理器未注册跳过（不写键）。</summary>
     public static void Write(SerializedNode node, string key, IAsset? asset)
     {
         if (asset is null)
             return;
-        var am = Services.Get<AssetManager>();
-        if (am.TryGetGuid(asset, out var guid) && guid != Guid.Empty)
+        if (Services.TryGet<AssetManager>(out var am) && am.TryGetGuid(asset, out var guid) && guid != Guid.Empty)
             node.SetString(key, guid.ToString());
     }
 
-    /// <summary>读取 GUID → 缓存资产；缺失/非法/未命中返回 null（属性赋值路径，setter 自持引用计数）。</summary>
+    /// <summary>读取 GUID → 缓存资产；缺失/非法/未命中/管理器未注册返回 null（属性赋值路径，setter 自持引用计数）。</summary>
     public static T? Read<T>(SerializedNode node, string key) where T : class, IAsset
     {
         var s = node.GetString(key);
         if (s is null || !Guid.TryParse(s, out var g))
             return null;
-        return Services.Get<AssetManager>().TryResolve<T>(g);
+        return Services.TryGet<AssetManager>(out var am) ? am.TryResolve<T>(g) : null;
     }
 
-    /// <summary>读取并直接赋值字段（无属性路径）：经 SetTracked 保持引用计数闭环。</summary>
+    /// <summary>读取并直接赋值字段（无属性路径）：管理器已注册经 SetTracked 保持引用计数闭环；未注册仅字段赋值。</summary>
     public static void ReadTracked<T>(ref T? field, SerializedNode node, string key) where T : class, IAsset
     {
         var v = Read<T>(node, key);
-        Services.Get<AssetManager>().SetTracked(ref field, v);
+        if (Services.TryGet<AssetManager>(out var am))
+            am.SetTracked(ref field, v);
+        else
+            field = v;
     }
 }

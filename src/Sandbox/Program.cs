@@ -413,7 +413,7 @@ void main() { FragColor = vec4(abs(vNormal), 1.0); }",
                 RebindAssets(go);
 
             // 用户组件运行时重挂：反序列化不重建未注册组件；组件引用需手动重连
-            // Camera 已实现 ISerializableComponent，加载后由反序列化重建
+            // Camera 的序列化由源生成器生成（[SerializableInternal]），加载后由反序列化重建
             var loadedCam = engine.SceneManager.ActiveScene!.GetRootGameObjects()
                 .First(go => go.GetComponent<Camera>() != null);
             var follow = loadedCam.AddComponent<CameraFollow>();

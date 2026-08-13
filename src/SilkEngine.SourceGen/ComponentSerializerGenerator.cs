@@ -13,7 +13,7 @@ namespace SilkEngine.SourceGen;
 /// <summary>
 /// 序列化源生成器：对顶层 Component 子类生成 partial override WriteTo/ReadFrom。
 /// 规则落实 DESIGN §2.2/2.3 与计划附录规则表 R0-R8：
-/// 默认全字段（public/private）；[NoSerializeField] 跳过；白名单原生 get/set（缺失键保留当前值）；
+/// 默认全字段（public/private；编译器隐式字段如自动属性后备字段跳过）；[NoSerializeField] 跳过；白名单原生 get/set（缺失键保留当前值）；
 /// 资产引用经 AssetRefCodec（属性感知：字段 _x ↔ 公共属性 X 时以属性为访问器、键用属性名）；
 /// 同程序集类型递归展开为 "Field_Sub" 平面键；外部程序集类型 STJ 兜底（SetRaw/GetRaw）；
 /// [SerializableInternal] 违规（SENG001-004）编译错误。
@@ -77,10 +77,14 @@ public sealed class ComponentSerializerGenerator : IIncrementalGenerator
         var registered = context.SyntaxProvider
             .CreateSyntaxProvider(
                 static (node, _) => node is InvocationExpressionSyntax inv
+                    && inv.ArgumentList.Arguments.Count == 0
                     && inv.Expression is MemberAccessExpressionSyntax ma
                     && ma.Name is GenericNameSyntax
                     && ma.Name.Identifier.Text == "Register"
-                    && inv.ArgumentList.Arguments.Count == 0,
+                    || node is InvocationExpressionSyntax inv2
+                    && inv2.ArgumentList.Arguments.Count == 0
+                    && inv2.Expression is GenericNameSyntax g
+                    && g.Identifier.Text == "Register",
                 static (ctx, ct) => TryGetRegisteredType(ctx, ct))
             .Where(static t => t is not null)
             .Collect();
@@ -147,7 +151,7 @@ public sealed class ComponentSerializerGenerator : IIncrementalGenerator
             spc.ReportDiagnostic(Diagnostic.Create(Seng003, loc, type.Name));
         foreach (var f in type.GetMembers().OfType<IFieldSymbol>())
         {
-            if (f.IsStatic || f.IsConst || f.IsReadOnly)
+            if (f.IsStatic || f.IsConst || f.IsReadOnly || f.IsImplicitlyDeclared)
                 continue;
             if (HasAttribute(f, GenConstants.NoSerializeFieldAttribute))
                 continue;
@@ -327,7 +331,7 @@ public sealed class ComponentSerializerGenerator : IIncrementalGenerator
         {
             foreach (var f in type.GetMembers().OfType<IFieldSymbol>())
             {
-                if (f.IsStatic || f.IsConst || f.IsReadOnly)
+                if (f.IsStatic || f.IsConst || f.IsReadOnly || f.IsImplicitlyDeclared)
                     continue;
                 if (HasAttribute(f, GenConstants.NoSerializeFieldAttribute))
                     continue;
