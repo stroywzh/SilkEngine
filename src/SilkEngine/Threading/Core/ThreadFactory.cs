@@ -7,7 +7,7 @@ namespace SilkEngine.Threading;
 public static class ThreadFactory
 {
     public static Thread CreateThread(
-        Action loop,
+        Action entry,
         string name,
         bool isBackground = true,
         ThreadPriority priority = ThreadPriority.Normal
@@ -18,7 +18,7 @@ public static class ThreadFactory
             $"[ThreadFactory] Creating New Thread:[{name}]|Background:{isBackground}|Priority:{priority}"
         );
 #endif
-        return new Thread(() => loop())
+        return new Thread(() => entry())
         {
             Name = name,
             IsBackground = isBackground,

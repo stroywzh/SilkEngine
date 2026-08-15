@@ -82,6 +82,7 @@ public class EngineLoop : IDisposable
         }
 
         _assetManager = new AssetManager(_workerPool);
+        //TODO: 考虑使用Attr代替手动注册
         Services.Register(_workerPool);
         Services.Register(_sceneManager);
         Services.Register(_assetManager);

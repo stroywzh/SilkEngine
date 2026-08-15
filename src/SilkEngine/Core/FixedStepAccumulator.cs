@@ -6,8 +6,10 @@ internal sealed class FixedStepAccumulator
     /// <summary>固定步长（秒），默认 0.02（与 Time.FixedDeltaTime 初值一致）。</summary>
     public float FixedDeltaTime { get; set; } = 0.02f;
 
+#if DEBUG
     /// <summary>当前剩余累积（不足一个固定步长的余量，测试断言用）。</summary>
     public float Remainder { get; private set; }
+#endif
 
     /// <summary>累加 deltaTime，返回本帧应触发的 FixedTick 次数；余数保留到下一帧。</summary>
     public int Advance(float deltaTime)
