@@ -13,8 +13,8 @@ internal static class Services
     private static readonly Dictionary<Type, object> _services = new();
     private static readonly List<(Type Type, IDisposable Disposable)> _disposables = new();
 
-    /// <summary>注册服务（初始化期调用；重复注册同一类型抛异常）</summary>
-    public static void Register<T>(T service)
+    /// <summary>注册服务（初始化期调用；重复注册同一类型抛异常；name 用于日志显示，默认类型全名）</summary>
+    public static void Register<T>(T service, string? name = null)
         where T : class
     {
         ArgumentNullException.ThrowIfNull(service);
@@ -25,7 +25,7 @@ internal static class Services
             if (service is IDisposable d)
                 _disposables.Add((typeof(T), d));
             if (LogConfig.Services)
-                Log.Info($"[Services] Registered {typeof(T).FullName}");
+                Log.Info($"[Services] Registered {name ?? typeof(T).FullName}");
         }
     }
 

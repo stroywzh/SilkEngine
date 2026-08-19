@@ -9,6 +9,8 @@ namespace SilkEngine.SourceGen.Tests;
 /// <summary>生成器测试驱动器：内存编译片段 → 运行生成器 → 返回生成源码与诊断。</summary>
 internal static class GeneratorHarness
 {
+    internal static List<PortableExecutableReference> References { get; } = BuildReferences();
+
     private static List<PortableExecutableReference> BuildReferences()
     {
         var refs = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!)
@@ -25,7 +27,7 @@ internal static class GeneratorHarness
         var comp = CSharpCompilation.Create(
             assemblyName,
             new[] { SyntaxFactory.ParseSyntaxTree(source) },
-            BuildReferences(),
+            References,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var driver = CSharpGeneratorDriver.Create(new ComponentSerializerGenerator().AsSourceGenerator());
@@ -46,7 +48,7 @@ internal static class GeneratorHarness
         var comp = CSharpCompilation.Create(
             assemblyName,
             new[] { SyntaxFactory.ParseSyntaxTree(source) },
-            BuildReferences(),
+            References,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var driver = CSharpGeneratorDriver.Create(new ComponentSerializerGenerator().AsSourceGenerator());
