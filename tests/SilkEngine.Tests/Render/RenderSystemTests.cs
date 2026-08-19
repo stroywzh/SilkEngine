@@ -3,6 +3,7 @@ using SilkEngine.Core.Assets;
 using SilkEngine.Math;
 using SilkEngine.Render;
 using SilkEngine.Scene;
+using SilkEngine.Threading;
 
 namespace SilkEngine.Tests.Render;
 using Scene = SilkEngine.Scene.Scene;
@@ -182,7 +183,7 @@ public class RenderSystemTests
     public void RenderSystem_Render_CallsBackendPresent()
     {
         using var backend = new FakeRenderBackend();
-        using var sys = new RenderSystem(backend);
+        using var sys = new RenderSystem(backend, new ThreadManager());
         sys.Initialize();
 
         var snap = new FrameSnapshot();

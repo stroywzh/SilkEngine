@@ -38,8 +38,9 @@ public class RenderThreadLoopTests
     public void SubmitFrame_DeliversCommands()
     {
         using var fake = new FakeBackend();
-        var rtl = new RenderThreadLoop(fake);
-        rtl.Initialize();
+        using var exec = new DedicatedThreadExecutor("TestRender");
+        using var rtl = new RenderThreadLoop(fake);
+        rtl.Initialize(exec);
         var cmd = new SingleDrawCommand { Enabled = true };
         rtl.SubmitFrame([new RenderPass { Commands = [cmd] }]);
         Assert.Single(fake.Frames);
@@ -50,8 +51,9 @@ public class RenderThreadLoopTests
     public void SubmitFrame_WithPasses_ExecutesAllPasses()
     {
         using var fake = new FakeBackend();
-        var rtl = new RenderThreadLoop(fake);
-        rtl.Initialize();
+        using var exec = new DedicatedThreadExecutor("TestRender");
+        using var rtl = new RenderThreadLoop(fake);
+        rtl.Initialize(exec);
 
         var cmd1 = new SingleDrawCommand { Enabled = true, Mesh = new Mesh { Name = "A" } };
         var cmd2 = new SingleDrawCommand { Enabled = true, Mesh = new Mesh { Name = "B" } };
@@ -71,8 +73,9 @@ public class RenderThreadLoopTests
     public void ExceptionInExecutePass_DoesNotHangSubmitFrame()
     {
         using var fake = new FakeBackend();
-        var rtl = new RenderThreadLoop(fake);
-        rtl.Initialize();
+        using var exec = new DedicatedThreadExecutor("TestRender");
+        using var rtl = new RenderThreadLoop(fake);
+        rtl.Initialize(exec);
         var badCmd = new SingleDrawCommand { Mesh = new Mesh { Name = "Crash", Vertices = [], Layout = [] } };
         rtl.SubmitFrame([new RenderPass { Commands = [badCmd] }]); // 不应挂起
         var goodCmd = new SingleDrawCommand { Enabled = true };

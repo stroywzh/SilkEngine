@@ -10,15 +10,15 @@ namespace SilkEngine.Core.Assets;
 /// <summary>资产门面：同步/异步加载、GUID 缓存、帧末完成拾取（主线程专用 API）。由 EngineLoop 创建并注册 Services</summary>
 public sealed class AssetManager
 {
-    private readonly IWorkerScheduler _scheduler;
+    private readonly ITaskExecutor _scheduler;
     private readonly AssetCache _cache = new();
     private readonly ConcurrentQueue<AssetLoadResult> _completed = new();
     private readonly ConcurrentQueue<Guid> _pendingUnload = new();
     private readonly ConcurrentQueue<Guid> _unloadQueue = new();
     private readonly ConcurrentDictionary<IAssetRequest, (Guid Guid, string Path)> _lazyPending = new();
 
-    /// <summary>构造注入共享工作线程池（引擎不再懒建回退池；池生命周期归 EngineLoop）</summary>
-    public AssetManager(IWorkerScheduler scheduler)
+    /// <summary>构造注入任务执行者（引擎运行时经 ThreadManager 申请；执行者生命周期归 ThreadManager）</summary>
+    public AssetManager(ITaskExecutor scheduler)
     {
         _scheduler = scheduler ?? throw new ArgumentNullException(nameof(scheduler));
     }
@@ -269,12 +269,12 @@ public sealed class AssetManager
     {
         if (LogConfig.Assets)
             Log.Info($"[Assets] Load started '{path}' (guid: {guid})");
-        _scheduler.Schedule(async () =>
+        _scheduler.Submit(async ct =>
         {
             AssetLoadResult result;
             try
             {
-                var raw = await File.ReadAllBytesAsync(path);
+                var raw = await File.ReadAllBytesAsync(path, ct);
                 var importer = ImporterFactory.Create(Path.GetExtension(path));
                 result = new AssetLoadResult(guid, importer.Import(raw), null);
             }

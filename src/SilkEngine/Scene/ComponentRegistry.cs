@@ -5,6 +5,7 @@ using SilkEngine.Core;
 
 namespace SilkEngine.Scene;
 
+[Service(1)]
 public sealed class ComponentRegistry
 {
     private readonly Dictionary<Type, ComponentGroup> _groups = new();

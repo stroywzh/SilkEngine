@@ -9,15 +9,20 @@ using SilkEngine.Render;
 
 namespace SilkEngine.Threading;
 
+/// <summary>
+/// 渲染工作器：仅负责后端生命周期、帧同步握手与 Passes 执行；线程控制权归 ThreadManager
+/// （Initialize 绑定 ILoopExecutor，本类不创建/持有/释放线程）。
+/// </summary>
 public class RenderThreadLoop : IDisposable
 {
     private readonly IRenderBackend _backend;
-    private Thread? _renderThread;
+    private ILoopExecutor? _executor;
     private volatile bool _rendering;
     private readonly ManualResetEventSlim _commandsReady = new(false);
     private readonly ManualResetEventSlim _frameDone = new(false);
     private IReadOnlyList<RenderPass>? _pendingPasses;
     private bool _disposed;
+    private bool _contextBound;
 
     public bool ShouldClose => _backend.ShouldClose;
     public int Width => _backend.Width;
@@ -30,12 +35,13 @@ public class RenderThreadLoop : IDisposable
 
     public RenderThreadLoop(IRenderBackend backend) => _backend = backend;
 
-    public void Initialize()
+    /// <summary>绑定执行者并启动渲染循环（executor.Run(RenderFrame)，返回 false 退出）。</summary>
+    public void Initialize(ILoopExecutor executor)
     {
+        _executor = executor;
         _backend.InitWindow();
-        _renderThread = ThreadFactory.CreateThread(RenderLoop, "RenderThread");
         _rendering = true;
-        _renderThread.Start();
+        executor.Run(RenderFrame);
         if (LogConfig.Render)
             Log.Info("[RenderThread] RenderThread Initialize Finished");
     }
@@ -50,43 +56,46 @@ public class RenderThreadLoop : IDisposable
         _frameDone.Reset();
     }
 
-    private void RenderLoop()
+    /// <summary>渲染循环单帧（执行者线程调用；返回 false 退出循环）。</summary>
+    private bool RenderFrame()
     {
-        _backend.MakeContextCurrent();
-        while (_rendering)
+        if (!_contextBound)
         {
-            _commandsReady.Wait();
-            _commandsReady.Reset();
-            if (!_rendering)
-                break;
+            _backend.MakeContextCurrent();
+            _contextBound = true;
+        }
+        _commandsReady.Wait();
+        _commandsReady.Reset();
+        if (!_rendering)
+        {
+            _backend.ClearContext();
+            return false;
+        }
 
-            // 帧首：处理资产释放队列（GL 释放由后端接入；无注册管理器（测试）时跳过）
-            if (Services.TryGet<AssetManager>(out var assetManager))
-                assetManager.ProcessUnloadQueue(_backend.ReleaseTexture);
-            try
+        // 帧首：处理资产释放队列（GL 释放由后端接入；无注册管理器（测试）时跳过）
+        if (Services.TryGet<AssetManager>(out var assetManager))
+            assetManager.ProcessUnloadQueue(_backend.ReleaseTexture);
+        try
+        {
+            if (_pendingPasses != null)
             {
-                if (_pendingPasses != null)
+                foreach (var pass in _pendingPasses.OrderBy(p => p.SortOrder))
                 {
-                    foreach (var pass in _pendingPasses.OrderBy(p => p.SortOrder))
-                    {
-                        pass.BeforeCommands?.Invoke(_backend);
-                        _backend.ExecutePass(pass.Commands);
-                        pass.AfterCommands?.Invoke(_backend);
-                    }
-                    _backend.Present();
+                    pass.BeforeCommands?.Invoke(_backend);
+                    _backend.ExecutePass(pass.Commands);
+                    pass.AfterCommands?.Invoke(_backend);
                 }
+                _backend.Present();
             }
-            catch (Exception ex)
-            {
-                Log.Error($"[RenderThread] ExecutePass failed: {ex}");
-            }
-            if (LogConfig.Render)
-                Log.Info($"[Render] Frame submitted (passes: {_pendingPasses?.Count ?? 0})");
-            _frameDone.Set();
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"[RenderThread] ExecutePass failed: {ex}");
         }
         if (LogConfig.Render)
-            Log.Info("[Render] Render thread stopped");
-        _backend.ClearContext();
+            Log.Info($"[Render] Frame submitted (passes: {_pendingPasses?.Count ?? 0})");
+        _frameDone.Set();
+        return true;
     }
 
     public void Dispose()
@@ -95,8 +104,9 @@ public class RenderThreadLoop : IDisposable
             return;
         _disposed = true;
         _rendering = false;
-        _commandsReady.Set();
-        _renderThread?.Join(2000);
+        _commandsReady.Set();          // 唤醒阻塞帧 → RenderFrame 返回 false → 线程退出
+        _executor?.Stop();
+        _executor?.Join();
         _commandsReady.Dispose();
         _frameDone.Dispose();
         _backend.Dispose();

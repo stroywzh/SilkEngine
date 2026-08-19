@@ -46,13 +46,13 @@ public class UnloadQueueTests
             Assert.Equal(AssetState.Unloaded, entry.State);
 
             using var fake = new FakeBackend();
+            using var exec = new DedicatedThreadExecutor("TestUnload");
             using var loop = new RenderThreadLoop(fake);
-            loop.Initialize();
+            loop.Initialize(exec);
             // 提交一帧 → 渲染线程帧首应处理释放队列
             loop.SubmitFrame([new RenderPass { Commands = [] }]);
 
             Assert.Null(entry.Data);
-            loop.Dispose();
         }
         finally
         {

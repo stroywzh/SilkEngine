@@ -10,13 +10,19 @@ public class AssetManagerTests
 {
     private sealed class FakeAsset : IAsset { }
 
-    private sealed class BlockingScheduler : IWorkerScheduler
+    private sealed class BlockingScheduler : ITaskExecutor
     {
-        public void Schedule(
-            Func<Task> work,
+        public string Name => "Blocking";
+        public ThreadContext? Context => null;
+        public void Stop() { }
+        public void Join() { }
+        public void Dispose() { }
+
+        public IJobHandle Submit(
+            Func<CancellationToken, ValueTask> work,
             WorkPriority priority = WorkPriority.Normal,
-            CancellationToken ct = default
-        ) { }
+            CancellationToken ct = default)
+            => new TaskJobHandle(Task.Run(async () => await work(ct).ConfigureAwait(false), ct));
     }
 
     [Fact]
@@ -109,10 +115,10 @@ public class AssetManagerTests
     }
 
     [Fact]
-    public void LoadAsync_RealWorkerThread_CompletesWithinTimeout()
+    public void LoadAsync_RealTaskExecutor_CompletesWithinTimeout()
     {
         using var file = PngTestFile.Create();
-        using var pool = new EngineThreadPool(2);
+        using var pool = new ThreadPoolExecutor();
         var am = new AssetManager(pool);
         var req = am.LoadAsync<Texture2D>(file.FilePath);
         var done = SpinWait.SpinUntil(() =>

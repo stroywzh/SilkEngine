@@ -26,6 +26,7 @@ public sealed class FrameSnapshot
     }
 }
 
+[Service(1)]
 internal sealed class FrameSnapshotManager
 {
     private FrameSnapshot _front = new();

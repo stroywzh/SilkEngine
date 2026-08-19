@@ -14,10 +14,10 @@ public class EngineLoop : IDisposable
     private static int Pid => Process.GetCurrentProcess().Id;
     private readonly IRenderBackend _backend;
     private readonly FixedStepAccumulator _fixedStep = new();
-    private readonly EngineThreadPool _workerPool = new(2);
-    private readonly FrameSnapshotManager _snapshotManager = new();
-    private readonly ComponentRegistry _registry = new();
+    private ComponentRegistry _registry = null!;            // Initialize 从 Services 取（[Service] 自动注册）
+    private FrameSnapshotManager _snapshotManager = null!;  // 同上
     private readonly SceneManager _sceneManager;
+    private ThreadManager? _threadManager;
     private AssetManager? _assetManager;
     private RenderSystem? _renderSystem;
     private DateTime _lastTime;
@@ -26,7 +26,9 @@ public class EngineLoop : IDisposable
         _disposed,
         _canStart;
 
-    public IWorkerScheduler Workers => _workerPool;
+    /// <summary>线程管理器实例（[Service] 自动注册，Initialize 取用；未初始化访问抛异常）</summary>
+    public ThreadManager Threads =>
+        _threadManager ?? throw new InvalidOperationException("EngineLoop.Initialize 尚未执行");
     public bool Embedded { get; set; } = false;
 
     /// <summary>固定步长（秒）；与 Time.FixedDeltaTime 双向同步（替代 LogicLoop.FixedDeltaTime）。</summary>
@@ -70,7 +72,13 @@ public class EngineLoop : IDisposable
 
     public EngineLoop Initialize()
     {
-        _renderSystem = new RenderSystem(_backend);
+        _threadManager = Services.Get<ThreadManager>();
+        _threadManager.RegisterMainThread();
+        _registry = Services.Get<ComponentRegistry>();
+        _snapshotManager = Services.Get<FrameSnapshotManager>();
+        _sceneManager.Attach(_registry, _snapshotManager);
+
+        _renderSystem = new RenderSystem(_backend, _threadManager);
         _renderSystem.Initialize();
 
         //TODO:初始化逻辑后面要改，改成基于Editor启动和游戏启动
@@ -81,17 +89,12 @@ public class EngineLoop : IDisposable
             Input.SetProvider(inputProvider);
         }
 
-        _assetManager = new AssetManager(_workerPool);
-        //TODO: 考虑使用Attr代替手动注册
-        Services.Register(_workerPool);
+        _assetManager = new AssetManager(
+            _threadManager.Request<ITaskExecutor>(new ThreadRequest("Workers", ThreadKind.WorkerPool)));
         Services.Register(_sceneManager);
         Services.Register(_assetManager);
-        Services.Register(_registry);
-        Services.Register(_snapshotManager);
         Services.Register(_renderSystem);
 
-        // 注入注册表与快照管理器（Part 4：替代原 ActiveRegistry 静态赋值）
-        _sceneManager.Attach(_registry, _snapshotManager);
         _sceneManager.RegisterScene();
         CommitFrame();
 
@@ -111,7 +114,7 @@ public class EngineLoop : IDisposable
 
         if (LogConfig.EngineLoop)
             Log.Info(
-                $"[EngineLoop]: EngineLoop Started. \nManaged threads: \nMain(heartbeat):PID{Pid}\nWorkerThreadCount:{_workerPool.WorkerThreadCount}\nRenderThread:PID{Pid}."
+                $"[EngineLoop]: EngineLoop Started. \nManaged threads: \nMain(heartbeat):PID{Pid}\nWorkers:ThreadPool\nRenderThread:PID{Pid}."
             );
 
         if (LogConfig.EngineLoop)
@@ -194,7 +197,7 @@ public class EngineLoop : IDisposable
 
         _disposed = true;
         _stopRequested = true;
-        // 反序：RenderSystem(渲染线程先停) → SnapshotManager/Registry → AssetManager → SceneManager(解绑) → WorkerPool(最后停)
+        // 反序：RenderSystem(渲染线程先停) → SnapshotManager/Registry → AssetManager → SceneManager(解绑) → ThreadManager(最后停)
         Services.Shutdown();
     }
 }
