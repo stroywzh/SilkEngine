@@ -7,13 +7,6 @@ using SilkEngine.Core;
 
 namespace SilkEngine.Threading;
 
-public enum WorkPriority
-{
-    Low,
-    Normal,
-    High,
-}
-
 public class EngineThreadPool : IWorkerScheduler, IDisposable
 {
     private readonly ConcurrentQueue<WorkItem> _high = new();
