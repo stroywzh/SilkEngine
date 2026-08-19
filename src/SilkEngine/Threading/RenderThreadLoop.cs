@@ -16,7 +16,9 @@ namespace SilkEngine.Threading;
 public class RenderThreadLoop : IDisposable
 {
     private readonly IRenderBackend _backend;
-    private ILoopExecutor? _executor;
+
+    public ILoopExecutor ThreadLoop => _executor;
+    private ILoopExecutor _executor;
     private volatile bool _rendering;
     private readonly ManualResetEventSlim _commandsReady = new(false);
     private readonly ManualResetEventSlim _frameDone = new(false);
@@ -28,20 +30,21 @@ public class RenderThreadLoop : IDisposable
     public int Width => _backend.Width;
     public int Height => _backend.Height;
 
-    public int PID => Process.GetCurrentProcess().Id;
-
     /// <summary>渲染后端实例</summary>
     public IRenderBackend Backend => _backend;
 
-    public RenderThreadLoop(IRenderBackend backend) => _backend = backend;
+    public RenderThreadLoop(IRenderBackend backend, ILoopExecutor executor)
+    {
+        _backend = backend;
+        _executor = executor;
+    }
 
     /// <summary>绑定执行者并启动渲染循环（executor.Run(RenderFrame)，返回 false 退出）。</summary>
-    public void Initialize(ILoopExecutor executor)
+    public void Initialize()
     {
-        _executor = executor;
         _backend.InitWindow();
         _rendering = true;
-        executor.Run(RenderFrame);
+        _executor.Run(RenderFrame);
         if (LogConfig.Render)
             Log.Info("[RenderThread] RenderThread Initialize Finished");
     }
@@ -104,7 +107,7 @@ public class RenderThreadLoop : IDisposable
             return;
         _disposed = true;
         _rendering = false;
-        _commandsReady.Set();          // 唤醒阻塞帧 → RenderFrame 返回 false → 线程退出
+        _commandsReady.Set(); // 唤醒阻塞帧 → RenderFrame 返回 false → 线程退出
         _executor?.Stop();
         _executor?.Join();
         _commandsReady.Dispose();

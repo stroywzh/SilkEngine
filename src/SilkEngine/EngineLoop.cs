@@ -14,12 +14,12 @@ public class EngineLoop : IDisposable
     private static int Pid => Process.GetCurrentProcess().Id;
     private readonly IRenderBackend _backend;
     private readonly FixedStepAccumulator _fixedStep = new();
-    private ComponentRegistry _registry = null!;            // Initialize 从 Services 取（[Service] 自动注册）
-    private FrameSnapshotManager _snapshotManager = null!;  // 同上
+    private ComponentRegistry _registry = null!; // Initialize 从 Services 取（[Service] 自动注册）
+    private FrameSnapshotManager _snapshotManager = null!; // 同上
     private readonly SceneManager _sceneManager;
-    private ThreadManager? _threadManager;
+    private ThreadManager _threadManager;
     private AssetManager? _assetManager;
-    private RenderSystem? _renderSystem;
+    private RenderSystem _renderSystem;
     private DateTime _lastTime;
     private volatile bool _stopRequested,
         _paused,
@@ -64,21 +64,31 @@ public class EngineLoop : IDisposable
     public EngineLoop(IRenderBackend backend)
     {
         _backend = backend;
-        _sceneManager = new SceneManager();
+
         Time.FixedDeltaTime = _fixedStep.FixedDeltaTime;
         _lastTime = DateTime.UtcNow;
         _canStart = false;
+
+        _threadManager = Services.Get<ThreadManager>();
+        _threadManager.RegisterMainThread();
+
+        _registry = Services.Get<ComponentRegistry>();
+        _snapshotManager = Services.Get<FrameSnapshotManager>();
+
+        _renderSystem = new RenderSystem(_backend, _threadManager);
+
+        _assetManager = new AssetManager(
+            _threadManager.Request<ITaskExecutor>(
+                new ThreadRequest("Workers", ThreadKind.WorkerPool)
+            )
+        );
+
+        _sceneManager = new SceneManager();
     }
 
     public EngineLoop Initialize()
     {
-        _threadManager = Services.Get<ThreadManager>();
-        _threadManager.RegisterMainThread();
-        _registry = Services.Get<ComponentRegistry>();
-        _snapshotManager = Services.Get<FrameSnapshotManager>();
         _sceneManager.Attach(_registry, _snapshotManager);
-
-        _renderSystem = new RenderSystem(_backend, _threadManager);
         _renderSystem.Initialize();
 
         //TODO:初始化逻辑后面要改，改成基于Editor启动和游戏启动
@@ -88,12 +98,6 @@ public class EngineLoop : IDisposable
             inputProvider.Initialize(win);
             Input.SetProvider(inputProvider);
         }
-
-        _assetManager = new AssetManager(
-            _threadManager.Request<ITaskExecutor>(new ThreadRequest("Workers", ThreadKind.WorkerPool)));
-        Services.Register(_sceneManager);
-        Services.Register(_assetManager);
-        Services.Register(_renderSystem);
 
         _sceneManager.RegisterScene();
         CommitFrame();
@@ -114,7 +118,7 @@ public class EngineLoop : IDisposable
 
         if (LogConfig.EngineLoop)
             Log.Info(
-                $"[EngineLoop]: EngineLoop Started. \nManaged threads: \nMain(heartbeat):PID{Pid}\nWorkers:ThreadPool\nRenderThread:PID{Pid}."
+                $"[EngineLoop]: EngineLoop Started. \nManaged threads: \nMain(heartbeat):PID{Pid}\nWorkers:ThreadPool\nRenderThread:PID{_renderSystem.RenderThreadContext.NativeThreadId}."
             );
 
         if (LogConfig.EngineLoop)

@@ -42,7 +42,7 @@ internal static class Services
     }
 
     /// <summary>取服务（null 容忍）：未注册返回 false 且 service 为 null。引擎初始化前调用点使用</summary>
-    public static bool TryGet<T>(out T? service)
+    public static bool TryGet<T>(out T service)
         where T : class
     {
         lock (_lock)
@@ -53,7 +53,7 @@ internal static class Services
                 return true;
             }
         }
-        service = null;
+        service = null!;
         return false;
     }
 

@@ -60,7 +60,8 @@ public sealed class ThreadManager : IDisposable, IJobComposer
         };
         if (executor is not T typed)
             throw new InvalidOperationException(
-                $"申请 '{request.Name}' ({request.Kind}) 无法转型为 {typeof(T).Name}（实际 {executor.GetType().Name}）");
+                $"申请 '{request.Name}' ({request.Kind}) 无法转型为 {typeof(T).Name}（实际 {executor.GetType().Name}）"
+            );
         _byName.Add(request.Name, executor);
         _executors.Add(executor);
         return typed;
@@ -82,7 +83,8 @@ public sealed class ThreadManager : IDisposable, IJobComposer
     public IJobHandle Submit(
         Func<CancellationToken, ValueTask> work,
         WorkPriority priority = WorkPriority.Normal,
-        CancellationToken ct = default)
+        CancellationToken ct = default
+    )
     {
         if (_shutdown)
             throw new InvalidOperationException("ThreadManager 已关闭");
@@ -90,8 +92,8 @@ public sealed class ThreadManager : IDisposable, IJobComposer
     }
 
     /// <summary>依赖组合：全部依赖完成才完成（Task.WhenAll 聚合）。</summary>
-    public IJobHandle Combine(params IJobHandle[] dependencies)
-        => new TaskJobHandle(Task.WhenAll(dependencies.Select(d => d.AsTask().AsTask()).ToArray()));
+    public IJobHandle Combine(params IJobHandle[] dependencies) =>
+        new TaskJobHandle(Task.WhenAll(dependencies.Select(d => d.AsTask().AsTask()).ToArray()));
 
     /// <summary>反序 Stop 并 Join 全部执行者（渲染等专用线程先停）；幂等。</summary>
     public void Shutdown()

@@ -15,12 +15,14 @@ public sealed class AssetManager
     private readonly ConcurrentQueue<AssetLoadResult> _completed = new();
     private readonly ConcurrentQueue<Guid> _pendingUnload = new();
     private readonly ConcurrentQueue<Guid> _unloadQueue = new();
-    private readonly ConcurrentDictionary<IAssetRequest, (Guid Guid, string Path)> _lazyPending = new();
+    private readonly ConcurrentDictionary<IAssetRequest, (Guid Guid, string Path)> _lazyPending =
+        new();
 
     /// <summary>构造注入任务执行者（引擎运行时经 ThreadManager 申请；执行者生命周期归 ThreadManager）</summary>
     public AssetManager(ITaskExecutor scheduler)
     {
         _scheduler = scheduler ?? throw new ArgumentNullException(nameof(scheduler));
+        Services.Register(this);
     }
 
     /// <summary>
@@ -50,7 +52,9 @@ public sealed class AssetManager
         var importer = ImporterFactory.Create(Path.GetExtension(path));
         var asset = importer.Import(File.ReadAllBytes(path));
         if (asset is not T typed)
-            throw new InvalidOperationException($"资产 {path} 类型为 {asset.GetType().Name}，不是 {typeof(T).Name}");
+            throw new InvalidOperationException(
+                $"资产 {path} 类型为 {asset.GetType().Name}，不是 {typeof(T).Name}"
+            );
         var entry = _cache.GetOrAdd(guid);
         entry.Data = typed;
         entry.State = AssetState.Ready;
@@ -70,7 +74,8 @@ public sealed class AssetManager
         {
             if (entry.Data is not T typed)
                 throw new InvalidOperationException(
-                    $"资产 {path} 类型为 {entry.Data?.GetType().Name ?? "null"}，不是 {typeof(T).Name}");
+                    $"资产 {path} 类型为 {entry.Data?.GetType().Name ?? "null"}，不是 {typeof(T).Name}"
+                );
             return AssetRequest<T>.Completed(typed);
         }
         var request = new AssetRequest<T> { Manager = this };
@@ -103,7 +108,11 @@ public sealed class AssetManager
         if (!_lazyPending.TryRemove(request, out var pending))
             return;
         var entry = _cache.Find(pending.Guid);
-        if (entry is null || entry.State != AssetState.Loading || !ReferenceEquals(entry.Pending, request))
+        if (
+            entry is null
+            || entry.State != AssetState.Loading
+            || !ReferenceEquals(entry.Pending, request)
+        )
             return;
         ScheduleLoad(pending.Guid, pending.Path);
     }
@@ -259,7 +268,8 @@ public sealed class AssetManager
     internal AssetCache Cache => _cache;
 
     /// <summary>GUID → 缓存资产（Data 为 T 即返回，与旧 MeshRenderer.Resolve 行为一致）；未命中/类型不符返回 null。</summary>
-    public T? TryResolve<T>(Guid guid) where T : class, IAsset
+    public T? TryResolve<T>(Guid guid)
+        where T : class, IAsset
     {
         var entry = _cache.Find(guid);
         return entry is { Data: T asset } ? asset : null;

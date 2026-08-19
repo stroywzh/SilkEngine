@@ -18,9 +18,9 @@ class Program
         // Demos.TestNDCTriangle.Run(engine);
         // Demos.TestNDCQuad.Run(engine);
         // Demos.TestCameraOrtho.Run(engine);
-        Demos.TestCameraPerspective.Run(engine);
+        // Demos.TestCameraPerspective.Run(engine);
         // Demos.TestPNGQuad.Run(engine);
-        // Demos.TestThirdPerson3D.Run(engine);
+        Demos.TestThirdPerson3D.Run(engine);
         // Demos.TestPNGQuad.Run(engine);
         // ---------------------------------------------------------
 

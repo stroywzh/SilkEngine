@@ -39,6 +39,8 @@ public class SceneManager : IDisposable
         _destroyHandler = (obj, delay) =>
             _destroyQueue.Add(new DestroyEntry { Target = obj, Delay = delay });
         Object.DestroyHandler += _destroyHandler;
+
+        Services.Register(this);
     }
 
     /// <summary>解绑 DestroyHandler（Services.Shutdown 反序释放 / 测试夹具调用）</summary>
@@ -53,11 +55,14 @@ public class SceneManager : IDisposable
         if (ActiveScene != null && registry != null)
         {
             foreach (var go in ActiveScene._rootObjects)
-                InvokeRecursive(go, c =>
-                {
-                    registry.Unregister(c);
-                    c.OnDestroy();
-                });
+                InvokeRecursive(
+                    go,
+                    c =>
+                    {
+                        registry.Unregister(c);
+                        c.OnDestroy();
+                    }
+                );
         }
         ActiveScene = scene;
         if (registry != null)
@@ -123,20 +128,24 @@ public class SceneManager : IDisposable
         if (Registry is null)
             yield break;
         foreach (var list in Registry.MonoBehaviourGroups)
-            foreach (var mb in list)
-                if (mb.GameObject.IsActiveInHierarchy && mb.Enabled)
-                    yield return mb;
+        foreach (var mb in list)
+            if (mb.GameObject.IsActiveInHierarchy && mb.Enabled)
+                yield return mb;
     }
 
     /// <summary>运行时向活动场景添加 GameObject（含子树）；注册进已注入注册表，不重复触发生命周期。</summary>
     public bool AddObjectToScene(GameObject go)
     {
-        if (ActiveScene == null
+        if (
+            ActiveScene == null
             || ActiveScene._rootObjects.Contains(go)
-            || go.Transform.Parent != null)
+            || go.Transform.Parent != null
+        )
         {
             if (LogConfig.Scene)
-                Log.Info($"[Scene] AddObjectToScene failed for '{go.Name}' (already in scene / no active scene / has parent)");
+                Log.Info(
+                    $"[Scene] AddObjectToScene failed for '{go.Name}' (already in scene / no active scene / has parent)"
+                );
             return false;
         }
         ActiveScene.AddRootObject(go);
@@ -163,7 +172,13 @@ public class SceneManager : IDisposable
                 Log.Info($"[Scene] Loaded scene from file '{path}'");
             return true;
         }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException or InvalidOperationException)
+        catch (Exception e)
+            when (e
+                    is IOException
+                        or UnauthorizedAccessException
+                        or JsonException
+                        or InvalidOperationException
+            )
         {
             Log.Error($"LoadSceneFromFile failed: {path} — {e.Message}");
             return false;
