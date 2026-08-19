@@ -51,6 +51,8 @@ public sealed class ThreadManager : IDisposable, IJobComposer
     {
         if (_shutdown)
             throw new InvalidOperationException("ThreadManager 已关闭");
+        if (_byName.ContainsKey(request.Name))
+            throw new InvalidOperationException($"线程执行者 '{request.Name}' 已注册");
         IThreadExecutor executor = request.Kind switch
         {
             ThreadKind.Dedicated => new DedicatedThreadExecutor(request.Name, request.Priority),
@@ -59,8 +61,7 @@ public sealed class ThreadManager : IDisposable, IJobComposer
         if (executor is not T typed)
             throw new InvalidOperationException(
                 $"申请 '{request.Name}' ({request.Kind}) 无法转型为 {typeof(T).Name}（实际 {executor.GetType().Name}）");
-        if (!_byName.TryAdd(request.Name, executor))
-            throw new InvalidOperationException($"线程执行者 '{request.Name}' 已注册");
+        _byName.Add(request.Name, executor);
         _executors.Add(executor);
         return typed;
     }
@@ -77,12 +78,16 @@ public sealed class ThreadManager : IDisposable, IJobComposer
         return false;
     }
 
-    /// <summary>默认提交：委托共享 ThreadPoolExecutor（CoreCLR ThreadPool）。</summary>
+    /// <summary>默认提交：委托共享 ThreadPoolExecutor（CoreCLR ThreadPool）；关闭后抛错。</summary>
     public IJobHandle Submit(
         Func<CancellationToken, ValueTask> work,
         WorkPriority priority = WorkPriority.Normal,
         CancellationToken ct = default)
-        => DefaultExecutor.Submit(work, priority, ct);
+    {
+        if (_shutdown)
+            throw new InvalidOperationException("ThreadManager 已关闭");
+        return DefaultExecutor.Submit(work, priority, ct);
+    }
 
     /// <summary>依赖组合：全部依赖完成才完成（Task.WhenAll 聚合）。</summary>
     public IJobHandle Combine(params IJobHandle[] dependencies)
@@ -104,5 +109,16 @@ public sealed class ThreadManager : IDisposable, IJobComposer
 
     public void Dispose() => Shutdown();
 
-    private ThreadPoolExecutor DefaultExecutor => _defaultExecutor ??= new ThreadPoolExecutor();
+    private ThreadPoolExecutor DefaultExecutor
+    {
+        get
+        {
+            if (_defaultExecutor is null)
+            {
+                _defaultExecutor = new ThreadPoolExecutor();
+                _executors.Add(_defaultExecutor);
+            }
+            return _defaultExecutor;
+        }
+    }
 }

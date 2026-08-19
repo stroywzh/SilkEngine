@@ -113,4 +113,13 @@ public class ThreadManagerTests
         Assert.Throws<InvalidOperationException>(
             () => tm.Request<ITaskExecutor>(new("W", ThreadKind.WorkerPool)));
     }
+
+    [Fact]
+    public void Submit_AfterShutdown_Throws()
+    {
+        var tm = new ThreadManager();
+        tm.Shutdown();
+        Assert.Throws<InvalidOperationException>(
+            () => tm.Submit(_ => ValueTask.CompletedTask));
+    }
 }
