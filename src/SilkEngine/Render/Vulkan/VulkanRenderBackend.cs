@@ -6,7 +6,7 @@ namespace SilkEngine.Render.Vulkan;
 
 /// <summary>
 /// Vulkan 渲染后端桩
-/// <br/>仅负责窗口创建、上下文切换与一帧的绘制执行，线程调度由外部 RenderThreadLoop 管理。
+/// <br/>仅负责窗口创建、上下文切换与一帧的绘制执行，线程调度由 ThreadManager 分配的专用执行者管理。
 /// </summary>
 public class VulkanRenderBackend : RenderBackendBase
 {
