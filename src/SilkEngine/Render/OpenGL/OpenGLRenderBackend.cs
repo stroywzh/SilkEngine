@@ -198,27 +198,24 @@ public class OpenGLRenderBackend : RenderBackendBase
     /// <inheritdoc />
     public override void Dispose()
     {
+        // 渲染线程已退出并 ClearContext：删除 GPU 资源前确保当前线程拥有 GL 上下文（wgl 允许任意线程 MakeCurrent 同一 HGLRC）
+        if (_window != null && _gl != null)
+            _window.MakeCurrent();
+
         foreach (var s in _shaderCache.Values)
-        {
             s.Dispose();
-        }
         foreach (var m in _meshCache.Values)
-        {
             m.Dispose();
-        }
         foreach (var m in _materialCache.Values)
-        {
             m.Dispose();
-        }
         _shaderCache.Clear();
         _meshCache.Clear();
         _materialCache.Clear();
-
         foreach (var t in _textureRegistry.Values)
-        {
             t.Dispose();
-        }
 
+        if (_window != null && _gl != null)
+            _window.ClearContext();
         _window?.Dispose();
         _gl?.Dispose();
         base.Dispose();
