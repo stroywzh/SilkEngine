@@ -122,4 +122,21 @@ public class ThreadManagerTests
         Assert.Throws<InvalidOperationException>(
             () => tm.Submit(_ => ValueTask.CompletedTask));
     }
+
+    [Fact]
+    public async Task Submit_ExecutesWork_OnDefaultExecutor()
+    {
+        var tm = new ThreadManager();
+        try
+        {
+            var ran = false;
+            var handle = tm.Submit(async ct => { await Task.Yield(); ran = true; });
+            await handle.AsTask().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.True(ran);
+        }
+        finally
+        {
+            tm.Shutdown();
+        }
+    }
 }

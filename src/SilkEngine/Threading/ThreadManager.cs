@@ -90,9 +90,7 @@ public sealed class ThreadManager : IDisposable, IJobComposer
     }
 
     /// <summary>
-    /// 默认提交：委托共享 ThreadPoolExecutor（CoreCLR ThreadPool）；
-    /// <br/>未完成，调用直接抛NotImplementedException
-    /// TODO：
+    /// 默认提交：委托共享 ThreadPoolExecutor（CoreCLR ThreadPool）。
     /// </summary>
     public IJobHandle Submit(
         Func<CancellationToken, ValueTask> work,
@@ -102,9 +100,7 @@ public sealed class ThreadManager : IDisposable, IJobComposer
     {
         if (_shutdown)
             throw new InvalidOperationException("ThreadManager 已关闭");
-        // Log.Error("");
-        // return DefaultExecutor.Submit(work, priority, ct);
-        throw new NotImplementedException();
+        return DefaultExecutor.Submit(work, priority, ct);
     }
 
     /// <summary>依赖组合：全部依赖完成才完成（Task.WhenAll 聚合）。</summary>
