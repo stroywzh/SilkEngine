@@ -57,8 +57,9 @@ public class Matrix4x4Tests
     [Fact]
     public void Perspective_TransformsForwardPoint()
     {
+        // GL 约定：相机看向 -Z，前方顶点视空间 z 为负
         var proj = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI/4f, 1.0f, 0.1f, 100f);
-        var result = proj * new Vector3(0, 0, 5);
+        var result = proj * new Vector3(0, 0, -5);
         Assert.True(result.Z > 0);
     }
 
@@ -75,21 +76,109 @@ public class Matrix4x4Tests
     }
 
     [Fact]
-    public void Perspective_NearAndFar_MapToZeroAndOne()
+    public void Perspective_NearAndFar_MapToMinusOneAndPlusOne()
     {
+        // GL NDC [-1,1]：near（视空间 z=-near）→ -1，far（z=-far）→ +1
         var proj = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 2f, 1.0f, 0.1f, 100f);
-        Assert.Equal(0f, (proj * new Vector3(0, 0, 0.1f)).Z, 3);
-        Assert.Equal(1f, (proj * new Vector3(0, 0, 100f)).Z, 3);
-        // 透视深度非线性：z'=0.5 出现在 z=2·near·far/(near+far)≈0.2 处（z=50 处已≈1.0）
-        Assert.Equal(0.5f, (proj * new Vector3(0, 0, 0.2f)).Z, 2);
+        Assert.Equal(-1f, (proj * new Vector3(0, 0, -0.1f)).Z, 3);
+        Assert.Equal(1f, (proj * new Vector3(0, 0, -100f)).Z, 3);
+        // 透视深度非线性：NDC=0（深度 0.5）出现在 z = -2·near·far/(near+far) ≈ -0.2 处
+        Assert.Equal(0f, (proj * new Vector3(0, 0, -0.2f)).Z, 2);
     }
 
     [Fact]
-    public void Orthographic_NearAndFar_MapToZeroAndOne()
+    public void Orthographic_NearAndFar_MapToMinusOneAndPlusOne()
     {
+        // GL NDC [-1,1]：near（视空间 z=-near）→ -1，far（z=-far）→ +1
         var ortho = Matrix4x4.CreateOrthographic(10f, 10f, 0.1f, 100f);
-        Assert.Equal(0f, (ortho * new Vector3(0, 0, 0.1f)).Z, 3);
-        Assert.Equal(1f, (ortho * new Vector3(0, 0, 100f)).Z, 3);
+        Assert.Equal(-1f, (ortho * new Vector3(0, 0, -0.1f)).Z, 3);
+        Assert.Equal(1f, (ortho * new Vector3(0, 0, -100f)).Z, 3);
+    }
+
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(-1f)]
+    [InlineData(MathF.PI)]
+    [InlineData(4f)]
+    public void Perspective_InvalidFov_Throws(float fov)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            Matrix4x4.CreatePerspectiveFieldOfView(fov, 1f, 0.1f, 100f));
+    }
+
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(-1f)]
+    public void Perspective_InvalidAspect_Throws(float aspect)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 2f, aspect, 0.1f, 100f));
+    }
+
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(-0.1f)]
+    [InlineData(float.NaN)]
+    [InlineData(float.PositiveInfinity)]
+    public void Perspective_InvalidNear_Throws(float near)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 2f, 1f, near, 100f));
+    }
+
+    [Theory]
+    [InlineData(0.1f, 0.1f)] // far == near
+    [InlineData(0.1f, 0.05f)] // far < near
+    [InlineData(0.1f, -1f)]
+    [InlineData(0.1f, float.NaN)]
+    [InlineData(0.1f, float.NegativeInfinity)]
+    public void Perspective_InvalidFar_Throws(float near, float far)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 2f, 1f, near, far));
+    }
+
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(-1f)]
+    [InlineData(float.NaN)]
+    public void Orthographic_InvalidWidth_Throws(float width)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            Matrix4x4.CreateOrthographic(width, 10f, 0.1f, 100f));
+    }
+
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(-1f)]
+    [InlineData(float.NaN)]
+    public void Orthographic_InvalidHeight_Throws(float height)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            Matrix4x4.CreateOrthographic(10f, height, 0.1f, 100f));
+    }
+
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(-0.1f)]
+    [InlineData(float.NaN)]
+    [InlineData(float.PositiveInfinity)]
+    public void Orthographic_InvalidNear_Throws(float near)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            Matrix4x4.CreateOrthographic(10f, 10f, near, 100f));
+    }
+
+    [Theory]
+    [InlineData(0.1f, 0.1f)] // far == near
+    [InlineData(0.1f, 0.05f)] // far < near
+    [InlineData(0.1f, -1f)]
+    [InlineData(0.1f, float.NaN)]
+    [InlineData(0.1f, float.NegativeInfinity)]
+    public void Orthographic_InvalidFar_Throws(float near, float far)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            Matrix4x4.CreateOrthographic(10f, 10f, near, far));
     }
 
     [Fact]

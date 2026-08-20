@@ -101,6 +101,16 @@ public struct Matrix4x4 : IEquatable<Matrix4x4>
         };
     }
 
+    /// <summary>
+    /// 创建透视投影矩阵（GL NDC [-1,1] 深度约定，行主序存储）。
+    /// 相机看向 -Z：视空间 z=-near 映射到 NDC -1，z=-far 映射到 NDC +1，clip.w = -z。
+    /// </summary>
+    /// <param name="fov">垂直视场角（弧度），须满足 0 &lt; fov &lt; π。</param>
+    /// <param name="aspect">宽高比（宽/高），须为正。</param>
+    /// <param name="near">近裁剪面距离，须为正且小于 far。</param>
+    /// <param name="far">远裁剪面距离，须为正且大于 near。</param>
+    /// <returns>透视投影矩阵。</returns>
+    /// <exception cref="ArgumentOutOfRangeException">fov/aspect 越界或 near/far 非法（非正、far ≤ near、非有限值）。</exception>
     public static Matrix4x4 CreatePerspectiveFieldOfView(
         float fov,
         float aspect,
@@ -108,27 +118,58 @@ public struct Matrix4x4 : IEquatable<Matrix4x4>
         float far
     )
     {
+        if (
+            !float.IsFinite(fov)
+            || fov <= 0f
+            || fov >= MathF.PI
+            || !float.IsFinite(aspect)
+            || aspect <= 0f
+        )
+            throw new ArgumentOutOfRangeException(nameof(fov), "fov 须为 (0, π) 内的有限值，aspect 须为正有限值");
+        if (!float.IsFinite(near) || near <= 0f || !float.IsFinite(far) || far <= near)
+            throw new ArgumentOutOfRangeException(nameof(near), "near/far 须为正有限值且 far > near");
+
         float f = 1f / MathF.Tan(fov * 0.5f);
         return new Matrix4x4
         {
             M11 = f / aspect,
             M22 = f,
-            M33 = far / (far - near),
-            M34 = -near * far / (far - near),
-            M43 = 1f,
+            M33 = -(far + near) / (far - near),
+            M34 = -2f * near * far / (far - near),
+            M43 = -1f,
             M44 = 0f,
         };
     }
 
+    /// <summary>
+    /// 创建正交投影矩阵（GL NDC [-1,1] 深度约定，行主序存储）。
+    /// 相机看向 -Z：视空间 z=-near 映射到 NDC -1，z=-far 映射到 NDC +1，clip.w = 1。
+    /// </summary>
+    /// <param name="width">视锥宽度，须为正。</param>
+    /// <param name="height">视锥高度，须为正。</param>
+    /// <param name="near">近裁剪面距离，须为正且小于 far。</param>
+    /// <param name="far">远裁剪面距离，须为正且大于 near。</param>
+    /// <returns>正交投影矩阵。</returns>
+    /// <exception cref="ArgumentOutOfRangeException">width/height 非正或 near/far 非法（非正、far ≤ near、非有限值）。</exception>
     public static Matrix4x4 CreateOrthographic(float width, float height, float near, float far)
     {
+        if (
+            !float.IsFinite(width)
+            || width <= 0f
+            || !float.IsFinite(height)
+            || height <= 0f
+        )
+            throw new ArgumentOutOfRangeException(nameof(width), "width/height 须为正有限值");
+        if (!float.IsFinite(near) || near <= 0f || !float.IsFinite(far) || far <= near)
+            throw new ArgumentOutOfRangeException(nameof(near), "near/far 须为正有限值且 far > near");
+
         float r = 1f / (far - near);
         return new Matrix4x4
         {
             M11 = 2f / width,
             M22 = 2f / height,
-            M33 = r,
-            M34 = -near * r,
+            M33 = -2f * r,
+            M34 = -(far + near) * r,
             M43 = 0f,
             M44 = 1f,
         };
