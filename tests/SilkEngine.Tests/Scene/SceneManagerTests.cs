@@ -264,7 +264,7 @@ public class SceneManagerTests : IClassFixture<SceneManagerFixture>
         var c2 = go2.AddComponent<Tracker>();
         s2.AddRootObject(go2);
         _sm.LoadScene(s2, reg);
-        mgr.CommitPending(reg, new List<SceneManager.DestroyEntry>(), s2, 0f);
+        mgr.CommitPending(reg, _sm._destroyQueue, s2, 0f); // 旧场景帧末统一销毁（架构 #6）
 
         Assert.True(c1.Destroy);                        // 旧场景组件收到 OnDestroy
         var all = reg.GetOfType<Tracker>();
@@ -302,7 +302,8 @@ public class SceneManagerTests : IClassFixture<SceneManagerFixture>
     public void LoadScene_SingleArg_SwitchesScenes()
     {
         var reg = new ComponentRegistry();
-        _sm.Attach(reg, new FrameSnapshotManager());
+        var mgr = new FrameSnapshotManager();
+        _sm.Attach(reg, mgr);
         {
             var s1 = new Scene("A");
             var go1 = new GameObject();
@@ -315,6 +316,7 @@ public class SceneManagerTests : IClassFixture<SceneManagerFixture>
             var c2 = go2.AddComponent<Tracker>();
             s2.AddRootObject(go2);
             _sm.LoadScene(s2);
+            mgr.CommitPending(reg, _sm._destroyQueue, s2, 0f); // 旧场景帧末统一销毁（架构 #6）
 
             Assert.True(c1.Destroy);
             var all = reg.GetOfType<Tracker>();
@@ -349,7 +351,7 @@ public class SceneManagerTests : IClassFixture<SceneManagerFixture>
     }
 
     [Fact]
-    public void ReloadSameScene_ComponentsNotZombie()
+    public void ReloadSameScene_DestroyedOnce_ExplicitDestroyIsIdempotent()
     {
         var reg = new ComponentRegistry();
         var mgr = new FrameSnapshotManager();
@@ -358,13 +360,14 @@ public class SceneManagerTests : IClassFixture<SceneManagerFixture>
         var c = go.AddComponent<DestroyCounter>();
         s.AddRootObject(go);
         _sm.LoadScene(s, reg);
-        _sm.LoadScene(s, reg);   // 重载
+        _sm.LoadScene(s, reg); // 重载：旧根经 Object.Destroy 入队，帧末统一销毁（架构 #6）
+        mgr.CommitPending(reg, _sm._destroyQueue, s, 0f);
 
-        Assert.Equal(1, c.DestroyCount);           // 卸载时 OnDestroy 一次
+        Assert.Equal(1, c.DestroyCount); // 卸载帧末 OnDestroy 恰一次
 
         Object.Destroy(c);
         mgr.CommitPending(reg, _sm._destroyQueue, s, 0f);
-        Assert.Equal(2, c.DestroyCount);           // 显式销毁仍有效（非僵尸）
+        Assert.Equal(1, c.DestroyCount); // 已销毁 → 幂等短路，无二次 OnDestroy（非僵尸由统一管道保证）
     }
 
     private class TestWriter : ILogWriter

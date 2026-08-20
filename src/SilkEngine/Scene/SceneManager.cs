@@ -14,6 +14,7 @@ public class SceneManager : IDisposable
     {
         public Object Target;
         public float Delay;
+        public Scene? Origin; // 帧末从原场景容器摘除（LoadScene 后 ActiveScene 已切换）
     }
 
     internal List<DestroyEntry> _destroyQueue = new();
@@ -37,7 +38,7 @@ public class SceneManager : IDisposable
     public SceneManager()
     {
         _destroyHandler = (obj, delay) =>
-            _destroyQueue.Add(new DestroyEntry { Target = obj, Delay = delay });
+            _destroyQueue.Add(new DestroyEntry { Target = obj, Delay = delay, Origin = ActiveScene });
         Object.DestroyHandler += _destroyHandler;
 
         Services.Register(this);
@@ -52,17 +53,10 @@ public class SceneManager : IDisposable
 
     public void LoadScene(SilkEngine.Scene.Scene scene, ComponentRegistry? registry = null)
     {
-        if (ActiveScene != null && registry != null)
+        if (ActiveScene != null)
         {
-            foreach (var go in ActiveScene._rootObjects)
-                InvokeRecursive(
-                    go,
-                    c =>
-                    {
-                        registry.Unregister(c);
-                        c.OnDestroy();
-                    }
-                );
+            foreach (var go in ActiveScene._rootObjects.ToArray())
+                Object.Destroy(go); // 统一队列 + 幂等 + 立即失活
         }
         ActiveScene = scene;
         if (registry != null)

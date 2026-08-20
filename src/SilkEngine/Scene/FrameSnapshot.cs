@@ -62,9 +62,14 @@ internal sealed class FrameSnapshotManager
             }
             else if (e.Target is GameObject go)
             {
+                if (go._destroyed)
+                {
+                    destroys.RemoveAt(i); // 幂等命中：先摘除再跳过（否则条目滞留队列）
+                    continue;
+                }
                 RemoveObjectRecursive(go, registry);
                 go._destroyed = true;
-                activeScene?._rootObjects.Remove(go);
+                e.Origin?._rootObjects.Remove(go); // 原逻辑 activeScene 替换为条目记录的来源场景
             }
             if (LogConfig.Scene)
                 Log.Info($"[Scene] Destroyed '{e.Target.Name}'");
@@ -84,6 +89,8 @@ internal sealed class FrameSnapshotManager
 
     private static void RemoveObjectRecursive(GameObject go, ComponentRegistry registry)
     {
+        if (go._destroyed)
+            return;
         foreach (var c in go._components)
         {
             registry.Unregister(c);

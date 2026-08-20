@@ -112,7 +112,7 @@ public class SceneManagerAttachTests : IDisposable
     [Fact]
     public void LoadScene_SingleArg_UsesAttachedRegistry()
     {
-        var sm = NewAttached(out var reg, out _);
+        var sm = NewAttached(out var reg, out var mgr);
         try
         {
             var s1 = new Scene("A");
@@ -128,6 +128,7 @@ public class SceneManagerAttachTests : IDisposable
             Services.Unregister<SceneManager>(); // 回退解析完成即注销，窗口缩至瞬时（防并行集合注册冲突）
             s2.AddRootObject(go2);
             sm.LoadScene(s2);
+            mgr.CommitPending(reg, sm._destroyQueue, s2, 0f); // 旧场景帧末统一销毁（架构 #6）
 
             Assert.True(c1.Destroy);                  // 旧场景组件收到 OnDestroy
             Assert.Same(c2, Assert.Single(reg.GetOfType<Tracker>())); // 仅新场景在册
