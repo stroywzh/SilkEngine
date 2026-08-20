@@ -12,7 +12,7 @@ public class MouseState
 
     public Vector2 Position => _pos;
     public Vector2 MoveVector => _pos - _prevPos;
-    public float ScrollDelta { get; set; }
+    public float ScrollDelta { get; internal set; }
 
     public bool LeftButton => GetButton(0);
     public bool RightButton => GetButton(1);

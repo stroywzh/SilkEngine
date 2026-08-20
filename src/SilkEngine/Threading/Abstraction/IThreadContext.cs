@@ -1,3 +1,6 @@
+using System;
+using System.Runtime.InteropServices;
+
 namespace SilkEngine.Threading;
 
 /// <summary>
@@ -13,9 +16,9 @@ public record ThreadContext
     public string Name => Thread.Name ?? $"UnNamed-ManagedThread-{InternalManagedId}";
 
     /// <summary>
-    /// OS提供的线程PID
+    /// OS 提供的线程 ID（Windows：GetCurrentThreadId；非 Windows 回退 Environment.CurrentManagedThreadId）
     /// </summary>
-    public int NativeThreadId => Thread.GetCurrentProcessorId();
+    public int NativeThreadId => Native.GetCurrentThreadId();
 
     /// <summary>
     /// 内部管理ID
@@ -46,4 +49,21 @@ public interface IWorkload
     void Submit(object workload);
     void Remove(object workload);
     bool ExecuteFrame(ThreadContext context); // 工作线程循环体，返回 false 退出
+}
+
+/// <summary>
+/// 原生线程 ID 提供者：Windows 经 P/Invoke GetCurrentThreadId 获取 OS 线程 ID，
+/// 非 Windows 回退托管线程 ID（Environment.CurrentManagedThreadId）。
+/// </summary>
+internal static class Native
+{
+    private static readonly bool _isWindows = OperatingSystem.IsWindows();
+
+    [DllImport("kernel32.dll", EntryPoint = "GetCurrentThreadId")]
+    private static extern uint GetCurrentThreadIdNative();
+
+    public static int GetCurrentThreadId() =>
+        _isWindows
+            ? unchecked((int)GetCurrentThreadIdNative())
+            : Environment.CurrentManagedThreadId;
 }

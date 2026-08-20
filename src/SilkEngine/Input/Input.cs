@@ -9,6 +9,7 @@ public static class Input
     private static readonly KeyboardState _keyboard = new();
     private static readonly MouseState _mouse = new();
     private static readonly Dictionary<string, float> _axes = new();
+    private static readonly KeyCode[] _keyCodes = Enum.GetValues<KeyCode>();
 
     public static KeyboardState Keyboard => _keyboard;
     public static MouseState Mouse => _mouse;
@@ -35,7 +36,12 @@ public static class Input
     }
 #endif
 
-    public static void SetProvider(IInputProvider provider) => _provider = provider;
+    /// <summary>替换输入提供者；旧提供者立即释放（IDisposable）。</summary>
+    public static void SetProvider(IInputProvider provider)
+    {
+        _provider?.Dispose();
+        _provider = provider;
+    }
 
     public static bool GetKey(KeyCode key) => _keyboard.GetKey(key);
 
@@ -59,7 +65,7 @@ public static class Input
 
         if (EnableLog)
         {
-            foreach (KeyCode kc in Enum.GetValues<KeyCode>())
+            foreach (KeyCode kc in _keyCodes)
             {
                 if (kc == KeyCode.None)
                     continue;

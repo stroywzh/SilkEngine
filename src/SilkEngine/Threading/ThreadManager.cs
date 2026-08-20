@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using SilkEngine.Core;
@@ -65,9 +64,12 @@ public sealed class ThreadManager : IDisposable, IJobComposer
         };
 
         if (executor is not T typed)
+        {
+            executor.Dispose();
             throw new InvalidOperationException(
                 $"申请 '{request.Name}' ({request.Kind}) 无法转型为 {typeof(T).Name}（实际 {executor.GetType().Name}）"
             );
+        }
 
         _byName.Add(request.Name, executor);
         _executors.Add(executor);
@@ -103,9 +105,14 @@ public sealed class ThreadManager : IDisposable, IJobComposer
         return DefaultExecutor.Submit(work, priority, ct);
     }
 
-    /// <summary>依赖组合：全部依赖完成才完成（Task.WhenAll 聚合）。</summary>
-    public IJobHandle Combine(params IJobHandle[] dependencies) =>
-        new TaskJobHandle(Task.WhenAll(dependencies.Select(d => d.AsTask().AsTask()).ToArray()));
+    /// <summary>依赖组合：全部依赖完成才完成（Task.WhenAll 单次聚合包装）。</summary>
+    public IJobHandle Combine(params IJobHandle[] dependencies)
+    {
+        Task[] tasks = new Task[dependencies.Length];
+        for (var i = 0; i < dependencies.Length; i++)
+            tasks[i] = dependencies[i].AsTask().AsTask();
+        return new TaskJobHandle(Task.WhenAll(tasks));
+    }
 
     /// <summary>
     /// 反序 Stop 并 Join 全部执行者（渲染等专用线程先停）

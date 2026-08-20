@@ -8,21 +8,23 @@ namespace SilkEngine.InputSystem;
 
 public class SilkInputProvider : IInputProvider
 {
+    private static readonly KeyCode[] _keyCodes = Enum.GetValues<KeyCode>();
+    private IInputContext? _input;
     private IKeyboard? _keyboard;
     private IMouse? _mouse;
 
     public void Initialize(IWindow window)
     {
-        var input = window.CreateInput();
-        _keyboard = input.Keyboards.FirstOrDefault();
-        _mouse = input.Mice.FirstOrDefault();
+        _input = window.CreateInput();
+        _keyboard = _input.Keyboards.FirstOrDefault();
+        _mouse = _input.Mice.FirstOrDefault();
     }
 
     public void UpdateInput(KeyboardState kb, MouseState ms)
     {
         if (_keyboard != null)
         {
-            foreach (KeyCode kc in Enum.GetValues<KeyCode>())
+            foreach (KeyCode kc in _keyCodes)
             {
                 if (kc == KeyCode.None)
                     continue;
@@ -93,6 +95,8 @@ public class SilkInputProvider : IInputProvider
             KeyCode.RightShift => Key.ShiftRight,
             KeyCode.LeftControl => Key.ControlLeft,
             KeyCode.RightControl => Key.ControlRight,
+            KeyCode.LeftAlt => Key.AltLeft,
+            KeyCode.RightAlt => Key.AltRight,
             KeyCode.LeftArrow => Key.Left,
             KeyCode.RightArrow => Key.Right,
             KeyCode.UpArrow => Key.Up,
@@ -112,5 +116,12 @@ public class SilkInputProvider : IInputProvider
             _ => Key.Unknown,
         };
 
-    public void Dispose() { }
+    /// <summary>释放持有 IInputContext（含其子键盘/鼠标），不再更新输入状态。</summary>
+    public void Dispose()
+    {
+        _input?.Dispose();
+        _input = null;
+        _keyboard = null;
+        _mouse = null;
+    }
 }

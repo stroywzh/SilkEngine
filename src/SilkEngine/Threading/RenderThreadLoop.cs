@@ -99,7 +99,6 @@ public class RenderThreadLoop : IDisposable
                     _backend.ExecutePass(pass.Commands);
                     pass.AfterCommands?.Invoke(_backend);
                 }
-                _backend.Present();
             }
             if (LogConfig.Render)
                 Log.Info($"[Render] Frame submitted (passes: {_pendingPasses?.Count ?? 0})");
@@ -110,6 +109,18 @@ public class RenderThreadLoop : IDisposable
         }
         finally
         {
+            // pass 异常也必须 Present（Present 自身 try-catch 保护，不阻断帧同步放行）
+            if (_pendingPasses != null)
+            {
+                try
+                {
+                    _backend.Present();
+                }
+                catch (Exception ex)
+                {
+                    Log.Error($"[RenderThread] Present failed: {ex}");
+                }
+            }
             _frameDone.Set(); // 异常路径也必须放行主线程
         }
         return true;

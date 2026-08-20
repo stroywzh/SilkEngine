@@ -24,6 +24,14 @@ namespace SilkEngine.Tests.Input
             }
         }
 
+        private class TrackingProvider : IInputProvider
+        {
+            public bool Disposed;
+            public void Initialize(Silk.NET.Windowing.IWindow w) { }
+            public void Dispose() => Disposed = true;
+            public void UpdateInput(KeyboardState kb, MouseState ms) { }
+        }
+
         [Fact]
         public void GetKeyDown_DelegatesToKeyboard()
         {
@@ -54,15 +62,27 @@ namespace SilkEngine.Tests.Input
             Assert.True(v > 0f);
         }
 
-        [Fact]
-        public void GetAxis_Horizontal_Released_ReturnsToZero()
-        {
-            var p = new FakeProvider { D = true };
-            Input.SetProvider(p);
-            for (int i = 0; i < 30; i++) Input.Update();
-            p.D = false;
-            for (int i = 0; i < 30; i++) Input.Update();
-            Assert.True(Input.GetAxis("Horizontal") < 0.1f);
-        }
+    [Fact]
+    public void GetAxis_Horizontal_Released_ReturnsToZero()
+    {
+        var p = new FakeProvider { D = true };
+        Input.SetProvider(p);
+        for (int i = 0; i < 30; i++) Input.Update();
+        p.D = false;
+        for (int i = 0; i < 30; i++) Input.Update();
+        Assert.True(Input.GetAxis("Horizontal") < 0.1f);
     }
+
+    [Fact]
+    public void SetProvider_DisposesOldProvider()
+    {
+        var old = new TrackingProvider();
+        var next = new TrackingProvider();
+        Input.SetProvider(old);
+        Input.SetProvider(next);
+        Assert.True(old.Disposed);
+        Assert.False(next.Disposed);
+        Input.SetProvider(new FakeProvider()); // 清理静态 provider，避免影响同类的后续测试
+    }
+}
 }

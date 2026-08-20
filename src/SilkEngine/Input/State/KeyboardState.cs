@@ -17,8 +17,8 @@ public class KeyboardState
 
     public void SwapBuffers()
     {
-        _prev = _curr;
-        _curr = new HashSet<KeyCode>();
+        (_prev, _curr) = (_curr, _prev);
+        _curr.Clear();
     }
 
     public void SetKey(KeyCode key, bool pressed)

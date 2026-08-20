@@ -1,3 +1,4 @@
+using System.Reflection;
 using SilkEngine.InputSystem;
 
 namespace SilkEngine.Tests.Input;
@@ -49,5 +50,18 @@ public class KeyboardStateTests
         var kb = new KeyboardState();
         kb.SetKey(KeyCode.A, true);
         Assert.True(kb.AnyKey);
+    }
+
+    [Fact]
+    public void SwapBuffers_ReusesCollectionInstances_ZeroAllocation()
+    {
+        var kb = new KeyboardState();
+        var curr = typeof(KeyboardState).GetField("_curr", BindingFlags.NonPublic | BindingFlags.Instance);
+        Assert.NotNull(curr);
+        var first = curr.GetValue(kb);
+        kb.SwapBuffers();
+        kb.SwapBuffers();
+        var third = curr.GetValue(kb);
+        Assert.Same(first, third);
     }
 }
