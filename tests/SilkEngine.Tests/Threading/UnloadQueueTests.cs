@@ -47,8 +47,8 @@ public class UnloadQueueTests
 
             using var fake = new FakeBackend();
             using var exec = new DedicatedThreadExecutor("TestUnload");
-            using var loop = new RenderThreadLoop(fake);
-            loop.Initialize(exec);
+            using var loop = new RenderThreadLoop(fake, exec);
+            loop.Initialize();
             // 提交一帧 → 渲染线程帧首应处理释放队列
             loop.SubmitFrame([new RenderPass { Commands = [] }]);
 

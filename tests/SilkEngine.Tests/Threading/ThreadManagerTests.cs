@@ -43,7 +43,7 @@ public class ThreadManagerTests
     public void Request_WorkerPool_ReturnsSharedDefaultExecutor()
     {
         using var tm = new ThreadManager();
-        var a = tm.Request<ITaskExecutor>(new("Workers", ThreadKind.WorkerPool, Count: 2));
+        var a = tm.Request<ITaskExecutor>(new("Workers", ThreadKind.WorkerPool, count: 2));
         var b = tm.Request<ITaskExecutor>(new("Other", ThreadKind.WorkerPool));
         Assert.Same(a, b);   // 共享单例（CoreCLR ThreadPool）
     }
