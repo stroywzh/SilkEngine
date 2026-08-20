@@ -88,8 +88,13 @@ public class Material : IAsset
             if (!m.Vectors.TryGetValue(kv.Key, out var v) || kv.Value != v)
                 return false;
         foreach (var kv in Matrices)
-            if (!m.Matrices.TryGetValue(kv.Key, out var a) || kv.Value.Length != a.Length)
+        {
+            if (!m.Matrices.TryGetValue(kv.Key, out var other) || kv.Value.Length != other.Length)
                 return false;
+            for (int i = 0; i < kv.Value.Length; i++)
+                if (kv.Value[i] != other[i])
+                    return false;
+        }
         return true;
     }
 

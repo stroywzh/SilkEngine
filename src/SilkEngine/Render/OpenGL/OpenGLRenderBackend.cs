@@ -16,9 +16,9 @@ public class OpenGLRenderBackend : RenderBackendBase
     private IWindow? _window;
     private GL? _gl;
 
-    private readonly Dictionary<Shader, OpenGLShader> _shaderCache = new();
-    private readonly Dictionary<Mesh, OpenGLMesh> _meshCache = new();
-    private readonly Dictionary<Material, OpenGLMaterial> _materialCache = new();
+    private readonly Dictionary<Shader, OpenGLShader> _shaderCache = new(ReferenceEqualityComparer.Instance);
+    private readonly Dictionary<Mesh, OpenGLMesh> _meshCache = new(ReferenceEqualityComparer.Instance);
+    private readonly Dictionary<Material, OpenGLMaterial> _materialCache = new(ReferenceEqualityComparer.Instance);
     private readonly OpenGLTextureRegistry _textureRegistry = new(t => new OpenGLTexture(t));
 
     private float _clearR = 0.1f,
