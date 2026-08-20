@@ -15,13 +15,13 @@ partial class SampleStj
         if (__rawTags != null)
         {
             try { Tags = global::System.Text.Json.JsonSerializer.Deserialize<global::System.String[]>(__rawTags); }
-            catch (global::System.Text.Json.JsonException) { }
+            catch (global::System.Text.Json.JsonException) { global::SilkEngine.Core.Log.Warn("字段 'Tags' 反序列化失败，保留原值"); }
         }
         var __rawStamp = node.GetRaw("Stamp");
         if (__rawStamp != null)
         {
             try { Stamp = global::System.Text.Json.JsonSerializer.Deserialize<global::System.DateTime>(__rawStamp); }
-            catch (global::System.Text.Json.JsonException) { }
+            catch (global::System.Text.Json.JsonException) { global::SilkEngine.Core.Log.Warn("字段 'Stamp' 反序列化失败，保留原值"); }
         }
     }
 }

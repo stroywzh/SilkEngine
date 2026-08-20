@@ -26,8 +26,8 @@ public sealed class ServiceRegistrationGenerator : IIncrementalGenerator
 
     private static readonly DiagnosticDescriptor Serv002 = new(
         id: "SERV002",
-        title: "Service 类型必须为非抽象且具无参构造",
-        messageFormat: "类型 '{0}' 不能标记 [Service]（必须是引擎程序集内的非抽象类且具有无参构造）",
+        title: "Service 类型必须为非抽象且具公共无参构造",
+        messageFormat: "类型 '{0}' 不能标记 [Service]（必须是引擎程序集内的非抽象类且具有公共无参构造，实际：{1}）",
         category: "SilkEngine.Core",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
@@ -76,16 +76,16 @@ public sealed class ServiceRegistrationGenerator : IIncrementalGenerator
                     continue;
                 }
                 if (info.Symbol.IsAbstract
-                    || !info.Symbol.InstanceConstructors.Any(c => c.Parameters.Length == 0))
+                    || !HasPublicParameterlessCtor(info.Symbol))
                 {
-                    spc.ReportDiagnostic(Diagnostic.Create(Serv002, loc, info.Symbol.Name));
+                    spc.ReportDiagnostic(Diagnostic.Create(Serv002, loc, info.Symbol.Name, CtorVisibilityDetail(info.Symbol)));
                     continue;
                 }
             }
             var valid = list
                 .Where(i => i.Symbol.ContainingAssembly?.Name == "SilkEngine"
                     && !i.Symbol.IsAbstract
-                    && i.Symbol.InstanceConstructors.Any(c => c.Parameters.Length == 0))
+                    && HasPublicParameterlessCtor(i.Symbol))
                 .ToList();
             if (valid.Count == 0)
                 return;
@@ -102,7 +102,7 @@ public sealed class ServiceRegistrationGenerator : IIncrementalGenerator
             {
                 var full = info.Symbol.ToDisplayString(
                     SymbolDisplayFormat.FullyQualifiedFormat.WithMiscellaneousOptions(SymbolDisplayMiscellaneousOptions.EscapeKeywordIdentifiers));
-                var nameArg = info.Name is null ? "" : $", name: \"{info.Name}\"";
+                var nameArg = info.Name is null ? "" : ", name: " + SymbolDisplay.FormatLiteral(info.Name, quote: true);
                 sb.AppendLine("        global::SilkEngine.Core.Services.Register<" + full
                     + ">(new " + full + "()" + nameArg + ");");
             }
@@ -110,6 +110,19 @@ public sealed class ServiceRegistrationGenerator : IIncrementalGenerator
             sb.AppendLine("}");
             spc.AddSource("__ServiceBootstrap.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));
         });
+    }
+
+    /// <summary>公共无参构造判定（生成的 new T() 需同程序集可解析；约定仅接受 public 可见性）。</summary>
+    private static bool HasPublicParameterlessCtor(INamedTypeSymbol symbol) =>
+        symbol.InstanceConstructors.Any(c => c.Parameters.Length == 0 && c.DeclaredAccessibility == Accessibility.Public);
+
+    /// <summary>SERV002 可见性明细（供诊断消息展示类型实际状态）。</summary>
+    private static string CtorVisibilityDetail(INamedTypeSymbol symbol)
+    {
+        if (symbol.IsAbstract)
+            return "抽象类型";
+        var ctor = symbol.InstanceConstructors.FirstOrDefault(c => c.Parameters.Length == 0);
+        return ctor is null ? "无无参构造" : ctor.DeclaredAccessibility.ToString();
     }
 
     private sealed record ServiceInfo(INamedTypeSymbol Symbol, int Priority, string? Name);

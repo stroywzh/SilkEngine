@@ -106,6 +106,48 @@ public class GeneratorSnapshotTests
     }
 
     [Fact]
+    public void GenericComponent_GeneratesNothing()
+    {
+        var (generated, diags) = GeneratorHarness.Run("""
+            using SilkEngine.Scene;
+            public partial class SampleGeneric<T> : MonoBehaviour
+            {
+                public float X;
+            }
+            """);
+        Assert.Empty(diags);
+        Assert.DoesNotContain(generated, g => g.Contains("SampleGeneric"));
+    }
+
+    [Fact]
+    public void KeywordFieldNames_EscapedInGeneratedCode()
+    {
+        const string snippet = """
+            using SilkEngine.Scene;
+            public partial class KeywordFields : MonoBehaviour
+            {
+                public float @event;
+                public int @class;
+            }
+            """;
+        var (generated, diags) = GeneratorHarness.Run(snippet);
+        Assert.Empty(diags.Where(d => d.Severity == DiagnosticSeverity.Error));
+        var g = Assert.Single(generated, x => x.Contains("partial class KeywordFields"));
+        Assert.Contains("@event", g);
+        Assert.Contains("@class", g);
+        Assert.Empty(GeneratorHarness.RunCompileCheck(snippet));
+    }
+
+    [Fact]
+    public void StjFallback_LogsWarning_OnParseFailure()
+    {
+        var (generated, _) = GeneratorHarness.Run(StjSnippet);
+        var g = Assert.Single(generated, x => x.Contains("partial class SampleStj"));
+        Assert.Contains("global::SilkEngine.Core.Log.Warn", g);
+        Assert.Contains("Tags", g);
+    }
+
+    [Fact]
     public void GeneratedCode_Recompiles_WithoutErrors()
     {
         Assert.Empty(GeneratorHarness.RunCompileCheck(WhitelistSnippet));

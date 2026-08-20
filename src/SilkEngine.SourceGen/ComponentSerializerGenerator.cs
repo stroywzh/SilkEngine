@@ -195,6 +195,10 @@ public sealed class ComponentSerializerGenerator : IIncrementalGenerator
 
     private static string Global(ITypeSymbol t) => t.ToDisplayString(NoSpecialTypesFormat);
 
+    /// <summary>C# 关键字转义（@ 前缀）；非关键字原样返回。生成代码中字段/属性名以标识符形式出现。</summary>
+    private static string EscapeIdentifier(string name) =>
+        SyntaxFacts.GetKeywordKind(name) == SyntaxKind.None ? name : "@" + name;
+
     private static bool IsDerivedFrom(INamedTypeSymbol symbol, INamedTypeSymbol baseType)
     {
         for (var t = symbol.BaseType; t is not null; t = t.BaseType)
@@ -277,6 +281,8 @@ public sealed class ComponentSerializerGenerator : IIncrementalGenerator
                 return null;
             if (symbol.IsAbstract || symbol.IsStatic)
                 return null;
+            if (symbol.TypeParameters.Length > 0)
+                return null;   // 泛型声明跳过：partial 生成需同型参且 HintName 含 <> 非法，泛型组件走 STJ 运行时序列化
             if (symbol.ContainingType is not null)
                 return null;   // 嵌套类型不生成（附录规则 R0）
             var component = ctx.SemanticModel.Compilation.GetTypeByMetadataName(GenConstants.Component);
@@ -335,7 +341,9 @@ public sealed class ComponentSerializerGenerator : IIncrementalGenerator
                     continue;
                 if (HasAttribute(f, GenConstants.NoSerializeFieldAttribute))
                     continue;
-                var childAccess = access.Length == 0 ? f.Name : access + "." + f.Name;
+                var childAccess = access.Length == 0
+                    ? EscapeIdentifier(f.Name)
+                    : access + "." + EscapeIdentifier(f.Name);
                 var childKey = key.Length == 0 ? f.Name : key + "_" + f.Name;
 
                 var scalar = ScalarOf(f.Type);
@@ -356,7 +364,7 @@ public sealed class ComponentSerializerGenerator : IIncrementalGenerator
                     {
                         Key = property is null ? childKey : property.Name,
                         Kind = FieldKind.Asset,
-                        Access = property is null ? childAccess : property.Name,
+                        Access = property is null ? childAccess : EscapeIdentifier(property.Name),
                         Guards = guards, Ensures = ensures,
                         TargetType = Global(f.Type), IsAssetProperty = property is not null,
                     });
@@ -464,7 +472,8 @@ public sealed class ComponentSerializerGenerator : IIncrementalGenerator
                     sb.AppendLine("            try { " + leaf.Access
                         + " = global::System.Text.Json.JsonSerializer.Deserialize<" + leaf.TargetType
                         + ">(" + rawName + "); }");
-                    sb.AppendLine("            catch (global::System.Text.Json.JsonException) { }");
+                    sb.AppendLine("            catch (global::System.Text.Json.JsonException) { global::SilkEngine.Core.Log.Warn("
+                        + SymbolDisplay.FormatLiteral("字段 '" + leaf.Key + "' 反序列化失败，保留原值", quote: true) + "); }");
                     sb.AppendLine("        }");
                     break;
             }

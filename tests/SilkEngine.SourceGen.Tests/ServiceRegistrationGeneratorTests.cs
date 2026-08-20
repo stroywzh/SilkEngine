@@ -76,6 +76,36 @@ public class ServiceRegistrationGeneratorTests
     }
 
     [Fact]
+    public void NonPublicCtor_ErrorsServ002_WithVisibility()
+    {
+        var (_, diags) = ServiceHarness.Run("""
+            using SilkEngine.Core;
+            [Service]
+            public class PrivateCtorBad { private PrivateCtorBad() { } }
+            """, assemblyName: "SilkEngine");
+        var d = Assert.Single(diags, x => x.Id == "SERV002" && x.Severity == DiagnosticSeverity.Error);
+        Assert.Contains("PrivateCtorBad", d.GetMessage());
+        Assert.Contains("Private", d.GetMessage());
+    }
+
+    [Fact]
+    public void NameWithQuotesAndNewlines_EscapedInGeneratedCode()
+    {
+        const string snippet = """
+            using SilkEngine.Core;
+            [Service(0, "say \"hi\" back\\slash\nnext")]
+            public class EscapedName { }
+            """;
+        var (generated, diags) = ServiceHarness.Run(snippet, assemblyName: "SilkEngine");
+        Assert.Empty(diags.Where(d => d.Severity == DiagnosticSeverity.Error));
+        var bootstrap = Assert.Single(generated, g => g.Contains("__ServiceBootstrap"));
+        Assert.Contains("""
+            name: "say \"hi\" back\\slash\nnext"
+            """, bootstrap);
+        Assert.Empty(ServiceHarness.RunCompileCheck(snippet + "\n" + ServicesStub, assemblyName: "SilkEngine"));
+    }
+
+    [Fact]
     public void GeneratedCode_Recompiles_WithoutErrors()
     {
         // 生成代码调用 internal Services.Register —— 仅在产物实际编译的上下文（引擎程序集）中可解析；
