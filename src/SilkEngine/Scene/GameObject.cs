@@ -7,6 +7,11 @@ using Object = SilkEngine.Core.Object;
 
 namespace SilkEngine.Scene;
 
+/// <summary>
+/// 场景对象工厂：承载 Transform 与组件集合的树节点。
+/// 组件经 AddComponent 挂载（顺序：挂载 → ReadFrom(序列化数据) → OnAwake → RecomputeActiveState(Enable) → 注册），
+/// 销毁走帧末队列（Object.Destroy → SceneManager 帧末统一 OnDestroy + Unregister）。
+/// </summary>
 public sealed class GameObject : Object
 {
     static GameObject()
@@ -70,8 +75,13 @@ public sealed class GameObject : Object
     /// <summary>反序列化管道：清理挂载数据（组件均已完成 ReadFrom 后调用）。</summary>
     internal void ClearSerializedData() => _serializedData = null;
 
+    /// <summary>本对象固有 Transform（构造时创建，恒非空）。</summary>
     public Transform Transform { get; }
     private bool _isActive = true;
+
+    /// <summary>
+    /// 自身活跃开关；置 false 级联通知自身组件与全部子树（RecomputeActiveState → OnEnable/OnDisable）。
+    /// </summary>
     public bool IsActive
     {
         get => _isActive;
@@ -88,6 +98,9 @@ public sealed class GameObject : Object
     public bool IsActiveInHierarchy =>
         _isActive && (Transform.Parent?.GameObject?.IsActiveInHierarchy ?? true);
 
+    /// <summary>
+    /// 级联活跃通知：重算自身组件活跃态并递归子树（IsActive/SetParent 变更入口）。
+    /// </summary>
     internal void NotifyActivationChanged()
     {
         foreach (var c in _components.ToArray())
@@ -96,19 +109,30 @@ public sealed class GameObject : Object
             child.GameObject?.NotifyActivationChanged();
     }
 
+    /// <summary>创建根对象（无父级，位于世界原点）。</summary>
+    /// <param name="name">对象名称</param>
     public GameObject(string name = "GameObject")
     {
         Name = name;
         Transform = new Transform((GameObject)this);
     }
 
+    /// <summary>创建挂载于指定父 Transform 下的子对象。</summary>
+    /// <param name="parent">父级 Transform（构造即建立父子关系）</param>
+    /// <param name="name">对象名称</param>
     public GameObject(Transform parent, string name = "GameObject")
     {
         Name = name;
         Transform = new Transform((GameObject)this, parent);
     }
 
-    /// <summary>挂载组件；同实例重复添加或跨宿主重挂抛 InvalidOperationException。</summary>
+    /// <summary>
+    /// 挂载组件并返回其实例。
+    /// </summary>
+    /// <param name="c">组件实例（同实例重复添加或已挂载于其他宿主时抛异常）</param>
+    /// <param name="registry">组件注册表；null 时走 Services 回退链（SceneManager 注册表）</param>
+    /// <returns>已挂载的组件实例</returns>
+    /// <exception cref="InvalidOperationException">同实例重复添加，或组件已挂载于其他 GameObject</exception>
     public Component AddComponent(Component c, ComponentRegistry? registry = null)
     {
         if (_components.Contains(c))
@@ -123,6 +147,9 @@ public sealed class GameObject : Object
         return c;
     }
 
+    /// <summary>创建并挂载指定类型的组件（AddComponent(new T()) 的便捷形式）。</summary>
+    /// <param name="registry">组件注册表；null 时走 Services 回退链（SceneManager 注册表）</param>
+    /// <returns>已挂载的新建组件实例</returns>
     public T AddComponent<T>(ComponentRegistry? registry = null)
         where T : Component, new()
     {
@@ -163,6 +190,8 @@ public sealed class GameObject : Object
             Log.Info($"[Lifecycle] Added component {c.GetType().Name} to '{Name}'");
     }
 
+    /// <summary>按类型查找首个已挂载组件（线性扫描）。</summary>
+    /// <returns>匹配的组件实例；未找到返回 null</returns>
     public T? GetComponent<T>()
         where T : Component
     {
@@ -173,6 +202,12 @@ public sealed class GameObject : Object
         return null;
     }
 
+    /// <summary>
+    /// 移除首个匹配类型的组件：立即从组件集合摘除并触发 OnDisable（若启用），
+    /// OnDestroy 与注销经帧末销毁队列（CommitPending）执行。
+    /// </summary>
+    /// <param name="registry">组件注册表；null 时走 Services 回退链</param>
+    /// <returns>是否成功移除（类型未挂载返回 false）</returns>
     public bool RemoveComponent<T>(ComponentRegistry? registry = null)
         where T : Component
     {

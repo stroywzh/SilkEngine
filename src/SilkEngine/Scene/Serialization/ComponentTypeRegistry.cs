@@ -19,6 +19,8 @@ public static class ComponentTypeRegistry
     }
 
     /// <summary>按类型全名解析组件工厂；未命中返回 null 并记录警告。</summary>
+    /// <param name="typeFullName">组件类型全名（typeof(T).FullName）</param>
+    /// <returns>组件工厂委托；未注册类型返回 null</returns>
     public static Func<Component>? Resolve(string typeFullName)
     {
         if (_factories.TryGetValue(typeFullName, out var factory))
@@ -32,6 +34,8 @@ public static class ComponentTypeRegistry
         => Register(typeof(T).FullName!, () => new T());
 
     /// <summary>注册自定义组件工厂（用户组件扩展点，向后兼容保留）。</summary>
+    /// <param name="typeFullName">组件类型全名（序列化键）</param>
+    /// <param name="factory">创建组件实例的工厂委托</param>
     public static void Register(string typeFullName, Func<Component> factory)
         => _factories[typeFullName] = factory;
 }

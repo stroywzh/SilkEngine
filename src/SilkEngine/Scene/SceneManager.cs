@@ -8,6 +8,12 @@ using Object = SilkEngine.Core.Object;
 
 namespace SilkEngine.Scene;
 
+/// <summary>
+/// 场景管理门面（引擎单实例，EngineLoop 创建并注册 Services）：
+/// LoadScene 旧场景对象进 Destroy 队列、新场景组件立即注册（帧末 ApplyPending 生效）；
+/// 帧末提交语义 —— 销毁（OnDestroy + Unregister）与快照 swap 统一由 FrameSnapshotManager.CommitPending 执行。
+/// Tick/FixedTick/LateTick/PostRender 读取当前快照派发 MonoBehaviour 回调。
+/// </summary>
 public class SceneManager : IDisposable
 {
     internal struct DestroyEntry
@@ -47,10 +53,19 @@ public class SceneManager : IDisposable
     /// <summary>解绑 DestroyHandler（Services.Shutdown 反序释放 / 测试夹具调用）</summary>
     public void Dispose() => Object.DestroyHandler -= _destroyHandler;
 
+    /// <summary>当前活动场景；LoadScene 后即切换（旧场景对象销毁延后至帧末）。</summary>
     public SilkEngine.Scene.Scene? ActiveScene { get; internal set; }
 
+    /// <summary>加载场景（使用注入的注册表）：旧场景根对象进销毁队列，新场景组件立即注册、帧末统一生效。</summary>
+    /// <param name="scene">要加载的场景</param>
     public void LoadScene(SilkEngine.Scene.Scene scene) => LoadScene(scene, _registry);
 
+    /// <summary>
+    /// 加载场景并显式指定注册表：旧场景根对象进销毁队列（帧末统一销毁），
+    /// 新场景全部组件经注册表 Register + ApplyPending（帧末快照 swap 后可见）。
+    /// </summary>
+    /// <param name="scene">要加载的场景</param>
+    /// <param name="registry">组件注册表；null 时用注入的注册表</param>
     public void LoadScene(SilkEngine.Scene.Scene scene, ComponentRegistry? registry = null)
     {
         if (ActiveScene != null)
@@ -70,6 +85,7 @@ public class SceneManager : IDisposable
             Log.Info($"[Scene] Loaded '{scene.Name}' (roots: {scene.GetRootGameObjects().Length})");
     }
 
+    /// <summary>将当前活动场景的全部组件登记进注册表（EngineLoop 初始化后调用，替代逐对象 AddComponent 注册）。</summary>
     internal void RegisterScene()
     {
         if (ActiveScene == null || _registry == null)
@@ -87,6 +103,11 @@ public class SceneManager : IDisposable
             InvokeRecursive(child.GameObject!, action);
     }
 
+    /// <summary>
+    /// 逻辑帧 Tick：对快照中的活跃组件补发 OnStart（仅一次，首帧）并调用 OnUpdate。
+    /// </summary>
+    /// <param name="snapshot">当前帧组件快照（双缓冲读侧）</param>
+    /// <param name="dt">本帧增量时间（秒）</param>
     public void Tick(FrameSnapshot snapshot, float dt)
     {
         foreach (var mb in GetActiveMBs(snapshot))
@@ -100,18 +121,25 @@ public class SceneManager : IDisposable
         }
     }
 
+    /// <summary>固定步长 Tick：对快照中的活跃组件调用 OnFixedUpdate。</summary>
+    /// <param name="snapshot">当前帧组件快照</param>
+    /// <param name="fdt">固定步长（秒）</param>
     public void FixedTick(FrameSnapshot snapshot, float fdt)
     {
         foreach (var mb in GetActiveMBs(snapshot))
             mb.OnFixedUpdate(fdt);
     }
 
+    /// <summary>逻辑帧末：对快照中的活跃组件调用 OnLateUpdate（OnUpdate 之后）。</summary>
+    /// <param name="snapshot">当前帧组件快照</param>
     public void LateTick(FrameSnapshot snapshot)
     {
         foreach (var mb in GetActiveMBs(snapshot))
             mb.OnLateUpdate();
     }
 
+    /// <summary>渲染提交后：对快照中的活跃组件调用 OnPostRender（LateTick 之后、帧末提交之前）。</summary>
+    /// <param name="snapshot">当前帧组件快照</param>
     public void PostRender(FrameSnapshot snapshot)
     {
         foreach (var mb in GetActiveMBs(snapshot))
@@ -131,7 +159,12 @@ public class SceneManager : IDisposable
                     yield return mb;
     }
 
-    /// <summary>运行时向活动场景添加 GameObject（含子树）；注册进已注入注册表，不重复触发生命周期。</summary>
+    /// <summary>
+    /// 运行时向活动场景添加 GameObject（含子树）：登记为根对象并立即注册全部组件
+    /// （帧末 ApplyPending 生效），不重复触发生命周期。
+    /// </summary>
+    /// <param name="go">要添加的对象（必须无父级且未在场景中）</param>
+    /// <returns>是否添加成功（无活动场景 / 已在场景中 / 有父级时返回 false）</returns>
     public bool AddObjectToScene(GameObject go)
     {
         if (
@@ -155,8 +188,10 @@ public class SceneManager : IDisposable
 
     /// <summary>
     /// 从 .scene JSON 文件加载场景：读文件 → SceneSerializer.Deserialize → LoadScene（带注入的注册表）。
-    /// 返回是否成功；失败（文件缺失/无权限/JSON 格式错误）记录错误日志且不抛未捕获异常。
+    /// 失败（文件缺失/无权限/JSON 格式错误）记录错误日志且不抛未捕获异常。
     /// </summary>
+    /// <param name="path">.scene 文件路径</param>
+    /// <returns>是否成功（成功时 ActiveScene 已切换并完成注册）</returns>
     public bool LoadSceneFromFile(string path)
     {
         try

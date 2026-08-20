@@ -15,6 +15,8 @@ public static class SceneSerializer
     private static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
 
     /// <summary>场景 → .scene JSON 字符串（根对象列表，子对象经 Children 递归嵌套）。</summary>
+    /// <param name="scene">要序列化的场景</param>
+    /// <returns>.scene JSON 字符串（缩进格式）</returns>
     public static string Serialize(SilkEngine.Scene.Scene scene)
     {
         var root = new JsonObject { ["Name"] = scene.Name, ["GameObjects"] = new JsonArray() };
@@ -26,6 +28,9 @@ public static class SceneSerializer
     }
 
     /// <summary>.scene JSON 字符串 → 新场景（组件经工厂创建并读取序列化数据）。</summary>
+    /// <param name="json">.scene JSON 字符串</param>
+    /// <returns>反序列化得到的新场景</returns>
+    /// <exception cref="System.Text.Json.JsonException">JSON 根节点不是对象（格式非法）</exception>
     public static SilkEngine.Scene.Scene Deserialize(string json)
     {
         var root = JsonNode.Parse(json)?.AsObject()

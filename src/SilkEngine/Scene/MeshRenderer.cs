@@ -12,18 +12,21 @@ public partial class MeshRenderer : Component
     private Mesh? _mesh;
     private Material? _material;
 
+    /// <summary>渲染着色器；setter 经 AssetManager.SetTrackedAmbient 维持引用计数闭环。</summary>
     public Shader? Shader
     {
         get => _shader;
         set => AssetManager.SetTrackedAmbient(ref _shader, value);   // P1 落盘形式为准（C1）
     }
 
+    /// <summary>渲染网格；setter 经 AssetManager.SetTrackedAmbient 维持引用计数闭环。</summary>
     public Mesh? Mesh
     {
         get => _mesh;
         set => AssetManager.SetTrackedAmbient(ref _mesh, value);
     }
 
+    /// <summary>渲染材质；setter 经 AssetManager.SetTrackedAmbient 维持引用计数闭环。</summary>
     public Material? Material
     {
         get => _material;

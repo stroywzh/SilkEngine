@@ -3,16 +3,29 @@ using SilkEngine.Core;
 
 namespace SilkEngine.Scene;
 
+/// <summary>按具体类型分组的组件集合（快照构建时复制引用列表，与实时注册表物理隔离）。</summary>
 public sealed class ComponentGroup
 {
+    /// <summary>组对应的具体组件类型。</summary>
     public System.Type ComponentType { get; init; } = null!;
+
+    /// <summary>该类型的组件实例列表（快照构建时的引用副本）。</summary>
     public List<Component> Components { get; init; } = [];
 }
 
+/// <summary>
+/// 双缓冲帧快照（帧原子性核心）：派发统一读当前快照 —— 帧内注册/销毁变更不即时可见，
+/// 待帧末 CommitPending 销毁 + ApplyPending + 重建写侧并 swap 后，下一帧派发读取（B.1 后语义）。
+/// </summary>
 public sealed class FrameSnapshot
 {
+    /// <summary>快照对应帧计数（swap 时递增）。</summary>
     internal long FrameCount { get; set; }
+
+    /// <summary>快照生成时的活动场景。</summary>
     internal SilkEngine.Scene.Scene? ActiveScene { get; set; }
+
+    /// <summary>类型分组组件列表（快照构建时复制）。</summary>
     internal List<ComponentGroup> Groups { get; } = [];
 
     /// <summary>MonoBehaviour 基类索引视图（按具体类型分组，派发遍历用；快照构建时复制）。</summary>
@@ -22,8 +35,9 @@ public sealed class FrameSnapshot
     private readonly Dictionary<System.Type, (ComponentGroup Group, object List)> _componentCache = new();
 
     /// <summary>
-    /// 获取指定类型的组件列表（快照内缓存：同快照重复调用返回同实例 List；快照重建后自然失效）
+    /// 获取指定类型的组件列表（快照内缓存：同快照重复调用返回同实例 List；快照重建后自然失效）。
     /// </summary>
+    /// <returns>该类型的组件列表；无匹配类型时为空数组（非 null）</returns>
     public IReadOnlyList<T> GetComponents<T>()
         where T : Component
     {
@@ -43,16 +57,29 @@ public sealed class FrameSnapshot
     }
 }
 
+/// <summary>
+/// 双缓冲快照管理器（[Service(1)] 自动注册）：帧末 CommitPending 统一执行
+/// 销毁队列（OnDestroy + Unregister + 场景容器摘除）→ 注册 ApplyPending → 重建写侧快照 → swap（读侧原子切换）。
+/// </summary>
 [Service(1)]
 internal sealed class FrameSnapshotManager
 {
     private FrameSnapshot _front = new();
     private FrameSnapshot _back = new();
 
+    /// <summary>当前读侧快照（派发消费；CommitPending swap 后更新）。</summary>
     public FrameSnapshot Current { get; private set; }
 
     public FrameSnapshotManager() => Current = _front;
 
+    /// <summary>
+    /// 帧末提交：按延迟到期顺序处理销毁队列（组件 OnDestroy + Unregister + 摘除；对象递归销毁 + 场景摘除，幂等），
+    /// 随后 ApplyPending 注册、重建写侧快照并 swap。
+    /// </summary>
+    /// <param name="registry">组件注册表（注销与登记目标）</param>
+    /// <param name="destroys">帧内累积的销毁队列（SceneManager._destroyQueue）</param>
+    /// <param name="activeScene">当前活动场景（写入快照）</param>
+    /// <param name="deltaTime">本帧增量时间（秒，用于销毁延迟倒计时）</param>
     internal void CommitPending(
         ComponentRegistry registry,
         List<SceneManager.DestroyEntry> destroys,
