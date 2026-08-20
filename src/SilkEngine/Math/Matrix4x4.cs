@@ -3,27 +3,62 @@ using System.Runtime.InteropServices;
 
 namespace SilkEngine.Math;
 
-/// <summary>行主序 4x4 矩阵；Sequential 布局保证 16 个 float 连续，供渲染层 fixed 指针零分配上传。</summary>
+/// <summary>
+/// 左手系 4x4 矩阵（行主序存储）；投影深度约定 GL NDC [-1,1]，相机前方为 +Z（CreateLookAt 约定）。
+/// Sequential 布局保证 16 个 float 连续，供渲染层 fixed 指针零分配上传；GL 上传 transpose=true（UniformMatrix4 列主序约定）。
+/// </summary>
 [StructLayout(LayoutKind.Sequential)]
 public struct Matrix4x4 : IEquatable<Matrix4x4>
 {
-    public float M11,
-        M12,
-        M13,
-        M14;
-    public float M21,
-        M22,
-        M23,
-        M24;
-    public float M31,
-        M32,
-        M33,
-        M34;
-    public float M41,
-        M42,
-        M43,
-        M44;
+    /// <summary>第 1 行第 1 列元素。</summary>
+    public float M11;
 
+    /// <summary>第 1 行第 2 列元素。</summary>
+    public float M12;
+
+    /// <summary>第 1 行第 3 列元素。</summary>
+    public float M13;
+
+    /// <summary>第 1 行第 4 列元素。</summary>
+    public float M14;
+
+    /// <summary>第 2 行第 1 列元素。</summary>
+    public float M21;
+
+    /// <summary>第 2 行第 2 列元素。</summary>
+    public float M22;
+
+    /// <summary>第 2 行第 3 列元素。</summary>
+    public float M23;
+
+    /// <summary>第 2 行第 4 列元素。</summary>
+    public float M24;
+
+    /// <summary>第 3 行第 1 列元素。</summary>
+    public float M31;
+
+    /// <summary>第 3 行第 2 列元素。</summary>
+    public float M32;
+
+    /// <summary>第 3 行第 3 列元素。</summary>
+    public float M33;
+
+    /// <summary>第 3 行第 4 列元素。</summary>
+    public float M34;
+
+    /// <summary>第 4 行第 1 列元素。</summary>
+    public float M41;
+
+    /// <summary>第 4 行第 2 列元素。</summary>
+    public float M42;
+
+    /// <summary>第 4 行第 3 列元素。</summary>
+    public float M43;
+
+    /// <summary>第 4 行第 4 列元素。</summary>
+    public float M44;
+
+    /// <summary>单位矩阵（主对角线为 1，其余为 0）。</summary>
     public static readonly Matrix4x4 Identity = new()
     {
         M11 = 1,
@@ -46,6 +81,7 @@ public struct Matrix4x4 : IEquatable<Matrix4x4>
     ) => a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g);
 
     /// <summary>4×4 行列式（第一行余子式展开）。</summary>
+    /// <returns>矩阵行列式。</returns>
     public float Determinant =>
         M11 * Det3(M22, M23, M24, M32, M33, M34, M42, M43, M44)
         - M12 * Det3(M21, M23, M24, M31, M33, M34, M41, M43, M44)
@@ -56,6 +92,7 @@ public struct Matrix4x4 : IEquatable<Matrix4x4>
     /// 逆矩阵（伴随矩阵除以行列式）。当 |det| &lt; 1e-12 视为奇异矩阵，
     /// 抛出 <see cref="InvalidOperationException"/>。
     /// </summary>
+    /// <returns>满足 m · m⁻¹ = Identity 的矩阵。</returns>
     /// <exception cref="InvalidOperationException">矩阵不可逆（|det| &lt; 1e-12）。</exception>
     public Matrix4x4 Inverse
     {
@@ -87,6 +124,8 @@ public struct Matrix4x4 : IEquatable<Matrix4x4>
         }
     }
 
+    /// <summary>转置矩阵（行列互换）。</summary>
+    /// <returns>当前矩阵的转置。</returns>
     public Matrix4x4 Transposed =>
         new()
         {
@@ -108,6 +147,9 @@ public struct Matrix4x4 : IEquatable<Matrix4x4>
             M44 = M44,
         };
 
+    /// <summary>创建平移矩阵（行主序，平移量位于第 4 列）。</summary>
+    /// <param name="pos">平移向量。</param>
+    /// <returns>平移矩阵。</returns>
     public static Matrix4x4 CreateTranslation(Vector3 pos) =>
         new()
         {
@@ -120,6 +162,9 @@ public struct Matrix4x4 : IEquatable<Matrix4x4>
             M34 = pos.Z,
         };
 
+    /// <summary>创建缩放矩阵（主对角线为缩放分量）。</summary>
+    /// <param name="scale">各轴缩放分量。</param>
+    /// <returns>缩放矩阵。</returns>
     public static Matrix4x4 CreateScale(Vector3 scale) =>
         new()
         {
@@ -129,6 +174,9 @@ public struct Matrix4x4 : IEquatable<Matrix4x4>
             M44 = 1,
         };
 
+    /// <summary>从四元数创建 3x3 旋转矩阵（行主序，左上 3×3 区域）。</summary>
+    /// <param name="q">旋转四元数。</param>
+    /// <returns>旋转矩阵。</returns>
     public static Matrix4x4 CreateRotation(Quaternion q)
     {
         float xx = q.X * q.X,
@@ -231,16 +279,34 @@ public struct Matrix4x4 : IEquatable<Matrix4x4>
         };
     }
 
+    /// <summary>创建 TRS 复合矩阵：T · R · S（先缩放、再旋转、后平移）。</summary>
+    /// <param name="pos">平移向量。</param>
+    /// <param name="rot">旋转四元数。</param>
+    /// <param name="scale">各轴缩放分量。</param>
+    /// <returns>复合变换矩阵。</returns>
     public static Matrix4x4 CreateTRS(Vector3 pos, Quaternion rot, Vector3 scale) =>
         CreateTranslation(pos) * CreateRotation(rot) * CreateScale(scale);
 
     /// <summary>组合 MVP 矩阵（GL 列主序上传约定）：projection * view * model</summary>
+    /// <param name="projection">投影矩阵。</param>
+    /// <param name="view">视图矩阵。</param>
+    /// <param name="model">模型矩阵。</param>
+    /// <returns>projection * view * model。</returns>
     public static Matrix4x4 ComposeMVP(
         Matrix4x4 projection,
         Matrix4x4 view,
         Matrix4x4 model
     ) => projection * view * model;
 
+    /// <summary>
+    /// 创建视图矩阵（LookAt，左手系）。
+    /// 相机位于 eye 看向 target，+Z 为相机前方；right/up/fwd 基向量写入 3×3 旋转区，
+    /// 平移列为负的基向量点乘 eye（行主序存储）。
+    /// </summary>
+    /// <param name="eye">相机位置。</param>
+    /// <param name="target">注视目标点。</param>
+    /// <param name="up">世界参考上方向（与视线不平行）。</param>
+    /// <returns>视图矩阵。</returns>
     public static Matrix4x4 CreateLookAt(Vector3 eye, Vector3 target, Vector3 up)
     {
         Vector3 fwd = (target - eye).Normalized;
@@ -264,6 +330,10 @@ public struct Matrix4x4 : IEquatable<Matrix4x4>
         };
     }
 
+    /// <summary>矩阵乘法（行主序：a · b，先应用 b 再应用 a 的列向量约定）。</summary>
+    /// <param name="a">左矩阵。</param>
+    /// <param name="b">右矩阵。</param>
+    /// <returns>a · b。</returns>
     public static Matrix4x4 operator *(Matrix4x4 a, Matrix4x4 b) =>
         new()
         {
@@ -285,6 +355,10 @@ public struct Matrix4x4 : IEquatable<Matrix4x4>
             M44 = a.M41 * b.M14 + a.M42 * b.M24 + a.M43 * b.M34 + a.M44 * b.M44,
         };
 
+    /// <summary>矩阵变换向量（行向量 v · M，含透视除法 w = M₄₁x + M₄₂y + M₄₃z + M₄₄）。</summary>
+    /// <param name="m">变换矩阵。</param>
+    /// <param name="v">被变换向量（作为行向量左乘）。</param>
+    /// <returns>v · M（齐次除法后）。</returns>
     public static Vector3 operator *(Matrix4x4 m, Vector3 v)
     {
         float w = m.M41 * v.X + m.M42 * v.Y + m.M43 * v.Z + m.M44;
@@ -295,6 +369,10 @@ public struct Matrix4x4 : IEquatable<Matrix4x4>
         );
     }
 
+    /// <summary>元素全等比较。</summary>
+    /// <param name="a">第一矩阵。</param>
+    /// <param name="b">第二矩阵。</param>
+    /// <returns>16 个元素完全相等时为 true。</returns>
     public static bool operator ==(Matrix4x4 a, Matrix4x4 b) =>
         a.M11 == b.M11
         && a.M12 == b.M12
@@ -313,12 +391,24 @@ public struct Matrix4x4 : IEquatable<Matrix4x4>
         && a.M43 == b.M43
         && a.M44 == b.M44;
 
+    /// <summary>元素不等比较。</summary>
+    /// <param name="a">第一矩阵。</param>
+    /// <param name="b">第二矩阵。</param>
+    /// <returns>任一元不等时为 true。</returns>
     public static bool operator !=(Matrix4x4 a, Matrix4x4 b) => !(a == b);
 
+    /// <summary>与另一 Matrix4x4 相等比较。</summary>
+    /// <param name="other">比较对象。</param>
+    /// <returns>元素完全相等时为 true。</returns>
     public bool Equals(Matrix4x4 other) => this == other;
 
+    /// <summary>与任意对象相等比较（类型为 Matrix4x4 时按元素比较）。</summary>
+    /// <param name="obj">比较对象。</param>
+    /// <returns>obj 为 Matrix4x4 且元素相等时为 true。</returns>
     public override bool Equals(object? obj) => obj is Matrix4x4 m && Equals(m);
 
+    /// <summary>基于元素的哈希码。</summary>
+    /// <returns>全部 16 个元素的组合哈希。</returns>
     public override int GetHashCode() =>
         HashCode.Combine(
             HashCode.Combine(M11, M12, M13, M14, M21, M22, M23, M24),

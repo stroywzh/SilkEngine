@@ -5,7 +5,10 @@ internal sealed class FixedStepAccumulator
 {
     private float _fixedDeltaTime = 0.02f;
 
-    /// <summary>固定步长（秒），默认 0.02（与 Time.FixedDeltaTime 初值一致）；非正或非有限值抛 ArgumentOutOfRangeException。</summary>
+    /// <summary>
+    /// 固定步长（秒），默认 0.02（与 Time.FixedDeltaTime 初值一致）。
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">value 非正或非有限值。</exception>
     public float FixedDeltaTime
     {
         get => _fixedDeltaTime;
@@ -23,6 +26,8 @@ internal sealed class FixedStepAccumulator
 #endif
 
     /// <summary>累加 deltaTime，返回本帧应触发的 FixedTick 次数；余数保留到下一帧。</summary>
+    /// <param name="deltaTime">本帧增量时间（秒），通常为 Time.DeltaTime。</param>
+    /// <returns>应执行的 FixedTick 次数（≥ 0）。</returns>
     public int Advance(float deltaTime)
     {
         Remainder += deltaTime;
