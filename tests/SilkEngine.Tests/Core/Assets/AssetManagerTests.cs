@@ -6,8 +6,11 @@ using SilkEngine.Threading;
 namespace SilkEngine.Tests.Core.Assets;
 
 [Collection("Assets")]
-public class AssetManagerTests
+public class AssetManagerTests : IDisposable
 {
+    /// <summary>测试级清理：注销测试内 ctor 自注册的 AssetManager 实例（Unregister 幂等）</summary>
+    public void Dispose() => Services.Unregister<AssetManager>();
+
     private sealed class FakeAsset : IAsset { }
 
     private sealed class BlockingScheduler : ITaskExecutor

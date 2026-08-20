@@ -1,11 +1,15 @@
+using SilkEngine.Core;
 using SilkEngine.Core.Assets;
 using SilkEngine.Render;
 
 namespace SilkEngine.Tests.Core.Assets;
 
 [Collection("Assets")]
-public class AssetRefCountTests
+public class AssetRefCountTests : IDisposable
 {
+    /// <summary>测试级清理：注销测试内 ctor 自注册的 AssetManager 实例（Unregister 幂等）</summary>
+    public void Dispose() => Services.Unregister<AssetManager>();
+
     private static AssetEntry RegisterManaged(AssetManager am, IAsset asset)
     {
         var entry = am.Cache.GetOrAdd(Guid.NewGuid());

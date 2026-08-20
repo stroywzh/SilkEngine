@@ -31,8 +31,7 @@ public class UnloadQueueTests
     public void RenderThread_FrameStart_ProcessesUnloadQueue()
     {
         var am = new AssetManager(new RecordingScheduler());
-        // 渲染线程帧首经 Services.TryGet 解析管理器，须注册
-        Services.Register(am);
+        // 渲染线程帧首经 Services.TryGet 解析管理器，ctor 已自注册
         try
         {
             // 准备一个 Unloaded 条目并已入释放队列

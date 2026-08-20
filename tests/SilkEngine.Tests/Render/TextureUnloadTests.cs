@@ -1,3 +1,4 @@
+using SilkEngine.Core;
 using SilkEngine.Core.Assets;
 using SilkEngine.Render.OpenGL;
 using SilkEngine.Tests.Core.Assets;
@@ -6,8 +7,11 @@ namespace SilkEngine.Tests.Render;
 
 // 与 Part 2 资产测试同集合：本类读写实例缓存（每测试新建 AssetManager），串行执行保险
 [Collection("Assets")]
-public class TextureUnloadTests
+public class TextureUnloadTests : IDisposable
 {
+    /// <summary>测试级清理：注销测试内 ctor 自注册的 AssetManager 实例（Unregister 幂等）</summary>
+    public void Dispose() => Services.Unregister<AssetManager>();
+
     [Fact]
     public void ReleaseTexture_RemovesFromCache_AndDisposes()
     {
