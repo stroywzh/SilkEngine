@@ -40,6 +40,7 @@ public sealed class AssetManager
     public T Load<T>(string path)
         where T : IAsset
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
         var guid = PathToGuid(path);
         var hit = _cache.Find(guid);
         if (hit is { State: AssetState.Ready, Data: T ready })
@@ -51,7 +52,7 @@ public sealed class AssetManager
         if (hit is { State: AssetState.Loading })
             throw new InvalidOperationException($"资产 {path} 正在异步加载中，同步 Load 不可用");
         var importer = ImporterFactory.Create(Path.GetExtension(path));
-        var asset = importer.Import(File.ReadAllBytes(path));
+        var asset = importer.Import(File.ReadAllBytes(path), new ImportSettings { Path = path });
         if (asset is not T typed)
             throw new InvalidOperationException(
                 $"资产 {path} 类型为 {asset.GetType().Name}，不是 {typeof(T).Name}"
@@ -69,6 +70,7 @@ public sealed class AssetManager
     public AssetRequest<T> LoadAsync<T>(string path, AsyncLoadMode mode = AsyncLoadMode.NormalAsync)
         where T : IAsset
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
         var guid = PathToGuid(path);
         var entry = _cache.GetOrAdd(guid);
         if (entry.State == AssetState.Ready)
@@ -126,23 +128,23 @@ public sealed class AssetManager
     {
         while (_completed.TryDequeue(out var result))
         {
-            var entry = _cache.Find(result.guid);
+            var entry = _cache.Find(result.Guid);
             if (entry is null)
                 continue;
-            if (result.error is not null)
+            if (result.Error is not null)
             {
                 entry.State = AssetState.Failed;
                 entry.Data = null;
-                CompleteAwaiters(entry, null, result.error);
-                Log.Error($"[AssetManager] 资产加载失败 ({entry.Guid}): {result.error.Message}");
+                CompleteAwaiters(entry, null, result.Error);
+                Log.Error($"[AssetManager] 资产加载失败 ({entry.Guid}): {result.Error.Message}");
             }
             else
             {
                 entry.State = AssetState.Ready;
-                entry.Data = result.asset;
-                CompleteAwaiters(entry, result.asset, null);
+                entry.Data = result.Asset;
+                CompleteAwaiters(entry, result.Asset, null);
                 if (LogConfig.Assets)
-                    Log.Info($"[Assets] Load completed '{result.guid}'");
+                    Log.Info($"[Assets] Load completed '{result.Guid}'");
             }
         }
 
@@ -180,11 +182,15 @@ public sealed class AssetManager
                 if (entry.Data is { } data)
                     release(data);
                 entry.Data = null;
+                if (LogConfig.Assets)
+                    Log.Info($"[Assets] Released '{guid}'");
+                _cache.Remove(guid);
                 continue;
             }
             if (LogConfig.Assets)
                 Log.Info($"[Assets] Unloaded '{guid}'");
             entry.Data = null;
+            _cache.Remove(guid);
         }
     }
 
@@ -288,7 +294,7 @@ public sealed class AssetManager
             {
                 var raw = await File.ReadAllBytesAsync(path, ct);
                 var importer = ImporterFactory.Create(Path.GetExtension(path));
-                result = new AssetLoadResult(guid, importer.Import(raw), null);
+                result = new AssetLoadResult(guid, importer.Import(raw, new ImportSettings { Path = path }), null);
             }
             catch (Exception ex)
             {

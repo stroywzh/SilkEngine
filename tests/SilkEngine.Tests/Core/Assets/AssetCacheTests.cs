@@ -41,4 +41,22 @@ public class AssetCacheTests
         Assert.NotSame(cache.GetOrAdd(Guid.NewGuid()), cache.GetOrAdd(Guid.NewGuid()));
         Assert.Equal(2, cache.Count);
     }
+
+    [Fact]
+    public void Remove_ExistingGuid_RemovesEntry_AndCountDecrements()
+    {
+        var cache = new AssetCache();
+        var guid = Guid.NewGuid();
+        cache.GetOrAdd(guid);
+        Assert.True(cache.Remove(guid));
+        Assert.Null(cache.Find(guid));
+        Assert.Equal(0, cache.Count);
+    }
+
+    [Fact]
+    public void Remove_MissingGuid_ReturnsFalse()
+    {
+        var cache = new AssetCache();
+        Assert.False(cache.Remove(Guid.NewGuid()));
+    }
 }

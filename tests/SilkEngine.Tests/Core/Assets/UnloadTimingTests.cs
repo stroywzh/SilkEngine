@@ -147,4 +147,23 @@ public class UnloadTimingTests : IDisposable
             System.IO.File.Delete(path);
         }
     }
+
+    [Fact]
+    public void Unloaded_Asset_IsEvictedFromCache_AfterRelease()
+    {
+        using var file = PngTestFile.Create();
+        var am = new AssetManager(new RecordingScheduler());
+        var tex = am.Load<Texture2D>(file.FilePath);
+        var guid = AssetManager.PathToGuid(file.FilePath);
+        Assert.NotNull(am.TryResolve<Texture2D>(guid));
+        Assert.Equal(1, am.Cache.Count);
+
+        am.TryAddRef(tex);
+        am.TryRelease(tex);      // 归零 → 卸载候选
+        am.ProcessCompleted();   // 帧末 → Unloaded
+        am.ProcessUnloadQueue(); // 渲染线程帧首 → 释放 → 驱逐条目
+
+        Assert.Null(am.TryResolve<Texture2D>(guid));
+        Assert.Equal(0, am.Cache.Count);
+    }
 }

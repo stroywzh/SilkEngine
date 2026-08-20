@@ -18,6 +18,9 @@ public sealed class AssetCache
     /// <summary>条目数量（测试断言用）</summary>
     public int Count => _entries.Count;
 
+    /// <summary>移除条目；不存在返回 false</summary>
+    public bool Remove(Guid guid) => _entries.TryRemove(guid, out _);
+
     /// <summary>全部条目快照（引用查找/测试断言用）</summary>
     internal IEnumerable<AssetEntry> All() => _entries.Values;
 }

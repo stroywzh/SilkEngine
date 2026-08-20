@@ -263,4 +263,48 @@ public class AssetManagerTests : IDisposable
             Log.MinLevel = minLevel;
         }
     }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Load_InvalidPath_Throws(string? path)
+    {
+        var am = new AssetManager(new RecordingScheduler());
+        Assert.ThrowsAny<ArgumentException>(() => am.Load<Texture2D>(path!));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void LoadAsync_InvalidPath_Throws(string? path)
+    {
+        var am = new AssetManager(new RecordingScheduler());
+        Assert.ThrowsAny<ArgumentException>(() => am.LoadAsync<Texture2D>(path!));
+    }
+
+    [Fact]
+    public void ProcessUnloadQueue_ReleaseBranch_EmitsReleasedLog()
+    {
+        using var file = PngTestFile.Create();
+        var tw = new TestWriter();
+        Log.AddWriter(tw);
+        try
+        {
+            LogConfig.Assets = true;
+            var am = new AssetManager(new RecordingScheduler());
+            var tex = am.Load<Texture2D>(file.FilePath);
+            am.TryAddRef(tex);
+            am.TryRelease(tex);
+            am.ProcessCompleted();
+            am.ProcessUnloadQueue(a => { });
+            Assert.Contains(tw.Messages, m => m.Contains("[Assets]") && m.Contains("Released"));
+        }
+        finally
+        {
+            Log.RemoveWriter(tw);
+            LogConfig.Assets = true;
+        }
+    }
 }

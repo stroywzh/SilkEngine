@@ -16,10 +16,13 @@ public sealed class TextureImporter : IAssetImporter
         _decoder = decoder;
     }
 
-    /// <summary>导入：解码为 Texture2D</summary>
+    /// <summary>导入：解码为 Texture2D（Name 取自 settings.Path 的文件名；无路径时回退 "Texture"）</summary>
     public IAsset Import(byte[] raw, ImportSettings? settings = null)
     {
         var data = _decoder.Decode(raw);
-        return new Texture2D { Name = "Texture", ImageData = data };
+        var name = settings?.Path is { Length: > 0 } path
+            ? Path.GetFileNameWithoutExtension(path)
+            : "Texture";
+        return new Texture2D { Name = name, ImageData = data };
     }
 }
