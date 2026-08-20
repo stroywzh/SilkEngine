@@ -40,6 +40,25 @@ public struct Quaternion : IEquatable<Quaternion>
         );
     }
 
+    /// <summary>返回归一化四元数；模为零时返回 Identity。</summary>
+    public Quaternion Normalize()
+    {
+        var mag = MathF.Sqrt(W * W + X * X + Y * Y + Z * Z);
+        return mag == 0f ? Identity : new Quaternion(X / mag, Y / mag, Z / mag, W / mag);
+    }
+
+    /// <summary>返回逆四元数（共轭除以模平方）；模为零时返回 Identity。</summary>
+    public Quaternion Inverse
+    {
+        get
+        {
+            var normSq = W * W + X * X + Y * Y + Z * Z;
+            return normSq == 0f
+                ? Identity
+                : new Quaternion(-X / normSq, -Y / normSq, -Z / normSq, W / normSq);
+        }
+    }
+
     public static Quaternion operator *(Quaternion a, Quaternion b) =>
         new(
             a.W * b.X + a.X * b.W + a.Y * b.Z - a.Z * b.Y,
@@ -48,11 +67,13 @@ public struct Quaternion : IEquatable<Quaternion>
             a.W * b.W - a.X * b.X - a.Y * b.Y - a.Z * b.Z
         );
 
+    /// <summary>旋转向量；非单位输入自动归一化（零模按 Identity 处理）。</summary>
     public static Vector3 operator *(Quaternion q, Vector3 v)
     {
+        Quaternion n = q.Normalize();
         Quaternion qv = new(v.X, v.Y, v.Z, 0);
-        Quaternion conj = new(-q.X, -q.Y, -q.Z, q.W);
-        Quaternion result = q * qv * conj;
+        Quaternion conj = new(-n.X, -n.Y, -n.Z, n.W);
+        Quaternion result = n * qv * conj;
         return new Vector3(result.X, result.Y, result.Z);
     }
 
