@@ -102,8 +102,9 @@ public struct Matrix4x4 : IEquatable<Matrix4x4>
     }
 
     /// <summary>
-    /// 创建透视投影矩阵（GL NDC [-1,1] 深度约定，行主序存储）。
-    /// 相机看向 -Z：视空间 z=-near 映射到 NDC -1，z=-far 映射到 NDC +1，clip.w = -z。
+    /// 创建透视投影矩阵（左手 GL NDC [-1,1] 深度约定，行主序存储）。
+    /// 引擎左手系：相机前方为 +Z（CreateLookAt 约定），视空间 z=+near 映射到 NDC -1，
+    /// z=+far 映射到 NDC +1，clip.w = z（前方几何 w&gt;0 可见）。
     /// </summary>
     /// <param name="fov">垂直视场角（弧度），须满足 0 &lt; fov &lt; π。</param>
     /// <param name="aspect">宽高比（宽/高），须为正。</param>
@@ -134,16 +135,17 @@ public struct Matrix4x4 : IEquatable<Matrix4x4>
         {
             M11 = f / aspect,
             M22 = f,
-            M33 = -(far + near) / (far - near),
+            M33 = (far + near) / (far - near),
             M34 = -2f * near * far / (far - near),
-            M43 = -1f,
+            M43 = 1f,
             M44 = 0f,
         };
     }
 
     /// <summary>
-    /// 创建正交投影矩阵（GL NDC [-1,1] 深度约定，行主序存储）。
-    /// 相机看向 -Z：视空间 z=-near 映射到 NDC -1，z=-far 映射到 NDC +1，clip.w = 1。
+    /// 创建正交投影矩阵（左手 GL NDC [-1,1] 深度约定，行主序存储）。
+    /// 引擎左手系：相机前方为 +Z（CreateLookAt 约定），视空间 z=+near 映射到 NDC -1，
+    /// z=+far 映射到 NDC +1，clip.w = 1。
     /// </summary>
     /// <param name="width">视锥宽度，须为正。</param>
     /// <param name="height">视锥高度，须为正。</param>
@@ -168,7 +170,7 @@ public struct Matrix4x4 : IEquatable<Matrix4x4>
         {
             M11 = 2f / width,
             M22 = 2f / height,
-            M33 = -2f * r,
+            M33 = 2f * r,
             M34 = -(far + near) * r,
             M43 = 0f,
             M44 = 1f,

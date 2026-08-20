@@ -57,9 +57,9 @@ public class Matrix4x4Tests
     [Fact]
     public void Perspective_TransformsForwardPoint()
     {
-        // GL 约定：相机看向 -Z，前方顶点视空间 z 为负
+        // 引擎左手系：相机前方为 +Z，前方顶点视空间 z 为正
         var proj = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI/4f, 1.0f, 0.1f, 100f);
-        var result = proj * new Vector3(0, 0, -5);
+        var result = proj * new Vector3(0, 0, 5);
         Assert.True(result.Z > 0);
     }
 
@@ -78,21 +78,35 @@ public class Matrix4x4Tests
     [Fact]
     public void Perspective_NearAndFar_MapToMinusOneAndPlusOne()
     {
-        // GL NDC [-1,1]：near（视空间 z=-near）→ -1，far（z=-far）→ +1
+        // 左手 GL NDC [-1,1]：near（视空间 z=+near，前方）→ -1，far（z=+far）→ +1
         var proj = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 2f, 1.0f, 0.1f, 100f);
-        Assert.Equal(-1f, (proj * new Vector3(0, 0, -0.1f)).Z, 3);
-        Assert.Equal(1f, (proj * new Vector3(0, 0, -100f)).Z, 3);
-        // 透视深度非线性：NDC=0（深度 0.5）出现在 z = -2·near·far/(near+far) ≈ -0.2 处
-        Assert.Equal(0f, (proj * new Vector3(0, 0, -0.2f)).Z, 2);
+        Assert.Equal(-1f, (proj * new Vector3(0, 0, 0.1f)).Z, 3);
+        Assert.Equal(1f, (proj * new Vector3(0, 0, 100f)).Z, 3);
+        // 透视深度非线性：NDC=0（深度 0.5）出现在 z = 2·near·far/(near+far) ≈ 0.2 处
+        Assert.Equal(0f, (proj * new Vector3(0, 0, 0.2f)).Z, 2);
     }
 
     [Fact]
     public void Orthographic_NearAndFar_MapToMinusOneAndPlusOne()
     {
-        // GL NDC [-1,1]：near（视空间 z=-near）→ -1，far（z=-far）→ +1
+        // 左手 GL NDC [-1,1]：near（视空间 z=+near，前方）→ -1，far（z=+far）→ +1
         var ortho = Matrix4x4.CreateOrthographic(10f, 10f, 0.1f, 100f);
-        Assert.Equal(-1f, (ortho * new Vector3(0, 0, -0.1f)).Z, 3);
-        Assert.Equal(1f, (ortho * new Vector3(0, 0, -100f)).Z, 3);
+        Assert.Equal(-1f, (ortho * new Vector3(0, 0, 0.1f)).Z, 3);
+        Assert.Equal(1f, (ortho * new Vector3(0, 0, 100f)).Z, 3);
+    }
+
+    [Fact]
+    public void Perspective_AfterLookAt_ForwardPointVisible()
+    {
+        // 组合路径：LookAt（前方 +z，相机(0,0,-10) 看原点）· 前方点 (0,0,-5) → 视空间 z=+5
+        var view = Matrix4x4.CreateLookAt(new Vector3(0, 0, -10), Vector3.Zero, Vector3.Up);
+        var viewP = view * new Vector3(0, 0, -5);
+        Assert.Equal(5f, viewP.Z, 3);
+        var proj = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 2f, 1f, 0.1f, 100f);
+        var ndc = proj * viewP;
+        // 前方几何 clip.w>0 可见，NDC z 落在 (-1,1) 内且有限
+        Assert.True(float.IsFinite(ndc.Z));
+        Assert.InRange(ndc.Z, -1f, 1f);
     }
 
     [Theory]
