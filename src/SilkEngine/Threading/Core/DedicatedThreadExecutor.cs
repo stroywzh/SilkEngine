@@ -14,19 +14,24 @@ public sealed class DedicatedThreadExecutor : ILoopExecutor
 
     private readonly string _name;
     private readonly ThreadPriority _priority;
-    private Thread? _thread;
+    private Thread _thread;
     private volatile bool _stopRequested;
     private Func<bool>? _frame;
-    private readonly TaskCompletionSource _completed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource _completed = new(
+        TaskCreationOptions.RunContinuationsAsynchronously
+    );
 
     public string Name => _name;
-    public ThreadContext? Context { get; private set; }
+    public ThreadContext Context { get; private set; }
     public bool IsRunning => _thread?.IsAlive ?? false;
 
     public DedicatedThreadExecutor(string name, ThreadPriority priority = ThreadPriority.Normal)
     {
         _name = name;
         _priority = priority;
+        var thread = ThreadFactory.CreateThread(Loop, _name, isBackground: true, _priority);
+        Context = new ThreadContext(thread, (uint)Interlocked.Increment(ref _idCounter));
+        _thread = thread;
     }
 
     /// <summary>启动循环：专用线程反复执行 frame；返回 false 或 Stop() 后退出。重复启动抛错。</summary>
@@ -34,12 +39,11 @@ public sealed class DedicatedThreadExecutor : ILoopExecutor
     {
         if (_thread is { IsAlive: true })
             throw new InvalidOperationException($"执行者 '{_name}' 已启动");
+
         _frame = frame;
         _stopRequested = false;
-        var thread = ThreadFactory.CreateThread(Loop, _name, isBackground: true, _priority);
-        Context = new ThreadContext(thread, (uint)Interlocked.Increment(ref _idCounter));
-        _thread = thread;
-        thread.Start();
+        _thread.Start();
+
         return new ExitHandle(this);
     }
 
@@ -72,9 +76,13 @@ public sealed class DedicatedThreadExecutor : ILoopExecutor
     private sealed class ExitHandle : IJobHandle
     {
         private readonly DedicatedThreadExecutor _owner;
+
         public ExitHandle(DedicatedThreadExecutor owner) => _owner = owner;
+
         public bool IsCompleted => !_owner.IsRunning;
+
         public void Wait() => _owner.Join();
+
         public ValueTask AsTask() => new(_owner._completed.Task);
     }
 }

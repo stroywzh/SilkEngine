@@ -13,7 +13,11 @@ internal static class Services
     private static readonly Dictionary<Type, object> _services = new();
     private static readonly List<(Type Type, IDisposable Disposable)> _disposables = new();
 
-    /// <summary>注册服务（初始化期调用；重复注册同一类型抛异常；name 用于日志显示，默认类型全名）</summary>
+    /// <summary>注册服务
+    /// <br/>注册的实例为空则抛ArgumentNullException
+    /// <br/>重复注册同一类型抛InvalidOperationException
+    /// <br/>name 用于日志显示，默认类型全名
+    /// </summary>
     public static void Register<T>(T service, string? name = null)
         where T : class
     {
@@ -29,7 +33,9 @@ internal static class Services
         }
     }
 
-    /// <summary>取服务；未注册抛 InvalidOperationException（fail-fast）</summary>
+    /// <summary>获取服务
+    /// <br/>未注册抛 InvalidOperationException
+    /// </summary>
     public static T Get<T>()
         where T : class
     {
@@ -41,7 +47,9 @@ internal static class Services
         throw new InvalidOperationException($"服务未注册: {typeof(T).FullName}");
     }
 
-    /// <summary>取服务（null 容忍）：未注册返回 false 且 service 为 null。引擎初始化前调用点使用</summary>
+    /// <summary>尝试获取服务
+    /// <br/>未注册或者无法找到返回 false 且 service 为 null
+    /// </summary>
     public static bool TryGet<T>(out T service)
         where T : class
     {
@@ -57,7 +65,7 @@ internal static class Services
         return false;
     }
 
-    /// <summary>注销服务（测试夹具生命周期用；不调用 Dispose，释放由调用方负责）</summary>
+    /// <summary>注销服务<br/>不会主动Dispose，需要手动调用</summary>
     public static void Unregister<T>()
         where T : class
     {
@@ -65,6 +73,24 @@ internal static class Services
         {
             _services.Remove(typeof(T));
             _disposables.RemoveAll(e => e.Type == typeof(T));
+            if (LogConfig.Services)
+                Log.Info($"[Services] Unregistered {typeof(T).FullName}");
+        }
+    }
+
+    /// <summary>注销服务并释放</summary>
+    public static void UnregisterAndDispose<T>()
+        where T : class
+    {
+        lock (_lock)
+        {
+            _services.Remove(typeof(T));
+            var arr = _disposables.Where(e => e.Type == typeof(T)).ToArray();
+            foreach (var i in arr)
+            {
+                i.Disposable.Dispose();
+                _disposables.Remove(i);
+            }
             if (LogConfig.Services)
                 Log.Info($"[Services] Unregistered {typeof(T).FullName}");
         }

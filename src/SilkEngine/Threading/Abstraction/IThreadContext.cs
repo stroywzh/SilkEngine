@@ -10,7 +10,7 @@ public record ThreadContext
     /// <summary>
     /// 线程名称
     /// </summary>
-    public string Name => Thread.Name ?? $"ManagedThread-{InternalManagedId}";
+    public string Name => Thread.Name ?? $"UnNamed-ManagedThread-{InternalManagedId}";
 
     /// <summary>
     /// OS提供的线程PID
@@ -37,18 +37,6 @@ public record ThreadContext
         return $"-ThreadContext:Name{Name}\n |NativeThreadId{NativeThreadId}-InternalId{InternalManagedId}\n |IsBackGround{IsBackground}-Priority{Priority}";
     }
 }
-
-// // TODO:在考虑是否需要取消
-// public interface IThreadLContext
-// {
-//     public ThreadContext ThreadContext { get; }
-
-//     public bool IsRunning { get; }
-//     void Initialize();
-//     void Start();
-//     void Stop();
-//     void Join();
-// }
 
 // TODO:线程负载接口，我感觉不需要这个东西，但是可以留着，因为现在的多线程不需要高并发，后面可以做成类似Unity的JobHandler
 // 但是现在的Worker本质上是建立一个Thread，然后在backgroundThread里面同步阻塞获取Task的内容
