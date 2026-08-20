@@ -41,7 +41,7 @@ public abstract class Component : Object
         }
     }
 
-    public void OnValidate() { }
+    public virtual void OnValidate() { }
 
     /// <summary>组件从宿主移除时的收尾：若已启用则触发 OnDisable 并清除状态。</summary>
     internal void MarkRemoved()
