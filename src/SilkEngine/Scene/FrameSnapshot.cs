@@ -16,6 +16,9 @@ public sealed class FrameSnapshot
     public SilkEngine.Scene.Scene? ActiveScene { get; internal set; }
     internal List<ComponentGroup> Groups { get; } = [];
 
+    /// <summary>MonoBehaviour 基类索引视图（按具体类型分组，派发遍历用；快照构建时复制）。</summary>
+    internal List<List<MonoBehaviour>> MbGroups { get; } = [];
+
     public IReadOnlyList<T> GetComponents<T>()
         where T : Component
     {
@@ -78,7 +81,7 @@ internal sealed class FrameSnapshotManager
 
         registry.ApplyPending();
 
-        registry.RefreshSnapshot(_back);
+        registry.BuildSnapshot(_back);
 
         _back.FrameCount++;
         _back.ActiveScene = activeScene;

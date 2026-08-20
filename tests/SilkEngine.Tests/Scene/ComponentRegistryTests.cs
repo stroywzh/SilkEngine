@@ -37,7 +37,7 @@ public class ComponentRegistryTests
     }
 
     [Fact]
-    public void RefreshSnapshot_FillsGroups()
+    public void BuildSnapshot_FillsGroups()
     {
         var reg = new ComponentRegistry();
         var a = new GameObject().AddComponent<A>(reg);
@@ -47,7 +47,7 @@ public class ComponentRegistryTests
         reg.ApplyPending();
 
         var snap = new FrameSnapshot();
-        reg.RefreshSnapshot(snap);
+        reg.BuildSnapshot(snap);
 
         Assert.Equal(2, snap.Groups.Count);
         Assert.Single(snap.GetComponents<A>());

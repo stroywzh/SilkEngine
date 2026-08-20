@@ -120,7 +120,7 @@ public class FrameSnapshotTests : IClassFixture<SceneManagerFixture>
     }
 
     [Fact]
-    public void RefreshSnapshot_ReusesGroupInstances()
+    public void BuildSnapshot_CopiesGroupInstances()
     {
         var reg = new ComponentRegistry();
         var c = new GameObject().AddComponent<TestTracker>();
@@ -129,9 +129,13 @@ public class FrameSnapshotTests : IClassFixture<SceneManagerFixture>
 
         var snap1 = new FrameSnapshot();
         var snap2 = new FrameSnapshot();
-        reg.RefreshSnapshot(snap1);
-        reg.RefreshSnapshot(snap2);
-        Assert.Same(snap1.Groups[0], snap2.Groups[0]); // 同一 ComponentGroup 实例
+        reg.BuildSnapshot(snap1);
+        reg.BuildSnapshot(snap2);
+        Assert.NotSame(snap1.Groups[0], snap2.Groups[0]);            // 复制语义：不共享 ComponentGroup 实例
+        Assert.NotSame(snap1.Groups[0].Components, snap2.Groups[0].Components); // 组件列表亦复制
+
+        reg.Unregister(c);                                           // 实时注册表变更不影响已构建快照
+        Assert.Same(c, snap1.Groups[0].Components[0]);               // 组件引用本身共享
     }
 
     [Fact]

@@ -55,7 +55,7 @@ public class RenderCollectorTests
         reg.ApplyPending();
         var snap = new FrameSnapshot();
         snap.ActiveScene = scene;
-        reg.RefreshSnapshot(snap);
+        reg.BuildSnapshot(snap);
 
         var collector = new RenderCollector();
         collector.Gather(snap, out _, out var batches);
@@ -81,7 +81,7 @@ public class RenderCollectorTests
 
         var snap = new FrameSnapshot();
         snap.ActiveScene = scene;
-        reg.RefreshSnapshot(snap);
+        reg.BuildSnapshot(snap);
 
         var collector = new RenderCollector();
         collector.Gather(snap, out var foundCam, out var batches);
@@ -202,7 +202,7 @@ public class RenderSystemTests
         var reg = new ComponentRegistry();
         reg.Register(mr); reg.Register(cam);
         reg.ApplyPending();
-        reg.RefreshSnapshot(snap);
+        reg.BuildSnapshot(snap);
         snap.ActiveScene = scene;
 
         sys.Render(snap);

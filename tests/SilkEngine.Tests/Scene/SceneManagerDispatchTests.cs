@@ -62,7 +62,7 @@ public class SceneManagerDispatchTests : IDisposable
     }
 
     [Fact]
-    public void Tick_UnregisteredComponent_IsNotDispatched()
+    public void Tick_UnregisteredComponent_DispatchedUntilSnapshotRebuild()
     {
         var reg = new ComponentRegistry();
         var scene = new Scene("T");
@@ -73,7 +73,11 @@ public class SceneManagerDispatchTests : IDisposable
 
         reg.Unregister(c);
         sm.Tick(mgr.Current, 0.016f);
-        Assert.Equal(0, c.Ticks);                // 索引实时：退订后当帧即不派发
+        Assert.Equal(1, c.Ticks);                // 快照派发：当帧仍按旧快照派发（帧末提交前不生效）
+
+        mgr.CommitPending(reg, sm._destroyQueue, scene, 0f); // 提交新帧 → 快照重建
+        sm.Tick(mgr.Current, 0.016f);
+        Assert.Equal(1, c.Ticks);                // 新快照已不含 c → 不再派发
     }
 
     [Fact]

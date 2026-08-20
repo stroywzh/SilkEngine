@@ -56,10 +56,19 @@ public sealed class ComponentRegistry
         _pendingAdds.Clear();
     }
 
-    public void RefreshSnapshot(FrameSnapshot snapshot)
+    /// <summary>构建复制型快照：组件/基类索引均复制引用列表，快照与实时注册表物理隔离（帧原子性）。</summary>
+    internal void BuildSnapshot(FrameSnapshot snapshot)
     {
         snapshot.Groups.Clear();
-        snapshot.Groups.AddRange(_groups.Values); // 引用既有分组，零分配
+        foreach (var g in _groups.Values)
+            snapshot.Groups.Add(new ComponentGroup
+            {
+                ComponentType = g.ComponentType,
+                Components = [.. g.Components],
+            });
+        snapshot.MbGroups.Clear();
+        foreach (var list in _mbIndex.Values)
+            snapshot.MbGroups.Add([.. list]);
     }
 
     public IReadOnlyList<T> GetOfType<T>() where T : Component

@@ -88,7 +88,7 @@ public class SceneManager : IDisposable
 
     public void Tick(FrameSnapshot snapshot, float dt)
     {
-        foreach (var mb in GetActiveMBs())
+        foreach (var mb in GetActiveMBs(snapshot))
         {
             if (!mb.Started)
             {
@@ -101,30 +101,28 @@ public class SceneManager : IDisposable
 
     public void FixedTick(FrameSnapshot snapshot, float fdt)
     {
-        foreach (var mb in GetActiveMBs())
+        foreach (var mb in GetActiveMBs(snapshot))
             mb.OnFixedUpdate(fdt);
     }
 
     public void LateTick(FrameSnapshot snapshot)
     {
-        foreach (var mb in GetActiveMBs())
+        foreach (var mb in GetActiveMBs(snapshot))
             mb.OnLateUpdate();
     }
 
     public void PostRender(FrameSnapshot snapshot)
     {
-        foreach (var mb in GetActiveMBs())
+        foreach (var mb in GetActiveMBs(snapshot))
             mb.OnPostRender();
     }
 
-    private IEnumerable<MonoBehaviour> GetActiveMBs()
+    private IEnumerable<MonoBehaviour> GetActiveMBs(FrameSnapshot snapshot)
     {
-        if (Registry is null)
-            yield break;
-        foreach (var list in Registry.MonoBehaviourGroups)
-        foreach (var mb in list)
-            if (mb.GameObject.IsActiveInHierarchy && mb.Enabled)
-                yield return mb;
+        foreach (var list in snapshot.MbGroups)
+            foreach (var mb in list)
+                if (mb.GameObject.IsActiveInHierarchy && mb.Enabled)
+                    yield return mb;
     }
 
     /// <summary>运行时向活动场景添加 GameObject（含子树）；注册进已注入注册表，不重复触发生命周期。</summary>
