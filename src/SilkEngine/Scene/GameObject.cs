@@ -9,6 +9,45 @@ namespace SilkEngine.Scene;
 
 public sealed class GameObject : Object
 {
+    static GameObject()
+    {
+        Object.GameObjectDestroyHook = obj =>
+        {
+            if (obj is GameObject go) // 类型守卫：组件销毁（Object.Destroy(c)）不崩溃
+                DestroyRecursive(go);
+        };
+        Object.GameObjectInstantiateHook = obj =>
+        {
+            if (obj is not GameObject go) // 类型守卫：保持 Object.Instantiate(非GameObject) 抛 NotSupportedException
+                throw new NotSupportedException($"Instantiate not supported for {obj.GetType()}");
+            return InstantiateGameObject(go);
+        };
+    }
+
+    private static void DestroyRecursive(GameObject go)
+    {
+        go._destroyPending = true;
+        foreach (var child in go.Transform.Children.ToArray())
+            DestroyRecursive(child.GameObject!);
+        go.IsActive = false;
+        foreach (var c in go._components)
+            c.Enabled = false;
+    }
+
+    private static GameObject InstantiateGameObject(GameObject go)
+    {
+        var clone = new GameObject(go.Name + "(Clone)") { IsActive = go.IsActive };
+        clone.Transform.LocalPosition = go.Transform.LocalPosition;
+        clone.Transform.LocalRotation = go.Transform.LocalRotation;
+        clone.Transform.LocalScale = go.Transform.LocalScale;
+        foreach (var child in go.Transform.Children)
+        {
+            var cgo = InstantiateGameObject(child.GameObject!);
+            cgo.Transform.SetParent(clone.Transform);
+        }
+        return clone;
+    }
+
     internal List<Component> _components = new();
     internal JsonObject? _serializedData;
 

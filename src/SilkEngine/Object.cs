@@ -1,6 +1,4 @@
 using System;
-using System.Linq;
-using SilkEngine.Scene;
 
 namespace SilkEngine.Core;
 
@@ -14,46 +12,27 @@ public abstract class Object
 
     public static event Action<Object, float>? DestroyHandler;
 
+    /// <summary>GameObject 专属销毁/实例化逻辑挂接点（Scene 层静态构造注册，单程序集内部委托，非反射）。</summary>
+    internal static Action<Object>? GameObjectDestroyHook;
+    internal static Func<Object, Object>? GameObjectInstantiateHook;
+
     internal bool _destroyPending;
     internal bool _destroyed;
 
     public static void Destroy(Object obj, float delay = 0f)
     {
         if (obj._destroyPending || obj._destroyed)
-            return;                       // 幂等
+            return; // 幂等
         obj._destroyPending = true;
-        if (obj is GameObject go)
-            DestroyRecursive(go);
+        GameObjectDestroyHook?.Invoke(obj); // 仅 GameObject 注册过；其他类型无操作
         DestroyHandler?.Invoke(obj, delay);
-    }
-
-    private static void DestroyRecursive(GameObject go)
-    {
-        go._destroyPending = true;
-        foreach (var child in go.Transform.Children.ToArray())
-            DestroyRecursive(child.GameObject!);
-        go.IsActive = false;
-        foreach (var c in go._components)
-            c.Enabled = false;
     }
 
     public static Object Instantiate(Object original)
     {
-        if (original is GameObject go)
-        {
-            var clone = new GameObject(go.Name + "(Clone)") { IsActive = go.IsActive };
-            clone.Transform.LocalPosition = go.Transform.LocalPosition;
-            clone.Transform.LocalRotation = go.Transform.LocalRotation;
-            clone.Transform.LocalScale = go.Transform.LocalScale;
-            foreach (var child in go.Transform.Children)
-            {
-                var cgo = Instantiate(child.GameObject);
-                if (cgo is GameObject cc)
-                    cc.Transform.SetParent(clone.Transform);
-            }
-
-            return clone;
-        }
+        // hook 仅在 GameObject 静态构造后注册：非 GameObject 类型走 NotSupportedException（原语义）
+        if (GameObjectInstantiateHook is { } hook)
+            return hook(original);
         throw new NotSupportedException($"Instantiate not supported for {original.GetType()}");
     }
 }
