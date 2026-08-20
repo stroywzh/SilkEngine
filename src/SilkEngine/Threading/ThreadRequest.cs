@@ -15,10 +15,10 @@ public enum ThreadKind
 /// <summary>线程申请描述：名称 + 种类 + 数量 + 优先级（决策层据此选择底层策略）。</summary>
 public readonly record struct ThreadRequest
 {
-    public readonly string name;
-    public readonly ThreadKind kind;
-    public readonly int count;
-    public readonly ThreadPriority priority;
+    public readonly string Name;
+    public readonly ThreadKind Kind;
+    public readonly int Count;
+    public readonly ThreadPriority Priority;
 
     public ThreadRequest(
         string name,
@@ -27,19 +27,19 @@ public readonly record struct ThreadRequest
         ThreadPriority priority = ThreadPriority.Normal
     )
     {
-        this.name = name;
-        this.kind = kind;
-        this.count = count;
-        this.priority = priority;
+        this.Name = name;
+        this.Kind = kind;
+        this.Count = count;
+        this.Priority = priority;
     }
 
-    bool EnsureCount(int count)
-    {
-        return (kind) switch
-        {
-            ThreadKind.Dedicated => count == 1,
-            ThreadKind.WorkerPool => count >= 1,
-            _ => false,
-        };
-    }
+    // bool EnsureCount(int count)
+    // {
+    //     return (Kind) switch
+    //     {
+    //         ThreadKind.Dedicated => count == 1,
+    //         ThreadKind.WorkerPool => count >= 1,
+    //         _ => false,
+    //     };
+    // }
 }

@@ -60,7 +60,7 @@ public static class Log
 
         string text = message?.ToString() ?? "null";
         var now = DateTime.Now;
-        string thread = ShowThreadInfo ? $"[{Thread.CurrentThread.Name ?? "Main"}]" : "";
+        string thread = ShowThreadInfo ? $"[{Thread.CurrentThread.Name ?? "Main"}]" : string.Empty;
         string line = $"[{now:HH:mm:ss.fff}]{thread}: {text}";
 
         lock (_lock)

@@ -56,20 +56,20 @@ public sealed class ThreadManager : IDisposable, IJobComposer
     {
         if (_shutdown)
             throw new InvalidOperationException("ThreadManager 已关闭");
-        if (_byName.ContainsKey(request.name))
-            throw new InvalidOperationException($"线程执行者 '{request.name}' 已注册");
-        IThreadExecutor executor = request.kind switch
+        if (_byName.ContainsKey(request.Name))
+            throw new InvalidOperationException($"线程执行者 '{request.Name}' 已注册");
+        IThreadExecutor executor = request.Kind switch
         {
-            ThreadKind.Dedicated => new DedicatedThreadExecutor(request.name, request.priority),
+            ThreadKind.Dedicated => new DedicatedThreadExecutor(request.Name, request.Priority),
             _ => DefaultExecutor,
         };
 
         if (executor is not T typed)
             throw new InvalidOperationException(
-                $"申请 '{request.name}' ({request.kind}) 无法转型为 {typeof(T).Name}（实际 {executor.GetType().Name}）"
+                $"申请 '{request.Name}' ({request.Kind}) 无法转型为 {typeof(T).Name}（实际 {executor.GetType().Name}）"
             );
 
-        _byName.Add(request.name, executor);
+        _byName.Add(request.Name, executor);
         _executors.Add(executor);
         return typed;
     }
