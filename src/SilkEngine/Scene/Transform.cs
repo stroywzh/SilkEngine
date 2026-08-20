@@ -83,8 +83,14 @@ public sealed class Transform
     public Vector3 Forward => Rotation * Vector3.Forward;
     public Matrix4x4 LocalToWorldMatrix => Matrix4x4.CreateTRS(Position, Rotation, Scale);
 
+    /// <summary>重挂父级；上溯新父链查环（含自身），成环抛 InvalidOperationException。</summary>
     public void SetParent(Transform? p)
     {
+        for (var cur = p; cur != null; cur = cur.Parent)
+            if (cur == this)
+                throw new InvalidOperationException(
+                    $"Cannot parent '{GameObject.Name}' to itself or a descendant (cycle)"
+                );
         _parent?._children.Remove(this);
         _parent = p;
         _parent?._children.Add(this);

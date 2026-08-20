@@ -25,7 +25,12 @@ public static class AssetRefCodec
         var s = node.GetString(key);
         if (s is null || !Guid.TryParse(s, out var g))
             return null;
-        return Services.TryGet<AssetManager>(out var am) ? am.TryResolve<T>(g) : null;
+        if (!Services.TryGet<AssetManager>(out var am))
+            return null;
+        var asset = am.TryResolve<T>(g);
+        if (asset is null && LogConfig.Assets)
+            Log.Warn($"[Assets] AssetRef miss: key '{key}' guid '{g}' ({typeof(T).Name}) — asset not loaded");
+        return asset;
     }
 
     /// <summary>读取并直接赋值字段（无属性路径）：管理器已注册经 SetTracked 保持引用计数闭环；未注册仅字段赋值。</summary>

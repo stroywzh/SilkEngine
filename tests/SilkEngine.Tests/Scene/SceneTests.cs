@@ -7,4 +7,5 @@ public class SceneTests
 {
     [Fact] public void Constructor_SetsName() => Assert.Equal("Test", new Scene("Test").Name);
     [Fact] public void AddRootObject() { var s = new Scene("S"); var go = new GameObject(); s.AddRootObject(go); Assert.Single(s.GetRootGameObjects()); }
+    [Fact] public void AddRootObject_Duplicate_Throws() { var s = new Scene("S"); var go = new GameObject(); s.AddRootObject(go); Assert.Throws<InvalidOperationException>(() => s.AddRootObject(go)); }
 }

@@ -108,8 +108,17 @@ public sealed class GameObject : Object
         Transform = new Transform((GameObject)this, parent);
     }
 
+    /// <summary>挂载组件；同实例重复添加或跨宿主重挂抛 InvalidOperationException。</summary>
     public Component AddComponent(Component c, ComponentRegistry? registry = null)
     {
+        if (_components.Contains(c))
+            throw new InvalidOperationException(
+                $"Component '{c.GetType().Name}' is already attached to GameObject '{Name}'"
+            );
+        if (c.GameObject is { } host && host != this)
+            throw new InvalidOperationException(
+                $"Component '{c.GetType().Name}' is already attached to GameObject '{host.Name}'"
+            );
         InitializeComponent(c, registry);
         return c;
     }

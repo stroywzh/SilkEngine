@@ -54,6 +54,25 @@ public class GameObjectTests : IClassFixture<SceneManagerFixture>
     }
 
     [Fact]
+    public void AddComponent_SameInstanceTwice_Throws()
+    {
+        var go = new GameObject();
+        var c = go.AddComponent<TestComponent>();
+        var ex = Assert.Throws<InvalidOperationException>(() => go.AddComponent(c));
+        Assert.Contains("TestComponent", ex.Message);
+    }
+
+    [Fact]
+    public void AddComponent_CrossHostReattach_Throws()
+    {
+        var a = new GameObject();
+        var b = new GameObject();
+        var c = a.AddComponent<TestComponent>();
+        var ex = Assert.Throws<InvalidOperationException>(() => b.AddComponent(c));
+        Assert.Contains("TestComponent", ex.Message);
+    }
+
+    [Fact]
     public void AddComponent_WithRegistry_GoesToPending()
     {
         var reg = new ComponentRegistry();

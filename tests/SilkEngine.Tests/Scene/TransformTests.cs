@@ -10,4 +10,6 @@ public class TransformTests
     [Fact] public void SetParent_DetachesOld() { var p1 = new Transform(new GameObject()); var p2 = new Transform(new GameObject()); var c = new Transform(new GameObject()); c.SetParent(p1); c.SetParent(p2); Assert.Same(p2, c.Parent); Assert.DoesNotContain(c, p1.Children); }
     [Fact] public void SetParent_Null_Detaches() { var p = new Transform(new GameObject()); var c = new Transform(new GameObject()); c.SetParent(p); c.SetParent(null); Assert.Null(c.Parent); }
     [Fact] public void Forward_AffectedByRotation() { var t = new Transform(new GameObject()) { LocalRotation = Quaternion.Euler(0,90,0) }; Assert.Equal(1f, t.Forward.X, 1e-4f); Assert.Equal(0f, t.Forward.Z, 1e-4f); }
+    [Fact] public void SetParent_ToSelf_Throws() { var t = new GameObject().Transform; Assert.Throws<InvalidOperationException>(() => t.SetParent(t)); }
+    [Fact] public void SetParent_Cycle_Throws() { var a = new GameObject().Transform; var b = new GameObject().Transform; var c = new GameObject().Transform; c.SetParent(b); b.SetParent(a); Assert.Throws<InvalidOperationException>(() => a.SetParent(c)); }
 }

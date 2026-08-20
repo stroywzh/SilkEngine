@@ -1,6 +1,7 @@
 using SilkEngine;
 using SilkEngine.Core;
 using SilkEngine.Scene;
+using Object = SilkEngine.Core.Object;
 
 namespace SilkEngine.Tests.Scene;
 using Scene = SilkEngine.Scene.Scene;
@@ -80,6 +81,39 @@ public class SceneManagerDispatchTests : IDisposable
         Assert.Equal(1, c.Ticks);                // 新快照已不含 c → 不再派发
     }
 
+    [Fact]
+    public void Tick_AfterRemoveComponent_NotDispatchedSameFrame()
+    {
+        var reg = new ComponentRegistry();
+        var scene = new Scene("T");
+        var go = new GameObject();
+        var c = go.AddComponent<Tracker>(reg);
+        scene.AddRootObject(go);
+        var (sm, mgr) = Setup(reg, scene, go);
+        sm.Tick(mgr.Current, 0.016f);
+        Assert.Equal(1, c.Ticks);
+
+        go.RemoveComponent<Tracker>(reg);        // RemoveComponent 即置 _destroyPending → 当帧不再派发
+        sm.Tick(mgr.Current, 0.016f);
+        Assert.Equal(1, c.Ticks);
+    }
+
+    [Fact]
+    public void Tick_AfterObjectDestroy_NotDispatchedSameFrame()
+    {
+        var reg = new ComponentRegistry();
+        var scene = new Scene("T");
+        var go = new GameObject();
+        var c = go.AddComponent<Tracker>(reg);
+        scene.AddRootObject(go);
+        var (sm, mgr) = Setup(reg, scene, go);
+        sm.Tick(mgr.Current, 0.016f);
+        Assert.Equal(1, c.Ticks);
+
+        Object.Destroy(go);                      // GO 销毁即失活 + 组件 _destroyPending 双保险
+        sm.Tick(mgr.Current, 0.016f);
+        Assert.Equal(1, c.Ticks);
+    }
     [Fact]
     public void Tick_DispatchOrder_MatchesRegistrationOrder()
     {

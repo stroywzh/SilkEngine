@@ -59,11 +59,12 @@ public class SceneManager : IDisposable
                 Object.Destroy(go); // 统一队列 + 幂等 + 立即失活
         }
         ActiveScene = scene;
-        if (registry != null)
+        var reg = registry ?? _registry;
+        if (reg != null)
         {
             foreach (var go in scene._rootObjects)
-                InvokeRecursive(go, c => registry.Register(c));
-            registry.ApplyPending();
+                InvokeRecursive(go, c => reg.Register(c));
+            reg.ApplyPending();
         }
         if (LogConfig.Scene)
             Log.Info($"[Scene] Loaded '{scene.Name}' (roots: {scene.GetRootGameObjects().Length})");
@@ -121,7 +122,12 @@ public class SceneManager : IDisposable
     {
         foreach (var list in snapshot.MbGroups)
             foreach (var mb in list)
-                if (mb.GameObject.IsActiveInHierarchy && mb.Enabled)
+                if (
+                    mb.GameObject.IsActiveInHierarchy
+                    && mb.Enabled
+                    && !mb._destroyPending
+                    && !mb.GameObject._destroyPending
+                )
                     yield return mb;
     }
 

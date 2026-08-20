@@ -26,7 +26,11 @@ public sealed class ComponentRegistry
     {
         _pendingAdds.Remove(c);
         if (_groups.TryGetValue(c.GetType(), out var g))
+        {
             g.Components.Remove(c);
+            if (g.Components.Count == 0)
+                _groups.Remove(c.GetType());
+        }
         if (c is MonoBehaviour mb && _mbIndex.TryGetValue(c.GetType(), out var mbList))
         {
             mbList.Remove(mb);

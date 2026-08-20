@@ -116,4 +116,17 @@ public class ComponentRegistryTests
         reg.Unregister(a);
         Assert.Empty(reg.MonoBehaviourGroups.SelectMany(g => g));
     }
+
+    [Fact]
+    public void Unregister_LastComponent_RemovesEmptyGroup()
+    {
+        var reg = new ComponentRegistry();
+        var a = new GameObject().AddComponent<A>(reg);
+        reg.ApplyPending();
+        reg.Unregister(a);
+
+        var snap = new FrameSnapshot();
+        reg.BuildSnapshot(snap);
+        Assert.Empty(snap.Groups);               // 空分组不残留进快照
+    }
 }
