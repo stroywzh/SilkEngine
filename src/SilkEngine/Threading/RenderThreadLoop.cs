@@ -33,6 +33,9 @@ public class RenderThreadLoop : IDisposable
     /// <summary>渲染后端实例</summary>
     public IRenderBackend Backend => _backend;
 
+    /// <summary>帧握手超时（内部可注入，测试缩短；默认 5s）</summary>
+    internal TimeSpan FrameTimeout { get; set; } = TimeSpan.FromSeconds(5);
+
     public RenderThreadLoop(IRenderBackend backend, ILoopExecutor executor)
     {
         _backend = backend;
@@ -55,7 +58,8 @@ public class RenderThreadLoop : IDisposable
     {
         _pendingPasses = passes;
         _commandsReady.Set();
-        _frameDone.Wait();
+        if (!_frameDone.Wait(FrameTimeout))
+            throw new TimeoutException($"[RenderThread] frame handshake timeout after {FrameTimeout}");
         _frameDone.Reset();
     }
 
@@ -67,8 +71,15 @@ public class RenderThreadLoop : IDisposable
             _backend.MakeContextCurrent();
             _contextBound = true;
         }
-        _commandsReady.Wait();
-        _commandsReady.Reset();
+        try
+        {
+            _commandsReady.Wait();
+            _commandsReady.Reset();
+        }
+        catch (ObjectDisposedException)
+        {
+            return false; // Dispose 已发生：线程安全退出（停止属主仍为 ThreadManager）
+        }
         if (!_rendering)
         {
             _backend.ClearContext();
@@ -76,10 +87,10 @@ public class RenderThreadLoop : IDisposable
         }
 
         // 帧首：处理资产释放队列（GL 释放由后端接入；无注册管理器（测试）时跳过）
-        if (Services.TryGet<AssetManager>(out var assetManager))
-            assetManager.ProcessUnloadQueue(_backend.ReleaseTexture);
         try
         {
+            if (Services.TryGet<AssetManager>(out var assetManager))
+                assetManager.ProcessUnloadQueue(_backend.ReleaseTexture);
             if (_pendingPasses != null)
             {
                 foreach (var pass in _pendingPasses.OrderBy(p => p.SortOrder))
@@ -90,14 +101,17 @@ public class RenderThreadLoop : IDisposable
                 }
                 _backend.Present();
             }
+            if (LogConfig.Render)
+                Log.Info($"[Render] Frame submitted (passes: {_pendingPasses?.Count ?? 0})");
         }
         catch (Exception ex)
         {
             Log.Error($"[RenderThread] ExecutePass failed: {ex}");
         }
-        if (LogConfig.Render)
-            Log.Info($"[Render] Frame submitted (passes: {_pendingPasses?.Count ?? 0})");
-        _frameDone.Set();
+        finally
+        {
+            _frameDone.Set(); // 异常路径也必须放行主线程
+        }
         return true;
     }
 
@@ -106,12 +120,12 @@ public class RenderThreadLoop : IDisposable
         if (_disposed)
             return;
         _disposed = true;
-        _rendering = false;
-        _commandsReady.Set(); // 唤醒阻塞帧 → RenderFrame 返回 false → 线程退出
-        _executor?.Stop();
-        _executor?.Join();
+        _rendering = false; // 线程自然退出路径（RenderFrame 检查 _rendering → ClearContext → return false）
+        _commandsReady.Set(); // 唤醒阻塞帧
+        _frameDone.Set();     // 防主线程卡在 Wait（超时兜底双保险）
         _commandsReady.Dispose();
         _frameDone.Dispose();
         _backend.Dispose();
+        // 不再调用 _executor.Stop()/_executor.Join()——停止唯一属主 ThreadManager.Shutdown
     }
 }

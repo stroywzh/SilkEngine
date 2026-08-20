@@ -60,11 +60,21 @@ public sealed class DedicatedThreadExecutor : ILoopExecutor
     /// <summary>请求停止：置停止标志，等当前 frame 返回后线程退出。</summary>
     public void Stop() => _stopRequested = true;
 
-    /// <summary>阻塞等线程结束（内建 2s 超时容错，避免 frame 阻塞时挂死）。</summary>
-    public void Join() => _thread?.Join(2000);
+    /// <summary>阻塞等线程结束（内建 2s 超时容错，避免 frame 阻塞时挂死）；未启动直接返回（幂等）。</summary>
+    public void Join()
+    {
+        if ((_thread.ThreadState & ThreadState.Unstarted) != 0)
+            return; // 从未启动：幂等（Request 后未 Initialize/未 Run 即 Shutdown 的场景）
+        _thread.Join(2000);
+    }
 
-    /// <summary>阻塞等线程结束（自定义超时，毫秒）。</summary>
-    public void Join(int timeoutMilliseconds) => _thread?.Join(timeoutMilliseconds);
+    /// <summary>阻塞等线程结束（自定义超时，毫秒）；未启动直接返回（幂等）。</summary>
+    public void Join(int timeoutMilliseconds)
+    {
+        if ((_thread.ThreadState & ThreadState.Unstarted) != 0)
+            return;
+        _thread.Join(timeoutMilliseconds);
+    }
 
     public void Dispose()
     {
