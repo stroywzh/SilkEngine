@@ -45,6 +45,36 @@ public class MathfTests
     }
 
     [Fact]
+    public void Lerp_T2_ClampsToB()
+    {
+        Assert.Equal(8f, SilkEngine.Math.Mathf.Lerp(2f, 8f, 2f));
+    }
+
+    [Fact]
+    public void Lerp_TNegative_ClampsToA()
+    {
+        Assert.Equal(2f, SilkEngine.Math.Mathf.Lerp(2f, 8f, -1f));
+    }
+
+    [Fact]
+    public void Clamp01_ValueWithinRange_ReturnsValue()
+    {
+        Assert.Equal(0.5f, SilkEngine.Math.Mathf.Clamp01(0.5f));
+    }
+
+    [Fact]
+    public void Clamp01_ValueBelowZero_ReturnsZero()
+    {
+        Assert.Equal(0f, SilkEngine.Math.Mathf.Clamp01(-0.5f));
+    }
+
+    [Fact]
+    public void Clamp01_ValueAboveOne_ReturnsOne()
+    {
+        Assert.Equal(1f, SilkEngine.Math.Mathf.Clamp01(1.5f));
+    }
+
+    [Fact]
     public void Lerp_THalf_ReturnsMidpoint()
     {
         Assert.Equal(5f, SilkEngine.Math.Mathf.Lerp(2f, 8f, 0.5f));

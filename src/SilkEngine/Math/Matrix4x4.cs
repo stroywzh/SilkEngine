@@ -24,14 +24,68 @@ public struct Matrix4x4 : IEquatable<Matrix4x4>
         M43,
         M44;
 
-    public static Matrix4x4 Identity =>
-        new()
+    public static readonly Matrix4x4 Identity = new()
+    {
+        M11 = 1,
+        M22 = 1,
+        M33 = 1,
+        M44 = 1,
+    };
+
+    /// <summary>3×3 余子式行列式（行主序参数展开）。</summary>
+    private static float Det3(
+        float a,
+        float b,
+        float c,
+        float d,
+        float e,
+        float f,
+        float g,
+        float h,
+        float i
+    ) => a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g);
+
+    /// <summary>4×4 行列式（第一行余子式展开）。</summary>
+    public float Determinant =>
+        M11 * Det3(M22, M23, M24, M32, M33, M34, M42, M43, M44)
+        - M12 * Det3(M21, M23, M24, M31, M33, M34, M41, M43, M44)
+        + M13 * Det3(M21, M22, M24, M31, M32, M34, M41, M42, M44)
+        - M14 * Det3(M21, M22, M23, M31, M32, M33, M41, M42, M43);
+
+    /// <summary>
+    /// 逆矩阵（伴随矩阵除以行列式）。当 |det| &lt; 1e-12 视为奇异矩阵，
+    /// 抛出 <see cref="InvalidOperationException"/>。
+    /// </summary>
+    /// <exception cref="InvalidOperationException">矩阵不可逆（|det| &lt; 1e-12）。</exception>
+    public Matrix4x4 Inverse
+    {
+        get
         {
-            M11 = 1,
-            M22 = 1,
-            M33 = 1,
-            M44 = 1,
-        };
+            float det = Determinant;
+            if (MathF.Abs(det) < 1e-12f)
+                throw new InvalidOperationException("矩阵不可逆");
+            float invDet = 1f / det;
+            return new Matrix4x4
+            {
+                M11 = Det3(M22, M23, M24, M32, M33, M34, M42, M43, M44) * invDet,
+                M12 = -Det3(M12, M13, M14, M32, M33, M34, M42, M43, M44) * invDet,
+                M13 = Det3(M12, M13, M14, M22, M23, M24, M42, M43, M44) * invDet,
+                M14 = -Det3(M12, M13, M14, M22, M23, M24, M32, M33, M34) * invDet,
+                M21 = -Det3(M21, M23, M24, M31, M33, M34, M41, M43, M44) * invDet,
+                M22 = Det3(M11, M13, M14, M31, M33, M34, M41, M43, M44) * invDet,
+                M23 = -Det3(M11, M13, M14, M21, M23, M24, M41, M43, M44) * invDet,
+                M24 = Det3(M11, M13, M14, M21, M23, M24, M31, M33, M34) * invDet,
+                M31 = Det3(M21, M22, M24, M31, M32, M34, M41, M42, M44) * invDet,
+                M32 = -Det3(M11, M12, M14, M31, M32, M34, M41, M42, M44) * invDet,
+                M33 = Det3(M11, M12, M14, M21, M22, M24, M41, M42, M44) * invDet,
+                M34 = -Det3(M11, M12, M14, M21, M22, M24, M31, M32, M34) * invDet,
+                M41 = -Det3(M21, M22, M23, M31, M32, M33, M41, M42, M43) * invDet,
+                M42 = Det3(M11, M12, M13, M31, M32, M33, M41, M42, M43) * invDet,
+                M43 = -Det3(M11, M12, M13, M21, M22, M23, M41, M42, M43) * invDet,
+                M44 = Det3(M11, M12, M13, M21, M22, M23, M31, M32, M33) * invDet,
+            };
+        }
+    }
 
     public Matrix4x4 Transposed =>
         new()

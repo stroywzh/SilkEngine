@@ -16,9 +16,27 @@ public struct Vector2 : IEquatable<Vector2>
         Y = y;
     }
 
+    public float Magnitude => MathF.Sqrt(X * X + Y * Y);
+
+    public float MagnitudeSquared => X * X + Y * Y;
+
     public static readonly Vector2 Zero = new(0, 0);
 
+    public static Vector2 operator +(Vector2 a, Vector2 b) => new(a.X + b.X, a.Y + b.Y);
+
     public static Vector2 operator -(Vector2 a, Vector2 b) => new(a.X - b.X, a.Y - b.Y);
+
+    public static Vector2 operator -(Vector2 v) => new(-v.X, -v.Y);
+
+    public static Vector2 operator *(Vector2 v, float s) => new(v.X * s, v.Y * s);
+
+    public static Vector2 operator *(float s, Vector2 v) => v * s;
+
+    public static float Dot(Vector2 a, Vector2 b) => a.X * b.X + a.Y * b.Y;
+
+    public static float Distance(Vector2 a, Vector2 b) => (a - b).Magnitude;
+
+    public static Vector2 Lerp(Vector2 a, Vector2 b, float t) => a + (b - a) * t;
 
     public static bool operator ==(Vector2 a, Vector2 b) => a.X == b.X && a.Y == b.Y;
 

@@ -207,4 +207,83 @@ public class Matrix4x4Tests
         Assert.Equal(proj * view * model, mvp);
         Assert.NotEqual(model * view * proj, mvp);
     }
+
+    [Fact]
+    public void Determinant_Identity_IsOne()
+    {
+        Assert.Equal(1f, Matrix4x4.Identity.Determinant, 1e-5f);
+    }
+
+    [Fact]
+    public void Determinant_ScaleAndTranslation_IsProductOfScales()
+    {
+        // 上三角矩阵：行列式 = 主对角线乘积 2*3*4*1 = 24
+        var m = new Matrix4x4
+        {
+            M11 = 2,
+            M12 = 0,
+            M13 = 0,
+            M14 = 1,
+            M21 = 0,
+            M22 = 3,
+            M23 = 0,
+            M24 = 2,
+            M31 = 0,
+            M32 = 0,
+            M33 = 4,
+            M34 = 3,
+            M41 = 0,
+            M42 = 0,
+            M43 = 0,
+            M44 = 1,
+        };
+        Assert.Equal(24f, m.Determinant, 1e-3f);
+    }
+
+    [Fact]
+    public void Inverse_MultipliedBack_IsIdentity()
+    {
+        var m = new Matrix4x4
+        {
+            M11 = 2,
+            M12 = 1,
+            M13 = 0.5f,
+            M14 = 0.25f,
+            M21 = 0.5f,
+            M22 = 3,
+            M23 = 0.2f,
+            M24 = 0.1f,
+            M31 = 0.1f,
+            M32 = 0.2f,
+            M33 = 4,
+            M34 = 0.05f,
+            M41 = 0.05f,
+            M42 = 0.1f,
+            M43 = 0.2f,
+            M44 = 1,
+        };
+        var result = m * m.Inverse;
+        Assert.Equal(1f, result.M11, 1e-4f);
+        Assert.Equal(1f, result.M22, 1e-4f);
+        Assert.Equal(1f, result.M33, 1e-4f);
+        Assert.Equal(1f, result.M44, 1e-4f);
+        Assert.Equal(0f, result.M12, 1e-4f);
+        Assert.Equal(0f, result.M21, 1e-4f);
+        Assert.Equal(0f, result.M13, 1e-4f);
+        Assert.Equal(0f, result.M14, 1e-4f);
+        Assert.Equal(0f, result.M34, 1e-4f);
+        Assert.Equal(0f, result.M43, 1e-4f);
+    }
+
+    [Fact]
+    public void Inverse_Identity_IsIdentity()
+    {
+        Assert.Equal(Matrix4x4.Identity, Matrix4x4.Identity.Inverse);
+    }
+
+    [Fact]
+    public void Inverse_ZeroMatrix_Throws()
+    {
+        Assert.Throws<InvalidOperationException>(() => _ = new Matrix4x4().Inverse);
+    }
 }

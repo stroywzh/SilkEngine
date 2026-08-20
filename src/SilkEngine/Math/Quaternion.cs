@@ -1,7 +1,9 @@
 using System;
+using System.Runtime.InteropServices;
 
 namespace SilkEngine.Math;
 
+[StructLayout(LayoutKind.Sequential)]
 public struct Quaternion : IEquatable<Quaternion>
 {
     public float X,
