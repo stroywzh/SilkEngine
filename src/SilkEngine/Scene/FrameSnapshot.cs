@@ -1,8 +1,8 @@
 using System.Collections.Generic;
 using System.Linq;
-using SilkEngine.Scene;
+using SilkEngine.Core;
 
-namespace SilkEngine.Core;
+namespace SilkEngine.Scene;
 
 public sealed class ComponentGroup
 {
