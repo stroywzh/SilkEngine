@@ -28,10 +28,17 @@ public class RenderThreadLoopTests
 
         public void Present() { }
 
-        public IntPtr CreateBuffer(int size) => IntPtr.Zero;
-        public void DrawIndirect(IntPtr buf, int off, int cnt) { }
+        public IRenderBuffer CreateBuffer(int sizeBytes) => new StubBuffer();
+        public void DrawIndirect(IRenderBuffer buffer, int offset, int drawCount) { }
         public void ReleaseTexture(Texture2D texture) { }
         public void Dispose() { }
+
+        private sealed class StubBuffer : IRenderBuffer
+        {
+            public int SizeBytes => 0;
+            public bool IsDisposed => false;
+            public void Dispose() { }
+        }
     }
 
     [Fact]

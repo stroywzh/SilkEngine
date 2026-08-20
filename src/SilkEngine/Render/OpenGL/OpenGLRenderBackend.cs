@@ -92,6 +92,29 @@ public class OpenGLRenderBackend : RenderBackendBase
         }
     }
 
+    /// <inheritdoc />
+    public override IRenderBuffer CreateBuffer(int sizeBytes)
+    {
+        if (_gl == null)
+            throw new InvalidOperationException("后端未初始化");
+        uint id = _gl.GenBuffer();
+        _gl.BindBuffer(BufferTargetARB.ArrayBuffer, id);
+        unsafe
+        {
+            _gl.BufferData(
+                BufferTargetARB.ArrayBuffer,
+                (nuint)sizeBytes,
+                null,
+                BufferUsageARB.DynamicDraw
+            );
+        }
+        _gl.BindBuffer(BufferTargetARB.ArrayBuffer, 0);
+        return new OpenGLBuffer(sizeBytes, () =>
+        {
+            _gl.DeleteBuffer(id);
+        });
+    }
+
     /// <summary>纹理缓存（渲染线程与测试使用）</summary>
     internal OpenGLTextureRegistry TextureRegistry => _textureRegistry;
 

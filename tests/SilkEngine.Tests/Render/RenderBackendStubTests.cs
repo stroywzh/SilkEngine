@@ -1,5 +1,6 @@
 using SilkEngine.Core.Assets;
 using SilkEngine.Render;
+using SilkEngine.Render.OpenGL;
 
 namespace SilkEngine.Tests.Render;
 
@@ -14,6 +15,7 @@ public class RenderBackendStubTests
         public override void MakeContextCurrent() { }
         public override void ClearContext() { }
         public override void PumpWindowEvents() { }
+        public override IRenderBuffer CreateBuffer(int sizeBytes) => new OpenGLBuffer(sizeBytes, () => { });
     }
 
     [Fact]
@@ -34,7 +36,7 @@ public class RenderBackendStubTests
     public void DrawIndirect_NotImplemented_Throws()
     {
         var backend = new StubBackend();
-        Assert.Throws<NotSupportedException>(() => backend.DrawIndirect(IntPtr.Zero, 0, 1));
+        Assert.Throws<NotSupportedException>(() => backend.DrawIndirect(new OpenGLBuffer(1, () => { }), 0, 1));
     }
 
     [Fact]

@@ -16,7 +16,7 @@ public interface IComputeShader : IDisposable
     /// <summary>
     /// 为计算着色器设置缓冲区绑定
     /// </summary>
-    void SetBuffer(string name, IntPtr bufferHandle);
+    void SetBuffer(string name, IRenderBuffer buffer);
 
     /// <summary>
     /// 计算着色器是否已成功编译

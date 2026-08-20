@@ -45,6 +45,10 @@ public class VulkanRenderBackend : RenderBackendBase
     public override void Present() { }
 
     /// <inheritdoc />
+    public override IRenderBuffer CreateBuffer(int sizeBytes) =>
+        throw new NotSupportedException($"[{GetType().Name}] CreateBuffer 未实现");
+
+    /// <inheritdoc />
     public override void Dispose()
     {
         if (_disposed)

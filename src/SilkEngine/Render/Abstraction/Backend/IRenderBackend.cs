@@ -12,8 +12,8 @@ public interface IRenderBackend : IDisposable
     void PumpWindowEvents();
     void ExecutePass(IReadOnlyList<DrawCommand> commands);
     void Present();
-    IntPtr CreateBuffer(int sizeBytes);
-    void DrawIndirect(IntPtr buffer, int offset, int drawCount);
+    IRenderBuffer CreateBuffer(int sizeBytes);
+    void DrawIndirect(IRenderBuffer buffer, int offset, int drawCount);
     bool ShouldClose { get; }
     int Width { get; }
     int Height { get; }
