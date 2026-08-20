@@ -3,8 +3,19 @@ namespace SilkEngine.Core;
 /// <summary>固定步长累加器：累积增量时间并返回应执行的固定步数，余数保留（零分配、纯状态机）。</summary>
 internal sealed class FixedStepAccumulator
 {
-    /// <summary>固定步长（秒），默认 0.02（与 Time.FixedDeltaTime 初值一致）。</summary>
-    public float FixedDeltaTime { get; set; } = 0.02f;
+    private float _fixedDeltaTime = 0.02f;
+
+    /// <summary>固定步长（秒），默认 0.02（与 Time.FixedDeltaTime 初值一致）；非正或非有限值抛 ArgumentOutOfRangeException。</summary>
+    public float FixedDeltaTime
+    {
+        get => _fixedDeltaTime;
+        set
+        {
+            if (value <= 0f || !float.IsFinite(value))
+                throw new ArgumentOutOfRangeException(nameof(value), "FixedDeltaTime 必须为正有限值");
+            _fixedDeltaTime = value;
+        }
+    }
 
 #if DEBUG
     /// <summary>当前剩余累积（不足一个固定步长的余量，测试断言用）。</summary>

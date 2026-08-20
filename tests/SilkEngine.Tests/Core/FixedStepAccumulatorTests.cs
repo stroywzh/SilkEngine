@@ -55,4 +55,29 @@ public class FixedStepAccumulatorTests
         Assert.Equal(4, acc.Advance(0.025f));       // 0.015+0.025=0.04 → 4×0.01
         Assert.Equal(0f, acc.Remainder, 5);
     }
+
+    [Fact]
+    public void FixedDeltaTime_NonPositive_Throws()
+    {
+        var acc = new FixedStepAccumulator();
+        Assert.Throws<ArgumentOutOfRangeException>(() => acc.FixedDeltaTime = 0f);
+        Assert.Throws<ArgumentOutOfRangeException>(() => acc.FixedDeltaTime = -0.02f);
+    }
+
+    [Fact]
+    public void FixedDeltaTime_NonFinite_Throws()
+    {
+        var acc = new FixedStepAccumulator();
+        Assert.Throws<ArgumentOutOfRangeException>(() => acc.FixedDeltaTime = float.NaN);
+        Assert.Throws<ArgumentOutOfRangeException>(() => acc.FixedDeltaTime = float.PositiveInfinity);
+        Assert.Throws<ArgumentOutOfRangeException>(() => acc.FixedDeltaTime = float.NegativeInfinity);
+    }
+
+    [Fact]
+    public void FixedDeltaTime_ValidValue_Accepted()
+    {
+        var acc = new FixedStepAccumulator();
+        acc.FixedDeltaTime = 0.1f;
+        Assert.Equal(0.1f, acc.FixedDeltaTime);
+    }
 }
