@@ -16,6 +16,9 @@ public sealed class AssetManager
     private readonly ConcurrentDictionary<IAssetRequest, (Guid Guid, string Path)> _lazyPending =
         new();
 
+    /// <summary>帧末资产迁移 Unloaded 时发布（主线程）；GPU 删除由消费方在渲染线程执行。</summary>
+    internal event Action<IAsset>? AssetUnloaded;
+
     /// <summary>构造注入任务调度器（引擎运行时经 ThreadManager 申请的 WorkerPool 执行者转型；执行者生命周期归 ThreadManager）</summary>
     public AssetManager(ITaskScheduler scheduler)
     {
@@ -150,15 +153,16 @@ public sealed class AssetManager
             if (entry is null || entry.RefCount != 0 || entry.State != AssetState.Ready)
                 continue;
             entry.State = AssetState.Unloaded;
+            AssetUnloaded?.Invoke(entry.Data);
             _unloadQueue.Enqueue(unloadGuid);
         }
     }
 
     /// <summary>
     /// 渲染线程帧首调用：处理待释放队列
-    /// <br/>glRelease 为 null 时维持占位行为（Log + CPU 数据清引用）；传委托时对队列中 Texture2D 条目执行 GL 释放
+    /// <br/>release 为 null 时维持占位行为（Log + CPU 数据清引用）；传委托时对队列中条目执行 GPU 释放（消费方负责类型分发）
     /// </summary>
-    internal void ProcessUnloadQueue(Action<Texture2D>? glRelease = null)
+    internal void ProcessUnloadQueue(Action<IAsset>? release = null)
     {
         while (_unloadQueue.TryDequeue(out var guid))
         {
@@ -171,10 +175,10 @@ public sealed class AssetManager
                 entry.State = AssetState.Ready;
                 continue;
             }
-            if (glRelease is not null)
+            if (release is not null)
             {
-                if (entry.Data is Texture2D tex)
-                    glRelease(tex);
+                if (entry.Data is { } data)
+                    release(data);
                 entry.Data = null;
                 continue;
             }

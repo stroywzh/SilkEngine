@@ -114,7 +114,7 @@ public class UnloadTimingTests : IDisposable
 
         am.TryAddRef(tex);       // 下一帧主线程重新引用（模拟 Tick 中）
         var released = new List<Texture2D>();
-        am.ProcessUnloadQueue(t => released.Add(t));  // 渲染线程帧首
+        am.ProcessUnloadQueue(a => released.Add((Texture2D)a));  // 渲染线程帧首
 
         Assert.Empty(released);            // GL 未释放
         Assert.Equal(AssetState.Ready, entry.State);   // 条目复活

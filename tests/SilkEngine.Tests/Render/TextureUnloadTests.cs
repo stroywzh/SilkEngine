@@ -54,7 +54,7 @@ public class TextureUnloadTests : IDisposable
         am.ProcessCompleted();
         var released = new List<Texture2D>();
 
-        am.ProcessUnloadQueue(t => released.Add(t));
+        am.ProcessUnloadQueue(a => released.Add((Texture2D)a));
 
         Assert.Single(released);
         Assert.Same(tex, released[0]);
@@ -72,7 +72,7 @@ public class TextureUnloadTests : IDisposable
         am.TryRelease(tex);
 
         am.ProcessCompleted();
-        am.ProcessUnloadQueue(backend.ReleaseTexture);
+        am.ProcessUnloadQueue(a => backend.ReleaseGpuResource(a));
 
         Assert.True(glTex.IsDisposed);
         Assert.Equal(0, backend.TextureRegistry.Count);

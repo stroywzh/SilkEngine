@@ -16,9 +16,7 @@ public class OpenGLRenderBackend : RenderBackendBase
     private IWindow? _window;
     private GL? _gl;
 
-    private readonly Dictionary<Shader, OpenGLShader> _shaderCache = new(ReferenceEqualityComparer.Instance);
-    private readonly Dictionary<Mesh, OpenGLMesh> _meshCache = new(ReferenceEqualityComparer.Instance);
-    private readonly Dictionary<Material, OpenGLMaterial> _materialCache = new(ReferenceEqualityComparer.Instance);
+    private readonly GpuResourceRegistry _registry = new();
     private readonly OpenGLTextureRegistry _textureRegistry = new(t => new OpenGLTexture(t));
 
     private float _clearR = 0.1f,
@@ -92,6 +90,15 @@ public class OpenGLRenderBackend : RenderBackendBase
         }
     }
 
+    /// <summary>通用 GPU 资源释放入口（渲染线程帧首卸载队列回调）。</summary>
+    public override void ReleaseGpuResource(IAsset asset)
+    {
+        if (asset is Texture2D tex)
+            ReleaseTexture(tex);
+        else
+            _registry.Evict(asset);
+    }
+
     /// <inheritdoc />
     public override IRenderBuffer CreateBuffer(int sizeBytes)
     {
@@ -133,26 +140,15 @@ public class OpenGLRenderBackend : RenderBackendBase
             if (cmd.Shader == null || cmd.Mesh == null)
                 continue;
 
-            if (!_shaderCache.TryGetValue(cmd.Shader, out var glShader))
-            {
-                glShader = new OpenGLShader(_gl, cmd.Shader);
-                _shaderCache[cmd.Shader] = glShader;
-            }
-
-            if (!_meshCache.TryGetValue(cmd.Mesh, out var glMesh))
-            {
-                glMesh = new OpenGLMesh(_gl, cmd.Mesh);
-                _meshCache[cmd.Mesh] = glMesh;
-            }
+            OpenGLShader glShader = _registry.GetOrCreate(cmd.Shader, s => new OpenGLShader(_gl, s));
+            OpenGLMesh glMesh = _registry.GetOrCreate(cmd.Mesh, m => new OpenGLMesh(_gl, m));
 
             OpenGLMaterial? glMaterial = null;
             if (cmd.Material != null)
             {
-                if (!_materialCache.TryGetValue(cmd.Material, out glMaterial))
-                {
-                    glMaterial = new OpenGLMaterial(_gl, cmd.Material, glShader, _textureRegistry);
-                    _materialCache[cmd.Material] = glMaterial;
-                }
+                glMaterial = _registry.GetOrCreate(
+                    cmd.Material, mat => new OpenGLMaterial(_gl, mat, glShader, _textureRegistry)
+                );
             }
 
             if (glMaterial != null)
@@ -225,15 +221,7 @@ public class OpenGLRenderBackend : RenderBackendBase
         if (_window != null && _gl != null)
             _window.MakeCurrent();
 
-        foreach (var s in _shaderCache.Values)
-            s.Dispose();
-        foreach (var m in _meshCache.Values)
-            m.Dispose();
-        foreach (var m in _materialCache.Values)
-            m.Dispose();
-        _shaderCache.Clear();
-        _meshCache.Clear();
-        _materialCache.Clear();
+        _registry.ReleaseAll();
         foreach (var t in _textureRegistry.Values)
             t.Dispose();
 

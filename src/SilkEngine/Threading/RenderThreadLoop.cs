@@ -90,7 +90,7 @@ public class RenderThreadLoop : IDisposable
         try
         {
             if (Services.TryGet<AssetManager>(out var assetManager))
-                assetManager.ProcessUnloadQueue(_backend.ReleaseTexture);
+                assetManager.ProcessUnloadQueue(asset => _backend.ReleaseGpuResource(asset));
             if (_pendingPasses != null)
             {
                 foreach (var pass in _pendingPasses.OrderBy(p => p.SortOrder))
