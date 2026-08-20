@@ -153,7 +153,7 @@ public sealed class AssetManager
             if (entry is null || entry.RefCount != 0 || entry.State != AssetState.Ready)
                 continue;
             entry.State = AssetState.Unloaded;
-            AssetUnloaded?.Invoke(entry.Data);
+            AssetUnloaded?.Invoke(entry.Data!);
             _unloadQueue.Enqueue(unloadGuid);
         }
     }

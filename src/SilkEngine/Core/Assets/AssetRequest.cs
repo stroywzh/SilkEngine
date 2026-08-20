@@ -22,7 +22,8 @@ internal interface IAssetRequest
 
 /// <summary>可 await 的资产加载请求（Unity 式自定义 awaitable）</summary>
 /// <typeparam name="T">资产类型</typeparam>
-public sealed class AssetRequest<T> : INotifyCompletion, IAssetRequest where T : IAsset
+public sealed class AssetRequest<T> : INotifyCompletion, IAssetRequest
+    where T : IAsset
 {
     private Action? _continuation;
     private T? _asset;
@@ -55,7 +56,12 @@ public sealed class AssetRequest<T> : INotifyCompletion, IAssetRequest where T :
 
     /// <summary>创建已完成请求（缓存命中路径使用）</summary>
     internal static AssetRequest<T> Completed(T asset) =>
-        new() { Asset = asset, IsDone = true, Progress = 1f };
+        new()
+        {
+            Asset = asset,
+            IsDone = true,
+            Progress = 1f,
+        };
 
     /// <summary>await 机制入口：请求自身即 awaiter</summary>
     public AssetRequest<T> GetAwaiter() => this;
@@ -97,7 +103,8 @@ public sealed class AssetRequest<T> : INotifyCompletion, IAssetRequest where T :
     {
         if (error is null && asset is not T)
             error = new InvalidOperationException(
-                $"资产类型不匹配: 期望 {typeof(T).Name}, 实际 {asset?.GetType().Name ?? "null"}");
+                $"资产类型不匹配: 期望 {typeof(T).Name}, 实际 {asset?.GetType().Name ?? "null"}"
+            );
         Complete(asset is T typed ? typed : default, error);
     }
 }
