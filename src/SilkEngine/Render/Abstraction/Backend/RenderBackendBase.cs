@@ -42,19 +42,23 @@ public abstract class RenderBackendBase : IRenderBackend
     public abstract void PumpWindowEvents();
 
     /// <inheritdoc />
-    public virtual void ExecutePass(IReadOnlyList<DrawCommand> commands) { }
+    public virtual void ExecutePass(IReadOnlyList<DrawCommand> commands) =>
+        throw new NotSupportedException($"[{GetType().Name}] ExecutePass 未实现");
 
     /// <inheritdoc />
-    public virtual void Present() { }
+    public virtual void Present() =>
+        throw new NotSupportedException($"[{GetType().Name}] Present 未实现");
 
     /// <inheritdoc />
     public IntPtr CreateBuffer(int sizeBytes) => (IntPtr)(_bufferCounter++);
 
     /// <inheritdoc />
-    public virtual void DrawIndirect(IntPtr buffer, int offset, int drawCount) { }
+    public virtual void DrawIndirect(IntPtr buffer, int offset, int drawCount) =>
+        throw new NotSupportedException($"[{GetType().Name}] DrawIndirect 未实现");
 
     /// <inheritdoc />
-    public virtual void ReleaseTexture(Texture2D texture) { }
+    public virtual void ReleaseTexture(Texture2D texture) =>
+        throw new NotSupportedException($"[{GetType().Name}] ReleaseTexture 未实现");
 
     /// <inheritdoc />
     public virtual void Dispose()
