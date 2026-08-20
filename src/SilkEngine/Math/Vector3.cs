@@ -20,8 +20,14 @@ public struct Vector3 : IEquatable<Vector3>
 
     public float Magnitude => MathF.Sqrt(X * X + Y * Y + Z * Z);
 
-    public Vector3 Normalized =>
-        Magnitude > Mathf.Epsilon ? new(X / Magnitude, Y / Magnitude, Z / Magnitude) : Zero;
+    public Vector3 Normalized
+    {
+        get
+        {
+            float mag = Magnitude;
+            return mag > Mathf.Epsilon ? new(X / mag, Y / mag, Z / mag) : Zero;
+        }
+    }
 
     public static readonly Vector3 Zero = new(0, 0, 0);
     public static readonly Vector3 One = new(1, 1, 1);

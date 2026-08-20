@@ -118,12 +118,12 @@ public class EngineLoop : IDisposable
         }
 
         if (LogConfig.EngineLoop)
+        {
             Log.Info(
                 $"[EngineLoop]: EngineLoop Started. \nManaged threads: \nMain(heartbeat):PID{Pid}\nWorkers:ThreadPool\nRenderThread:PID{_renderSystem.RenderThreadContext.NativeThreadId}."
             );
-
-        if (LogConfig.EngineLoop)
             Log.Info("[EngineLoop] Run started");
+        }
 
         while (!_renderSystem!.ShouldClose && !_stopRequested)
         {

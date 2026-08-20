@@ -29,7 +29,7 @@ public partial class Camera : Component
         else
         {
             ProjectionMatrix = Matrix4x4.CreatePerspectiveFieldOfView(
-                FieldOfView * MathF.PI / 180f, aspectRatio, NearClipPlane, FarClipPlane);
+                Mathf.Deg2Rad * FieldOfView, aspectRatio, NearClipPlane, FarClipPlane);
         }
     }
 }

@@ -58,6 +58,13 @@ public class Vector3Tests
     }
 
     [Fact]
+    public void Normalized_NonZero_UnitLength()
+    {
+        var v = new Vector3(3, 4, 0);
+        Assert.Equal(1f, v.Normalized.Magnitude, 5);
+    }
+
+    [Fact]
     public void Dot_ComputesDotProduct()
     {
         Assert.Equal(11f, Vector3.Dot(new Vector3(1, 2, 3), new Vector3(4, -1, 3)));
