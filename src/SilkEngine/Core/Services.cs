@@ -78,24 +78,6 @@ internal static class Services
         }
     }
 
-    /// <summary>注销服务并释放</summary>
-    public static void UnregisterAndDispose<T>()
-        where T : class
-    {
-        lock (_lock)
-        {
-            _services.Remove(typeof(T));
-            var arr = _disposables.Where(e => e.Type == typeof(T)).ToArray();
-            foreach (var i in arr)
-            {
-                i.Disposable.Dispose();
-                _disposables.Remove(i);
-            }
-            if (LogConfig.Services)
-                Log.Info($"[Services] Unregistered {typeof(T).FullName}");
-        }
-    }
-
     /// <summary>反序 Dispose 全部已注册 IDisposable 服务并清空注册表；幂等。关闭后 Get 抛未注册异常</summary>
     public static void Shutdown()
     {

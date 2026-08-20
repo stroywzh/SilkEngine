@@ -153,9 +153,6 @@ public class SceneManager : IDisposable
         return true;
     }
 
-    /// <summary>便捷重载：从组件定位其 GameObject。</summary>
-    public bool AddObjectToScene(MonoBehaviour mb) => AddObjectToScene(mb.GameObject);
-
     /// <summary>
     /// 从 .scene JSON 文件加载场景：读文件 → SceneSerializer.Deserialize → LoadScene（带注入的注册表）。
     /// 返回是否成功；失败（文件缺失/无权限/JSON 格式错误）记录错误日志且不抛未捕获异常。

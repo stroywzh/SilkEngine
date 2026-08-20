@@ -17,9 +17,6 @@ public class Shader : IAsset
     /// <summary>片段着色器 GLSL 源码</summary>
     public string FragmentSource { get; init; } = string.Empty;
 
-    /// <summary>着色器入口函数名</summary>
-    public string EntryPoint { get; init; } = "main";
-
     public override int GetHashCode() => Name.GetHashCode();
 
     public override bool Equals(object? obj) => obj is Shader s && s.Name == Name;

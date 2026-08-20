@@ -49,7 +49,7 @@ public sealed class AssetRequest<T> : INotifyCompletion, IAssetRequest
     }
 
     /// <summary>加载进度（0~1，完成时为 1）</summary>
-    public float Progress { get; internal set; }
+    internal float Progress { get; set; }
 
     /// <summary>加载失败异常；成功时为 null</summary>
     public Exception? Error { get; internal set; }

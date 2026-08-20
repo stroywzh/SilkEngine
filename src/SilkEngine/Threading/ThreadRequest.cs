@@ -32,14 +32,4 @@ public readonly record struct ThreadRequest
         this.Count = count;
         this.Priority = priority;
     }
-
-    // bool EnsureCount(int count)
-    // {
-    //     return (Kind) switch
-    //     {
-    //         ThreadKind.Dedicated => count == 1,
-    //         ThreadKind.WorkerPool => count >= 1,
-    //         _ => false,
-    //     };
-    // }
 }

@@ -5,9 +5,6 @@ public sealed class TextureImporter : IAssetImporter
 {
     private readonly IImageDecoder _decoder;
 
-    /// <summary>支持的扩展名</summary>
-    public string[] Extensions { get; } = [".png", ".jpg"];
-
     /// <summary>创建纹理导入器</summary>
     /// <param name="decoder">解码器（构造注入）</param>
     /// <param name="settings">导入设置（当前未使用，保留为扩展点）</param>

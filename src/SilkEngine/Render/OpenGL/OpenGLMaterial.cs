@@ -80,7 +80,7 @@ public class OpenGLMaterial : IMaterial
     /// <summary>
     /// 解析材质实际绑定纹理：无主纹理（含 LazyAsync 未就绪）→ 引擎白色占位
     /// </summary>
-    public static Texture2D ResolveTexture(Material material) =>
+    internal static Texture2D ResolveTexture(Material material) =>
         material.MainTexture ?? DefaultTextures.White;
 
     /// <inheritdoc />

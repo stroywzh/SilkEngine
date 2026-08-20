@@ -11,8 +11,8 @@ public sealed class ComponentGroup
 
 public sealed class FrameSnapshot
 {
-    public long FrameCount { get; internal set; }
-    public SilkEngine.Scene.Scene? ActiveScene { get; internal set; }
+    internal long FrameCount { get; set; }
+    internal SilkEngine.Scene.Scene? ActiveScene { get; set; }
     internal List<ComponentGroup> Groups { get; } = [];
 
     /// <summary>MonoBehaviour 基类索引视图（按具体类型分组，派发遍历用；快照构建时复制）。</summary>

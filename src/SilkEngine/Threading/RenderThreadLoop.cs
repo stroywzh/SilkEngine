@@ -27,11 +27,6 @@ public class RenderThreadLoop : IDisposable
     private bool _contextBound;
 
     public bool ShouldClose => _backend.ShouldClose;
-    public int Width => _backend.Width;
-    public int Height => _backend.Height;
-
-    /// <summary>渲染后端实例</summary>
-    public IRenderBackend Backend => _backend;
 
     /// <summary>帧握手超时（内部可注入，测试缩短；默认 5s）</summary>
     internal TimeSpan FrameTimeout { get; set; } = TimeSpan.FromSeconds(5);

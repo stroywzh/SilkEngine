@@ -16,7 +16,7 @@ public sealed class AssetCache
         _entries.GetOrAdd(guid, static g => new AssetEntry { Guid = g });
 
     /// <summary>条目数量（测试断言用）</summary>
-    public int Count => _entries.Count;
+    internal int Count => _entries.Count;
 
     /// <summary>移除条目；不存在返回 false</summary>
     public bool Remove(Guid guid) => _entries.TryRemove(guid, out _);

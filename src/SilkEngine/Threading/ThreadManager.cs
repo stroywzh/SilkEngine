@@ -20,8 +20,6 @@ public sealed class ThreadManager : IDisposable, IJobComposer
     private Lazy<ThreadPoolExecutor> _defaultExecutor = new();
     private bool _shutdown;
 
-    public Thread? MainThread => _mainThread;
-
     /// <summary>当前调用是否为主线程（未登记时恒 false）。</summary>
     public bool IsMainThread =>
         _mainThread is not null && ReferenceEquals(Thread.CurrentThread, _mainThread);

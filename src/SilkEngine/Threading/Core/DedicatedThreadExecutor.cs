@@ -69,15 +69,6 @@ public sealed class DedicatedThreadExecutor : ILoopExecutor
         _thread.Join(2000);
     }
 
-    /// <summary>阻塞等线程结束（自定义超时，毫秒）；未启动直接返回（幂等）。超时 Log.Error 告警。</summary>
-    public void Join(int timeoutMilliseconds)
-    {
-        if ((_thread.ThreadState & ThreadState.Unstarted) != 0)
-            return;
-        if (!_thread.Join(timeoutMilliseconds))
-            Log.Error($"[Threading] 执行者 '{_name}' 未在 {timeoutMilliseconds}ms 内退出（Join 超时）");
-    }
-
     public void Dispose()
     {
         Stop();

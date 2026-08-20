@@ -187,22 +187,4 @@ public sealed class GameObject : Object
             Log.Info($"[Lifecycle] Removed component {typeof(T).Name} from '{Name}'");
         return true;
     }
-
-#if DEBUG
-    public string GetAllComponentName()
-    {
-        System.Text.StringBuilder sb = new(64);
-        sb.Append("AllComponents:\n");
-        foreach (var i in _components)
-        {
-            sb.Append(_components.IndexOf(i));
-            sb.Append("Name|");
-            sb.Append(i.Name);
-            sb.Append("|Type|");
-            sb.Append(i.GetType().Name);
-            sb.Append("\n");
-        }
-        return sb.ToString();
-    }
-#endif
 }

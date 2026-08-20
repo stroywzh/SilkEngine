@@ -105,7 +105,7 @@ public class ForwardPipelineTests
         mr.Mesh = new Mesh { Name = "Test", Layout = [] };
         mr.Shader = new Shader { Name = "S" };
         mr.Material = new Material();
-        var batches = new List<RenderBatch> { new() { Camera = cam, Renderers = [mr] } };
+        var batches = new List<RenderBatch> { new() { Renderers = [mr] } };
 
         var passes = pipeline.Build(cam, batches);
         Assert.Single(passes);
@@ -126,7 +126,7 @@ public class ForwardPipelineTests
         var mr = new GameObject().AddComponent<MeshRenderer>();
         mr.Mesh = new Mesh { Name = "Test", Layout = [] };
         mr.Shader = new Shader { Name = "S" };
-        var batches = new List<RenderBatch> { new() { Camera = cam, Renderers = [mr] } };
+        var batches = new List<RenderBatch> { new() { Renderers = [mr] } };
 
         var passes = pipeline.Build(cam, batches);
         var cmd = Assert.IsType<SingleDrawCommand>(passes[0].Commands[0]);
@@ -149,7 +149,7 @@ public class ForwardPipelineTests
         mr.Mesh = new Mesh { Name = "Test", Layout = [] };
         mr.Shader = new Shader { Name = "S" };
         mr.Material = new Material { Name = "M" };
-        var batches = new List<RenderBatch> { new() { Camera = cam, Renderers = [mr] } };
+        var batches = new List<RenderBatch> { new() { Renderers = [mr] } };
 
         pipeline.Build(cam, batches);
         Assert.Empty(mr.Material.Matrices);

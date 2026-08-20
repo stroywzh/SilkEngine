@@ -11,9 +11,9 @@ public static class Log
     private static readonly object _lock = new();
     private static readonly List<ILogWriter> _writers = new() { new ConsoleLogWriter() };
 
-    public static LogLevel MinLevel { get; set; } = LogLevel.Debug;
+    internal static LogLevel MinLevel { get; set; } = LogLevel.Debug;
 
-    public static bool ShowThreadInfo { get; set; } = false;
+    internal static bool ShowThreadInfo { get; set; } = false;
 
     public static void AddWriter(ILogWriter writer)
     {
@@ -22,7 +22,7 @@ public static class Log
             _writers.Add(writer);
     }
 
-    public static void RemoveWriter(ILogWriter writer)
+    internal static void RemoveWriter(ILogWriter writer)
     {
         lock (_lock)
 
@@ -37,7 +37,7 @@ public static class Log
 
     public static void Error(object message) => Write(LogLevel.Error, message);
 
-    public static void StackTree(object message)
+    internal static void StackTree(object message)
     {
         var st = new StackTrace(1, true);
         var frames = st.GetFrames();

@@ -13,7 +13,7 @@ public class KeyboardState
 
     public bool GetKeyUp(KeyCode key) => _prev.Contains(key) && !_curr.Contains(key);
 
-    public bool AnyKey => _curr.Count > 0;
+    internal bool AnyKey => _curr.Count > 0;
 
     public void SwapBuffers()
     {

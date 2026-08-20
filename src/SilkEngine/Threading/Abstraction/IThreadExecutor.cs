@@ -60,9 +60,3 @@ public interface ILoopExecutor : IThreadExecutor
 {
     IJobHandle Run(Func<bool> frame);
 }
-
-public interface IThreadLoop
-{
-    private static ILoopExecutor _executor { get; set; }
-    static ILoopExecutor ThreadLoop => _executor;
-}

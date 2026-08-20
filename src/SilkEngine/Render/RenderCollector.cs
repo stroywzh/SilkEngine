@@ -7,7 +7,6 @@ namespace SilkEngine.Render;
 
 public sealed class RenderBatch
 {
-    public Camera Camera { get; init; } = null!;
     public IReadOnlyList<MeshRenderer> Renderers { get; init; } = [];
 }
 
@@ -29,7 +28,7 @@ public sealed class RenderCollector
 
         if (renderers.Count > 0)
         {
-            batches.Add(new RenderBatch { Camera = camera, Renderers = renderers });
+            batches.Add(new RenderBatch { Renderers = renderers });
         }
     }
 

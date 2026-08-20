@@ -9,7 +9,7 @@ public class Mesh : IAsset
     public float[] Vertices { get; init; } = [];
     public int[] Layout { get; init; } = [];
     public int[]? Indices { get; init; }
-    public int VertexCount => Layout.Length > 0 ? Vertices.Length / Sum(Layout) : 0;
+    internal int VertexCount => Layout.Length > 0 ? Vertices.Length / Sum(Layout) : 0;
 
     private int? _hash;
 

@@ -19,13 +19,10 @@ public sealed class OpenGLTexture : IDisposable
     public OpenGLTexture(Texture2D data) => _data = data;
 
     /// <summary>CPU 侧纹理数据</summary>
-    public Texture2D Data => _data;
+    internal Texture2D Data => _data;
 
     /// <summary>GL 纹理句柄（EnsureCreated 前为 0）</summary>
     public uint Handle => _handle;
-
-    /// <summary>GL 资源是否已创建</summary>
-    public bool IsCreated => _handle != 0;
 
     /// <summary>是否已释放</summary>
     public bool IsDisposed => _disposed;

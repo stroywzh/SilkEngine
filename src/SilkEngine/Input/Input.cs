@@ -23,7 +23,7 @@ public static class Input
 #if DEBUG
     private static bool _mouseLog = false;
 
-    public static bool EnableMouseLog
+    internal static bool EnableMouseLog
     {
         get => _mouseLog;
         set
@@ -49,7 +49,7 @@ public static class Input
 
     public static bool GetKeyUp(KeyCode key) => _keyboard.GetKeyUp(key);
 
-    public static Vector2 MousePosition => _mouse.Position;
+    internal static Vector2 MousePosition => _mouse.Position;
 
     public static float GetAxis(string name)
     {

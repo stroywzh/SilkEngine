@@ -25,13 +25,13 @@ public class OpenGLRenderBackend : RenderBackendBase
         _clearA = 1.0f;
 
     /// <summary>OpenGL API 实例</summary>
-    public GL GL => _gl!;
+    internal GL GL => _gl!;
 
     /// <summary>窗口体实例</summary>
-    public IWindow Window => _window!;
+    internal IWindow Window => _window!;
 
     /// <summary>原生窗口句柄（供 Editor 嵌入使用）</summary>
-    public IntPtr WindowHandle => _window?.Native?.Win32?.Hwnd ?? IntPtr.Zero;
+    internal IntPtr WindowHandle => _window?.Native?.Win32?.Hwnd ?? IntPtr.Zero;
 
     /// <inheritdoc />
     public override Silk.NET.Windowing.IWindow? NativeWindow => _window;

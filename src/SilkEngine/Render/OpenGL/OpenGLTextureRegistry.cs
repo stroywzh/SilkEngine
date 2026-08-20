@@ -16,7 +16,7 @@ public sealed class OpenGLTextureRegistry
     public OpenGLTextureRegistry(Func<Texture2D, OpenGLTexture> factory) => _factory = factory;
 
     /// <summary>缓存条目数</summary>
-    public int Count => _cache.Count;
+    internal int Count => _cache.Count;
 
     /// <summary>全部 GL 纹理（后端 Dispose 统一回收用）</summary>
     public IReadOnlyCollection<OpenGLTexture> Values => _cache.Values;
