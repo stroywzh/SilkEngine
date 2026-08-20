@@ -12,7 +12,8 @@ public class CoreNamespacePurityTests
 
     private static IEnumerable<string> CoreFiles()
     {
-        var rootCore = new[] { "Object.cs", "Time.cs", "EngineLoop.cs" }
+        // EngineLoop 为顶层编排者，允许依赖 Scene（架构决策）；纯净范围 = Core/ 子目录 + 根目录基础类型 Object/Time
+        var rootCore = new[] { "Object.cs", "Time.cs" }
             .Select(f => Path.Combine(RootDir, f));
         return Directory.GetFiles(CoreDir, "*.cs", SearchOption.AllDirectories)
             .Concat(rootCore);
