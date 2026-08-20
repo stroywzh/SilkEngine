@@ -6,7 +6,7 @@ using SilkEngine.Math;
 namespace SilkEngine.Render;
 
 /// <summary>纯数据材质参数容器</summary>
-public class Material : IAsset
+public class Material : IAsset, IReleaseAwareAsset
 {
     /// <summary>材质标识名称</summary>
     public string Name { get; init; } = string.Empty;
@@ -101,6 +101,7 @@ public class Material : IAsset
     /// <summary>释放回调：引用计数归零时由 AssetManager 触发（主纹理级联挂接点）</summary>
     internal event Action<AssetManager>? MaterialDisposed;
 
-    /// <summary>引用归零通知（AssetManager.TryRelease 调用；携带释放方管理器实例供级联）</summary>
-    internal void NotifyDisposed(AssetManager manager) => MaterialDisposed?.Invoke(manager);
+    /// <summary>引用归零通知（AssetManager.TryRelease 经 IReleaseAwareAsset 调用；携带释放方管理器实例供级联）</summary>
+    void IReleaseAwareAsset.OnAssetReleased(AssetManager manager) =>
+        MaterialDisposed?.Invoke(manager);
 }

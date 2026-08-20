@@ -78,9 +78,10 @@ public class EngineLoop : IDisposable
         _renderSystem = new RenderSystem(_backend, _threadManager);
 
         _assetManager = new AssetManager(
-            _threadManager.Request<ITaskExecutor>(
-                new ThreadRequest("Workers", ThreadKind.WorkerPool)
-            )
+            (SilkEngine.Core.ITaskScheduler)
+                _threadManager.Request<ITaskExecutor>(
+                    new ThreadRequest("Workers", ThreadKind.WorkerPool)
+                )
         );
 
         _sceneManager = new SceneManager();

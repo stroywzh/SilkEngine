@@ -2,15 +2,13 @@ using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using SilkEngine.Core.Assets.Importer;
-using SilkEngine.Render;
-using SilkEngine.Threading;
 
 namespace SilkEngine.Core.Assets;
 
 /// <summary>资产门面：同步/异步加载、GUID 缓存、帧末完成拾取（主线程专用 API）。由 EngineLoop 创建并注册 Services</summary>
 public sealed class AssetManager
 {
-    private readonly ITaskExecutor _scheduler;
+    private readonly ITaskScheduler _scheduler;
     private readonly AssetCache _cache = new();
     private readonly ConcurrentQueue<AssetLoadResult> _completed = new();
     private readonly ConcurrentQueue<Guid> _pendingUnload = new();
@@ -18,8 +16,8 @@ public sealed class AssetManager
     private readonly ConcurrentDictionary<IAssetRequest, (Guid Guid, string Path)> _lazyPending =
         new();
 
-    /// <summary>构造注入任务执行者（引擎运行时经 ThreadManager 申请；执行者生命周期归 ThreadManager）</summary>
-    public AssetManager(ITaskExecutor scheduler)
+    /// <summary>构造注入任务调度器（引擎运行时经 ThreadManager 申请的 WorkerPool 执行者转型；执行者生命周期归 ThreadManager）</summary>
+    public AssetManager(ITaskScheduler scheduler)
     {
         _scheduler = scheduler ?? throw new ArgumentNullException(nameof(scheduler));
         Services.Register(this);
@@ -200,7 +198,7 @@ public sealed class AssetManager
     }
 
     /// <summary>
-    /// 托管资产引用 -1（下限 0）；归零时入卸载候选队列（帧末 ProcessCompleted 复核），Material 同步触发级联
+    /// 托管资产引用 -1（下限 0）；归零时入卸载候选队列（帧末 ProcessCompleted 复核），并触发 IReleaseAwareAsset 级联回调
     /// <br/>非托管实例或已归零条目返回 false
     /// </summary>
     public bool TryRelease(IAsset asset)
@@ -212,8 +210,8 @@ public sealed class AssetManager
         if (entry.RefCount == 0)
         {
             _pendingUnload.Enqueue(entry.Guid);
-            if (asset is Material material)
-                material.NotifyDisposed(this);
+            if (asset is IReleaseAwareAsset aware)
+                aware.OnAssetReleased(this);
         }
         return true;
     }

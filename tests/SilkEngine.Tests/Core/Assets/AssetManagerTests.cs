@@ -13,13 +13,16 @@ public class AssetManagerTests : IDisposable
 
     private sealed class FakeAsset : IAsset { }
 
-    private sealed class BlockingScheduler : ITaskExecutor
+    private sealed class BlockingScheduler : ITaskExecutor, ITaskScheduler
     {
         public string Name => "Blocking";
         public ThreadContext? Context => null;
         public void Stop() { }
         public void Join() { }
         public void Dispose() { }
+
+        void ITaskScheduler.Submit(Func<CancellationToken, ValueTask> work) =>
+            Submit(work, WorkPriority.Normal);
 
         public IJobHandle Submit(
             Func<CancellationToken, ValueTask> work,
