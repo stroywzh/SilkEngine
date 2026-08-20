@@ -36,6 +36,8 @@ public class Material : IAsset, IReleaseAwareAsset
     }
 
     /// <summary>设置浮点 uniform 值（同名键从其它字典互斥移除）</summary>
+    /// <param name="name">uniform 名称</param>
+    /// <param name="value">浮点值</param>
     public void SetFloat(string name, float value)
     {
         Vectors.Remove(name);
@@ -44,6 +46,8 @@ public class Material : IAsset, IReleaseAwareAsset
     }
 
     /// <summary>设置 Vector3 uniform 值（同名键从其它字典互斥移除）</summary>
+    /// <param name="name">uniform 名称</param>
+    /// <param name="value">Vector3 值</param>
     public void SetVector3(string name, Vector3 value)
     {
         Floats.Remove(name);
@@ -52,6 +56,8 @@ public class Material : IAsset, IReleaseAwareAsset
     }
 
     /// <summary>设置 Matrix4x4 uniform 值（同名键从其它字典互斥移除）</summary>
+    /// <param name="name">uniform 名称</param>
+    /// <param name="value">矩阵值（按行主序展开为 16 个连续 float）</param>
     public void SetMatrix4x4(string name, Matrix4x4 value)
     {
         Floats.Remove(name);

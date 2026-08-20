@@ -78,6 +78,7 @@ public sealed class OpenGLTexture : IDisposable
         gl.BindTexture(TextureTarget.Texture2D, 0);
     }
 
+    /// <summary>释放 GL 纹理句柄（幂等；未创建或无上下文时无操作）</summary>
     public void Dispose()
     {
         if (_disposed)

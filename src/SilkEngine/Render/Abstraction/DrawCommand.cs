@@ -32,12 +32,13 @@ public abstract class DrawCommand
 /// </summary>
 public sealed class SingleDrawCommand : DrawCommand
 {
+    /// <summary>模型矩阵（对象世界变换；与 View/Projection 一并上传 uModel/uView/uProjection/uMVP）</summary>
     public Math.Matrix4x4? ModelMatrix { get; init; }
 
-    /// <summary>本命令的视图矩阵（渲染状态，非材质属性）</summary>
+    /// <summary>本命令的视图矩阵（渲染状态，非材质属性；每帧由相机 UpdateMatrices 计算）</summary>
     public Math.Matrix4x4? ViewMatrix { get; init; }
 
-    /// <summary>本命令的投影矩阵（渲染状态，非材质属性）</summary>
+    /// <summary>本命令的投影矩阵（渲染状态，非材质属性；每帧由相机 UpdateMatrices 计算）</summary>
     public Math.Matrix4x4? ProjectionMatrix { get; init; }
 }
 

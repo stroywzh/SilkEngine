@@ -13,6 +13,10 @@ public sealed class OpenGLTextureRegistry
     private readonly Dictionary<Texture2D, OpenGLTexture> _cache = new();
     private readonly Func<Texture2D, OpenGLTexture> _factory;
 
+    /// <summary>
+    /// 以注入工厂创建缓存条目（工厂实现 GL 创建逻辑，可数据层单测）
+    /// </summary>
+    /// <param name="factory">Texture2D → OpenGLTexture 创建工厂</param>
     public OpenGLTextureRegistry(Func<Texture2D, OpenGLTexture> factory) => _factory = factory;
 
     /// <summary>缓存条目数</summary>

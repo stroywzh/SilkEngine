@@ -84,6 +84,7 @@ public class OpenGLMaterial : IMaterial
         material.MainTexture ?? DefaultTextures.White;
 
     /// <inheritdoc />
+    /// <summary>释放材质状态（幂等；当前无自有 GL 资源，仅置标志）</summary>
     public void Dispose()
     {
         if (_disposed)

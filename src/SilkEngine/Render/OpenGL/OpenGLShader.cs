@@ -76,6 +76,7 @@ public class OpenGLShader : IShader
     internal uint GetProgram() => _program;
 
     /// <inheritdoc />
+    /// <summary>释放 GL 程序句柄（幂等）</summary>
     public void Dispose()
     {
         if (!_disposed)

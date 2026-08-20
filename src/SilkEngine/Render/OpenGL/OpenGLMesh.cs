@@ -4,6 +4,9 @@ using Silk.NET.OpenGL;
 
 namespace SilkEngine.Render.OpenGL;
 
+/// <summary>
+/// IMesh 的 OpenGL 实现：在渲染线程从 Mesh 数据创建 VAO/VBO/EBO，支持索引与非索引绘制
+/// </summary>
 public class OpenGLMesh : IMesh
 {
     private readonly GL _gl;
@@ -13,10 +16,20 @@ public class OpenGLMesh : IMesh
     private readonly bool _hasIndices;
     private bool _disposed;
 
+    /// <summary>顶点数（DrawArrays 用）</summary>
     public int VertexCount { get; }
+
+    /// <summary>索引数（非索引绘制时为 0）</summary>
     public int IndexCount { get; }
+
+    /// <summary>是否支持 GPU 实例化（当前恒为 true）</summary>
     public bool SupportsInstancing => true;
 
+    /// <summary>
+    /// 从 Mesh 数据创建 VAO/VBO（+ 可选 EBO），按 Layout 配置顶点属性；渲染线程上下文内调用
+    /// </summary>
+    /// <param name="gl">OpenGL API 实例</param>
+    /// <param name="data">网格数据</param>
     public unsafe OpenGLMesh(GL gl, Mesh data)
     {
         _gl = gl;
@@ -79,6 +92,7 @@ public class OpenGLMesh : IMesh
         VertexCount = vertices.Length / stride;
     }
 
+    /// <summary>绑定 VAO 执行绘制（有索引走 DrawElements，否则 DrawArrays）</summary>
     public unsafe void Draw()
     {
         _gl.BindVertexArray(_vao);
@@ -96,6 +110,8 @@ public class OpenGLMesh : IMesh
         _gl.BindVertexArray(0);
     }
 
+    /// <summary>一次 GPU 调用绘制 instanceCount 个实例</summary>
+    /// <param name="instanceCount">实例数量</param>
     public unsafe void DrawInstanced(int instanceCount)
     {
         _gl.BindVertexArray(_vao);
@@ -117,6 +133,7 @@ public class OpenGLMesh : IMesh
         _gl.BindVertexArray(0);
     }
 
+    /// <summary>释放 VAO/VBO/EBO（幂等）</summary>
     public void Dispose()
     {
         if (_disposed)

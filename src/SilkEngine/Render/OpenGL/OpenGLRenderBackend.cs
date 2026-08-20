@@ -10,6 +10,8 @@ namespace SilkEngine.Render.OpenGL;
 /// <summary>
 /// OpenGL渲染后端
 /// <br/>仅负责窗口创建、上下文切换与一帧的绘制执行，线程调度由 ThreadManager 分配的专用执行者管理。
+/// <br/>GL 上下文归属渲染线程（MakeContextCurrent 绑定，ClearContext 解绑）；
+/// Dispose 前若上下文已 ClearContext，则先 MakeCurrent 再删除 GPU 资源（wgl 允许任意线程 MakeCurrent 同一 HGLRC）。
 /// </summary>
 public class OpenGLRenderBackend : RenderBackendBase
 {

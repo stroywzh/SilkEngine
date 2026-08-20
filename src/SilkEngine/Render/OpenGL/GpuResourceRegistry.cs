@@ -7,6 +7,7 @@ namespace SilkEngine.Render.OpenGL;
 /// <summary>
 /// GPU 资源注册中心（渲染线程专用）：以资产实例引用为键，同实例复用 GPU 对象、不同实例各自独立。
 /// 引用语义经 ReferenceEqualityComparer 延续 0.3 缓存键约定（Shader 同名不同实例不串用）。
+/// <br/>Evict/ReleaseAll 驱逐时对 GPU 对象执行 Dispose（驱逐回调），供资产卸载路径与后端释放接入。
 /// </summary>
 public sealed class GpuResourceRegistry : IGpuResourceRegistry
 {
