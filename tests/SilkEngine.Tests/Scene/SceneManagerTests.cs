@@ -471,12 +471,20 @@ public class SceneManagerTests : IClassFixture<SceneManagerFixture>
     [Fact]
     public void Dispose_DetachesDestroyHandler()
     {
+        Services.Unregister<SceneManager>(); // 清除类夹具注册，本测试自建实例（Unregister 幂等）
         var sm = new SceneManager();
-        sm.Dispose();
-        sm._destroyQueue.Clear();
-        var obj = new GameObject("X");
-        Object.Destroy(obj);
-        Assert.Empty(sm._destroyQueue); // 解绑后销毁事件不再入队
+        try
+        {
+            sm.Dispose();
+            sm._destroyQueue.Clear();
+            var obj = new GameObject("X");
+            Object.Destroy(obj);
+            Assert.Empty(sm._destroyQueue); // 解绑后销毁事件不再入队
+        }
+        finally
+        {
+            Services.Unregister<SceneManager>();
+        }
     }
 
     [Fact]

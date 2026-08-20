@@ -5,11 +5,15 @@ using SilkEngine.Scene;
 namespace SilkEngine.Tests.Scene;
 using Scene = SilkEngine.Scene.Scene;
 
-// 本类写入全局 Services 注册表（Shutdown/Register/Unregister），须与其余 Services 写入者
-// （ServicesTests、AssetsFixture 相关类）同集合串行，避免跨集合互相清空
-[Collection("Assets")]
-public class SceneManagerAttachTests
+// 本类测试依赖 ctor 自注册的 SceneManager 处于 Services 注册态（AddComponent 回退链解析），
+// 注册窗口必须与全部 SceneManager 创建者/ambient 使用者串行——故与其余 SceneManager 测试同集合；
+// 测试级 Dispose 注销（Unregister 幂等），不再 Shutdown 全局注册表（避免并行清空其他集合）
+[Collection("SceneManager")]
+public class SceneManagerAttachTests : IDisposable
 {
+    /// <summary>测试级清理：注销测试内 ctor 自注册的 SceneManager 实例（Unregister 幂等）</summary>
+    public void Dispose() => Services.Unregister<SceneManager>();
+
     private class Tracker : MonoBehaviour
     {
         public bool Destroy;
@@ -28,31 +32,29 @@ public class SceneManagerAttachTests
     [Fact]
     public void AddComponent_NoRegistry_FallsBackToAttachedRegistry()
     {
-        Services.Shutdown();
         var sm = NewAttached(out var reg, out _);
-        Services.Register(sm);
         try
         {
             var c = new GameObject().AddComponent<Tracker>();
+            Services.Unregister<SceneManager>(); // 回退解析完成即注销，窗口缩至瞬时（防并行集合注册冲突）
             reg.ApplyPending();
             Assert.Same(c, Assert.Single(reg.GetOfType<Tracker>()));
         }
         finally
         {
-            Services.Shutdown();
+            Services.Unregister<SceneManager>();
         }
     }
 
     [Fact]
     public void AddComponent_NoRegistry_EquivalentToExplicitRegistry()
     {
-        Services.Shutdown();
         var sm = NewAttached(out var reg, out _);
-        Services.Register(sm);
         try
         {
             var viaFallback = new GameObject().AddComponent<Tracker>();
             var viaExplicit = new GameObject().AddComponent<Tracker>(reg);
+            Services.Unregister<SceneManager>(); // 回退解析完成即注销，窗口缩至瞬时（防并行集合注册冲突）
             reg.ApplyPending();
             var all = reg.GetOfType<Tracker>();
             Assert.Equal(2, all.Count);              // 同注册表、同结果
@@ -61,7 +63,7 @@ public class SceneManagerAttachTests
         }
         finally
         {
-            Services.Shutdown();
+            Services.Unregister<SceneManager>();
         }
     }
 
@@ -69,7 +71,6 @@ public class SceneManagerAttachTests
     [Fact]
     public void AddComponent_NoServicesRegistered_SilentlySkipsRegistration()
     {
-        Services.Shutdown();
         try
         {
             var go = new GameObject();
@@ -79,22 +80,21 @@ public class SceneManagerAttachTests
         }
         finally
         {
-            Services.Shutdown();
+            Services.Unregister<SceneManager>();
         }
     }
 
     [Fact]
     public void AddObjectToScene_RegistersIntoAttachedRegistry()
     {
-        Services.Shutdown();
         var sm = NewAttached(out var reg, out _);
-        Services.Register(sm);
         try
         {
             var scene = new Scene("T");
             sm.LoadScene(scene);
             var go = new GameObject();
             go.AddComponent<Tracker>();
+            Services.Unregister<SceneManager>(); // 回退解析完成即注销，窗口缩至瞬时（防并行集合注册冲突）
             reg.ApplyPending();
             Assert.Single(reg.GetOfType<Tracker>());
 
@@ -105,16 +105,14 @@ public class SceneManagerAttachTests
         }
         finally
         {
-            Services.Shutdown();
+            Services.Unregister<SceneManager>();
         }
     }
 
     [Fact]
     public void LoadScene_SingleArg_UsesAttachedRegistry()
     {
-        Services.Shutdown();
         var sm = NewAttached(out var reg, out _);
-        Services.Register(sm);
         try
         {
             var s1 = new Scene("A");
@@ -127,6 +125,7 @@ public class SceneManagerAttachTests
             var s2 = new Scene("B");
             var go2 = new GameObject();
             var c2 = go2.AddComponent<Tracker>();
+            Services.Unregister<SceneManager>(); // 回退解析完成即注销，窗口缩至瞬时（防并行集合注册冲突）
             s2.AddRootObject(go2);
             sm.LoadScene(s2);
 
@@ -135,7 +134,7 @@ public class SceneManagerAttachTests
         }
         finally
         {
-            Services.Shutdown();
+            Services.Unregister<SceneManager>();
         }
     }
 
@@ -144,20 +143,19 @@ public class SceneManagerAttachTests
     [Fact]
     public void AddComponent_AmbientRegistry_AutoRegisters()
     {
-        Services.Shutdown();
         var sm = NewAttached(out var reg, out _);
-        Services.Register(sm);
         try
         {
             var go = new GameObject();
             var c = go.AddComponent<Tracker>();
+            Services.Unregister<SceneManager>(); // 回退解析完成即注销，窗口缩至瞬时（防并行集合注册冲突）
             reg.ApplyPending();
             Assert.Single(reg.GetOfType<Tracker>());
             Assert.Same(c, reg.GetOfType<Tracker>()[0]);
         }
         finally
         {
-            Services.Shutdown();
+            Services.Unregister<SceneManager>();
         }
     }
 }

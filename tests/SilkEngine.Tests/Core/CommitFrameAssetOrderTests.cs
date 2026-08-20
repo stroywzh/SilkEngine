@@ -9,8 +9,15 @@ namespace SilkEngine.Tests.Core;
 using Scene = SilkEngine.Scene.Scene;
 
 [Collection("Assets")]
-public class CommitFrameAssetOrderTests
+public class CommitFrameAssetOrderTests : IDisposable
 {
+    /// <summary>测试级清理：注销测试内 ctor 自注册的 SceneManager/AssetManager 实例（Unregister 幂等）</summary>
+    public void Dispose()
+    {
+        Services.Unregister<SceneManager>();
+        Services.Unregister<AssetManager>();
+    }
+
     private sealed class Fixture : IDisposable
     {
         public ComponentRegistry Reg = new();
@@ -20,6 +27,7 @@ public class CommitFrameAssetOrderTests
 
         public Fixture()
         {
+            Services.Unregister<SceneManager>(); // 消除 ctor 自注册窗口（实例自足，无 ambient 依赖）
             Sm.Attach(Reg, Mgr);
             Object.DestroyHandler += OnDestroy;
         }

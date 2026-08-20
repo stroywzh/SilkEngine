@@ -6,8 +6,11 @@ namespace SilkEngine.Tests.Scene;
 using Scene = SilkEngine.Scene.Scene;
 
 [Collection("SceneManager")]
-public class SceneManagerDispatchTests
+public class SceneManagerDispatchTests : IDisposable
 {
+    /// <summary>测试级清理：注销测试内 ctor 自注册的 SceneManager 实例（Unregister 幂等）</summary>
+    public void Dispose() => Services.Unregister<SceneManager>();
+
     private class Tracker : MonoBehaviour
     {
         public int Ticks;
@@ -23,6 +26,7 @@ public class SceneManagerDispatchTests
     {
         var mgr = new FrameSnapshotManager();
         var sm = new SceneManager();
+        Services.Unregister<SceneManager>(); // 消除注册窗口（本测试实例自足，无 ambient 依赖）
         sm.Attach(reg, mgr);
         sm.LoadScene(scene, reg);
         mgr.CommitPending(reg, sm._destroyQueue, scene, 0f);
