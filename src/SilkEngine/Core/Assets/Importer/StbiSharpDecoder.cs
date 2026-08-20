@@ -12,6 +12,7 @@ public sealed class StbiSharpDecoder : IImageDecoder
     public bool CanDecode(string extension) => extension.ToLowerInvariant() is ".png" or ".jpg";
 
     /// <inheritdoc/>
+    /// <exception cref="InvalidOperationException">解码失败（包装原生错误信息）</exception>
     public ImageData Decode(byte[] raw)
     {
         try

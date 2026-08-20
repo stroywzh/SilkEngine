@@ -22,10 +22,18 @@ public sealed class DedicatedThreadExecutor : ILoopExecutor
         TaskCreationOptions.RunContinuationsAsynchronously
     );
 
+    /// <summary>执行者名称（申请时指定）。</summary>
     public string Name => _name;
+
+    /// <summary>线程上下文（ctor 创建时登记）。</summary>
     public ThreadContext Context { get; private set; }
+
+    /// <summary>专用线程是否存活（已 Run 且未退出）。</summary>
     public bool IsRunning => _thread?.IsAlive ?? false;
 
+    /// <summary>创建专用线程执行者：经 ThreadFactory 创建后台线程并登记上下文（未启动，Run 后运行）。</summary>
+    /// <param name="name">执行者名称</param>
+    /// <param name="priority">线程优先级（默认 Normal）</param>
     public DedicatedThreadExecutor(string name, ThreadPriority priority = ThreadPriority.Normal)
     {
         _name = name;

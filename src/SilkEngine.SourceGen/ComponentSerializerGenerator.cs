@@ -57,6 +57,11 @@ public sealed class ComponentSerializerGenerator : IIncrementalGenerator
     private static readonly SymbolDisplayFormat NoSpecialTypesFormat =
         SymbolDisplayFormat.FullyQualifiedFormat.WithMiscellaneousOptions(SymbolDisplayMiscellaneousOptions.EscapeKeywordIdentifiers);
 
+    /// <summary>
+    /// 生成器入口：注册 Component 子类扫描（生成 partial override WriteTo/ReadFrom）与
+    /// [SerializableInternal] 校验（SENG001 引擎外使用 / SENG002 白名单外字段 / SENG003 未登记 / SENG004 非 Component 子类）。
+    /// </summary>
+    /// <param name="context">增量生成上下文</param>
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         var components = context.SyntaxProvider

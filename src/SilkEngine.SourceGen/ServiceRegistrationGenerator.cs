@@ -32,6 +32,12 @@ public sealed class ServiceRegistrationGenerator : IIncrementalGenerator
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
+    /// <summary>
+    /// 生成器入口：注册 [Service] 扫描与排序输出。
+    /// 按 (Priority 升序, 类型全名升序) 生成 __ServiceBootstrap 的 ModuleInitializer 注册代码；
+    /// 非引擎程序集报 SERV001；抽象或无公共无参构造报 SERV002（均跳过该类型生成）。
+    /// </summary>
+    /// <param name="context">增量生成上下文</param>
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         var marked = context.SyntaxProvider.ForAttributeWithMetadataName(

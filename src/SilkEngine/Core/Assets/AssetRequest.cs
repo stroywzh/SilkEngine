@@ -76,7 +76,9 @@ public sealed class AssetRequest<T> : INotifyCompletion, IAssetRequest
         }
     }
 
-    /// <summary>await 结果；失败时抛出 Error</summary>
+    /// <summary>await 结果；失败时抛出 Error。</summary>
+    /// <returns>加载完成的资产实例</returns>
+    /// <exception cref="Exception">加载失败（Error 非 null）时抛出加载异常</exception>
     public T GetResult() => Error is null ? Asset! : throw Error;
 
     /// <summary>await 机制：登记续延（单请求单续延，等待者合并发生在 AssetEntry 层）</summary>

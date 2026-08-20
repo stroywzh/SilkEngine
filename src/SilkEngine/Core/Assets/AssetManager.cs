@@ -5,7 +5,12 @@ using SilkEngine.Core.Assets.Importer;
 
 namespace SilkEngine.Core.Assets;
 
-/// <summary>资产门面：同步/异步加载、GUID 缓存、帧末完成拾取（主线程专用 API）。由 EngineLoop 创建并注册 Services</summary>
+/// <summary>
+/// 资产门面（主线程专用 API）：同步/异步加载、GUID 缓存、引用计数闭环、帧末完成拾取。
+/// ctor 自注册进 Services（EngineLoop 创建）；帧末 ProcessCompleted 由 EngineLoop.CommitFrame 调用；
+/// LazyAsync 首次 await/访问 Asset 即触发实际调度；卸载（RefCount==0 帧末迁移）经 AssetUnloaded 事件发布，
+/// GPU 删除由消费方在渲染线程执行。
+/// </summary>
 public sealed class AssetManager
 {
     private readonly ITaskScheduler _scheduler;
@@ -26,9 +31,9 @@ public sealed class AssetManager
         Services.Register(this);
     }
 
-    /// <summary>
-    /// 路径 → 稳定 GUID（归一化：反斜杠→斜杠、统一小写；跨运行与平台确定性）。纯函数，保持静态
-    /// </summary>
+    /// <summary>路径 → 稳定 GUID（归一化：反斜杠→斜杠、统一小写；跨运行与平台确定性）。纯函数，保持静态。</summary>
+    /// <param name="path">资产路径</param>
+    /// <returns>稳定 GUID（MD5 哈希）</returns>
     public static Guid PathToGuid(string path)
     {
         var normalized = path.Replace('\\', '/').ToLowerInvariant();
@@ -36,7 +41,12 @@ public sealed class AssetManager
         return new Guid(hash);
     }
 
-    /// <summary>完全同步加载（主线程 IO+解码；原型期仅适用于小资产）。失败直接抛出</summary>
+    /// <summary>完全同步加载（主线程 IO+解码；原型期仅适用于小资产）。失败直接抛出。</summary>
+    /// <typeparam name="T">资产类型</typeparam>
+    /// <param name="path">资产路径（反斜杠/大小写差异不影响 GUID 稳定）</param>
+    /// <returns>已就绪的资产实例（并写入缓存）</returns>
+    /// <exception cref="ArgumentException">path 为 null 或空白</exception>
+    /// <exception cref="InvalidOperationException">资产正在异步加载中（同步 Load 不可用）；或缓存条目类型与 T 不符</exception>
     public T Load<T>(string path)
         where T : IAsset
     {
@@ -64,9 +74,16 @@ public sealed class AssetManager
     }
 
     /// <summary>
-    /// 异步加载：缓存命中直接返回已完成请求；否则登记 Loading + 工作线程调度
-    /// <br/>同一 GUID 加载中时合并等待者，不重复调度；Failed 条目再次调用视为重试
+    /// 异步加载：缓存命中直接返回已完成请求；否则登记 Loading + 工作线程调度。
+    /// 同一 GUID 加载中时合并等待者，不重复调度；Failed 条目再次调用视为重试；
+    /// LazyAsync 登记不调度，首次 await/访问 Asset 才触发。
     /// </summary>
+    /// <typeparam name="T">资产类型</typeparam>
+    /// <param name="path">资产路径</param>
+    /// <param name="mode">加载模式（默认 NormalAsync）</param>
+    /// <returns>可 await 的加载请求（帧末 ProcessCompleted 唤醒续延）</returns>
+    /// <exception cref="ArgumentException">path 为 null 或空白</exception>
+    /// <exception cref="InvalidOperationException">缓存条目已就绪但类型与 T 不符</exception>
     public AssetRequest<T> LoadAsync<T>(string path, AsyncLoadMode mode = AsyncLoadMode.NormalAsync)
         where T : IAsset
     {
@@ -194,10 +211,9 @@ public sealed class AssetManager
         }
     }
 
-    /// <summary>
-    /// 托管资产引用 +1；非托管实例（缓存中无条目）no-op 返回 false
-    /// <br/>按实例引用查找条目（Shader/Material 重写了 Equals，禁止 == 语义比较）
-    /// </summary>
+    /// <summary>托管资产引用 +1；非托管实例（缓存中无条目）no-op 返回 false。</summary>
+    /// <param name="asset">资产实例（按引用查找条目；Shader/Material 重写 Equals 禁止 == 比较）</param>
+    /// <returns>引用计数递增成功为 true</returns>
     public bool TryAddRef(IAsset asset)
     {
         var entry = FindEntry(asset);
@@ -207,10 +223,9 @@ public sealed class AssetManager
         return true;
     }
 
-    /// <summary>
-    /// 托管资产引用 -1（下限 0）；归零时入卸载候选队列（帧末 ProcessCompleted 复核），并触发 IReleaseAwareAsset 级联回调
-    /// <br/>非托管实例或已归零条目返回 false
-    /// </summary>
+    /// <summary>托管资产引用 −1（下限 0）；归零时入卸载候选队列（帧末 ProcessCompleted 复核），并触发 IReleaseAwareAsset 级联回调。</summary>
+    /// <param name="asset">资产实例</param>
+    /// <returns>引用递减成功为 true；非托管实例或已归零返回 false</returns>
     public bool TryRelease(IAsset asset)
     {
         var entry = FindEntry(asset);
@@ -226,13 +241,14 @@ public sealed class AssetManager
         return true;
     }
 
-    /// <summary>用户 API：无主资产显式归还；不调用则常驻缓存</summary>
+    /// <summary>用户 API：无主资产显式归还（引用归零帧末迁移 Unloaded）；不调用则常驻缓存。</summary>
+    /// <param name="asset">资产实例</param>
     public void Release(IAsset asset) => TryRelease(asset);
 
-    /// <summary>
-    /// 赋值点自动计数：新值 +1、旧值 -1；同一实例赋值短路
-    /// <br/>非 IAsset 类型或非托管实例透明 no-op（向后兼容）
-    /// </summary>
+    /// <summary>赋值点自动计数：新值 +1、旧值 −1；同一实例赋值短路。非 IAsset 类型或非托管实例透明 no-op（向后兼容）。</summary>
+    /// <typeparam name="T">字段类型</typeparam>
+    /// <param name="field">被赋值字段（ref）</param>
+    /// <param name="value">新值</param>
     public void SetTracked<T>(ref T field, T value)
         where T : class
     {
@@ -275,7 +291,10 @@ public sealed class AssetManager
     /// <summary>测试断言用：当前缓存</summary>
     internal AssetCache Cache => _cache;
 
-    /// <summary>GUID → 缓存资产（Data 为 T 即返回，与旧 MeshRenderer.Resolve 行为一致）；未命中/类型不符返回 null。</summary>
+    /// <summary>GUID → 缓存资产（Data 为 T 即返回）；未命中或类型不符返回 null。</summary>
+    /// <typeparam name="T">资产类型</typeparam>
+    /// <param name="guid">资产 GUID</param>
+    /// <returns>已就绪资产；未命中/类型不符为 null</returns>
     public T? TryResolve<T>(Guid guid)
         where T : class, IAsset
     {

@@ -6,6 +6,7 @@ using SilkEngine.Math;
 
 namespace SilkEngine.InputSystem;
 
+/// <summary>Silk.NET 输入提供者：绑定窗口输入上下文，帧内轮询键盘/鼠标写入引擎双缓冲状态。</summary>
 public class SilkInputProvider : IInputProvider
 {
     private static readonly KeyCode[] _keyCodes = Enum.GetValues<KeyCode>();
@@ -13,6 +14,8 @@ public class SilkInputProvider : IInputProvider
     private IKeyboard? _keyboard;
     private IMouse? _mouse;
 
+    /// <summary>绑定宿主窗口并创建输入上下文（取首个键盘/鼠标设备；缺失时相应状态不更新）。</summary>
+    /// <param name="window">宿主窗口</param>
     public void Initialize(IWindow window)
     {
         _input = window.CreateInput();
@@ -20,6 +23,9 @@ public class SilkInputProvider : IInputProvider
         _mouse = _input.Mice.FirstOrDefault();
     }
 
+    /// <summary>轮询当前按键/鼠标位置/滚轮/三键写入状态（未映射键跳过）。</summary>
+    /// <param name="kb">键盘状态</param>
+    /// <param name="ms">鼠标状态</param>
     public void UpdateInput(KeyboardState kb, MouseState ms)
     {
         if (_keyboard != null)

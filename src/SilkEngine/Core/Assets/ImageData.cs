@@ -3,10 +3,11 @@ namespace SilkEngine.Core.Assets;
 /// <summary>纯 CPU 图像数据（RGBA8，无 GL 依赖）</summary>
 public sealed class ImageData
 {
-    /// <summary>创建图像数据；像素长度不足 width*height*4 抛 ArgumentException</summary>
+    /// <summary>创建图像数据；像素长度不足 width*height*4 抛 ArgumentException。</summary>
     /// <param name="width">像素宽</param>
     /// <param name="height">像素高</param>
     /// <param name="pixels">RGBA 像素数据，长度 = width*height*4</param>
+    /// <exception cref="ArgumentException">pixels 长度不足 width*height*4</exception>
     public ImageData(int width, int height, byte[] pixels)
     {
         if (pixels.Length < width * height * 4)

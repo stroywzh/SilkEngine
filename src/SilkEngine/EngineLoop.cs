@@ -26,7 +26,7 @@ public class EngineLoop : IDisposable
         _disposed,
         _canStart;
 
-    /// <summary>线程管理器实例（[Service] 自动注册，Initialize 取用；未初始化访问抛异常）</summary>
+    /// <summary>线程管理器实例（[Service] 自动注册，ctor 已赋值，恒非空）</summary>
     public ThreadManager Threads =>
         _threadManager ?? throw new InvalidOperationException("EngineLoop.Initialize 尚未执行");
     public bool Embedded { get; set; } = false;
@@ -57,7 +57,7 @@ public class EngineLoop : IDisposable
     /// <summary>场景管理器实例（ctor 创建并订阅 Object.DestroyHandler；宿主经此取用）</summary>
     public SceneManager SceneManager => _sceneManager;
 
-    /// <summary>资产管理器实例（Initialize 创建并注入共享工作池；未初始化访问抛异常）</summary>
+    /// <summary>资产管理器实例（ctor 创建并注入共享工作池，恒非空）</summary>
     public AssetManager AssetManager =>
         _assetManager ?? throw new InvalidOperationException("EngineLoop.Initialize 尚未执行");
 
