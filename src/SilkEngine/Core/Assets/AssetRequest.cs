@@ -60,8 +60,15 @@ public sealed class AssetRequest<T> : INotifyCompletion, IAssetRequest where T :
     /// <summary>await 机制入口：请求自身即 awaiter</summary>
     public AssetRequest<T> GetAwaiter() => this;
 
-    /// <summary>await 机制：是否无需挂起</summary>
-    public bool IsCompleted => IsDone;
+    /// <summary>await 机制：是否无需挂起（LazyAsync 首次检查即触发实际加载调度）</summary>
+    public bool IsCompleted
+    {
+        get
+        {
+            Manager?.TriggerLazy(this);
+            return IsDone;
+        }
+    }
 
     /// <summary>await 结果；失败时抛出 Error</summary>
     public T GetResult() => Error is null ? Asset! : throw Error;

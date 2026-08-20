@@ -85,6 +85,28 @@ public class AssetRequestTests
     }
 
     [Fact]
+    public void LazyAsync_IsCompletedAccess_TriggersLoad()
+    {
+        Services.Unregister<AssetManager>();
+        var scheduler = new RecordingScheduler();
+        var manager = new AssetManager(scheduler);
+        try
+        {
+            var req = manager.LoadAsync<Texture2D>("missing/asset.png", AsyncLoadMode.LazyAsync);
+            Assert.Equal(0, scheduler.ScheduleCalls); // 登记未调度
+            _ = req.IsCompleted; // await 机制入口：修复后触发调度
+            Assert.True(scheduler.ScheduleCalls > 0);
+            manager.ProcessCompleted();
+            Assert.True(req.IsDone);
+            Assert.NotNull(req.Error); // 文件缺失 → Failed（证明调度确实发生）
+        }
+        finally
+        {
+            Services.Unregister<AssetManager>();
+        }
+    }
+
+    [Fact]
     public void Complete_ContinuationThrows_DoesNotBreak_AndLogs()
     {
         var tw = new TestWriter();
