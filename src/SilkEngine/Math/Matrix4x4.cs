@@ -1,7 +1,10 @@
 using System;
+using System.Runtime.InteropServices;
 
 namespace SilkEngine.Math;
 
+/// <summary>行主序 4x4 矩阵；Sequential 布局保证 16 个 float 连续，供渲染层 fixed 指针零分配上传。</summary>
+[StructLayout(LayoutKind.Sequential)]
 public struct Matrix4x4 : IEquatable<Matrix4x4>
 {
     public float M11,

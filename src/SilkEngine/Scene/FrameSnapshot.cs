@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Linq;
 using SilkEngine.Core;
 
 namespace SilkEngine.Scene;
@@ -19,12 +18,27 @@ public sealed class FrameSnapshot
     /// <summary>MonoBehaviour 基类索引视图（按具体类型分组，派发遍历用；快照构建时复制）。</summary>
     internal List<List<MonoBehaviour>> MbGroups { get; } = [];
 
+    /// <summary>类型化组件缓存：键=查询类型，值=所属 ComponentGroup 与缓存 List（组实例变化即失效，双缓冲重建安全）。</summary>
+    private readonly Dictionary<System.Type, (ComponentGroup Group, object List)> _componentCache = new();
+
+    /// <summary>
+    /// 获取指定类型的组件列表（快照内缓存：同快照重复调用返回同实例 List；快照重建后自然失效）
+    /// </summary>
     public IReadOnlyList<T> GetComponents<T>()
         where T : Component
     {
         foreach (var g in Groups)
-            if (g.ComponentType == typeof(T))
-                return g.Components as IReadOnlyList<T> ?? g.Components.Cast<T>().ToList();
+        {
+            if (g.ComponentType != typeof(T))
+                continue;
+            if (_componentCache.TryGetValue(typeof(T), out var entry) && entry.Group == g)
+                return (IReadOnlyList<T>)entry.List;
+            var list = new List<T>(g.Components.Count);
+            foreach (var c in g.Components)
+                list.Add((T)c);
+            _componentCache[typeof(T)] = (g, list);
+            return list;
+        }
         return System.Array.Empty<T>();
     }
 }

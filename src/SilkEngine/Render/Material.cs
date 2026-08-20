@@ -35,14 +35,27 @@ public class Material : IAsset, IReleaseAwareAsset
         MaterialDisposed += manager => manager.TryRelease(_mainTexture);
     }
 
-    /// <summary>设置浮点 uniform 值</summary>
-    public void SetFloat(string name, float value) => Floats[name] = value;
+    /// <summary>设置浮点 uniform 值（同名键从其它字典互斥移除）</summary>
+    public void SetFloat(string name, float value)
+    {
+        Vectors.Remove(name);
+        Matrices.Remove(name);
+        Floats[name] = value;
+    }
 
-    /// <summary>设置 Vector3 uniform 值</summary>
-    public void SetVector3(string name, Vector3 value) => Vectors[name] = value;
+    /// <summary>设置 Vector3 uniform 值（同名键从其它字典互斥移除）</summary>
+    public void SetVector3(string name, Vector3 value)
+    {
+        Floats.Remove(name);
+        Matrices.Remove(name);
+        Vectors[name] = value;
+    }
 
-    /// <summary>设置 Matrix4x4 uniform 值</summary>
-    public void SetMatrix4x4(string name, Matrix4x4 value) =>
+    /// <summary>设置 Matrix4x4 uniform 值（同名键从其它字典互斥移除）</summary>
+    public void SetMatrix4x4(string name, Matrix4x4 value)
+    {
+        Floats.Remove(name);
+        Vectors.Remove(name);
         Matrices[name] = [
             value.M11,
             value.M12,
@@ -61,6 +74,7 @@ public class Material : IAsset, IReleaseAwareAsset
             value.M43,
             value.M44,
         ];
+    }
 
     private int? _hash;
 

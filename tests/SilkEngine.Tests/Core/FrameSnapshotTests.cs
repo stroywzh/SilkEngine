@@ -37,6 +37,35 @@ public class FrameSnapshotTests : IClassFixture<SceneManagerFixture>
     }
 
     [Fact]
+    public void GetComponents_SameSnapshot_ReturnsSameListInstance()
+    {
+        var snap = new FrameSnapshot();
+        var go = new GameObject();
+        var c = go.AddComponent<TestTracker>();
+        snap.Groups.Add(new ComponentGroup { ComponentType = typeof(TestTracker), Components = [c] });
+        Assert.Same(snap.GetComponents<TestTracker>(), snap.GetComponents<TestTracker>());
+    }
+
+    [Fact]
+    public void GetComponents_AfterSnapshotRebuild_ReturnsFreshList()
+    {
+        var reg = new ComponentRegistry();
+        var c = new GameObject().AddComponent<TestTracker>();
+        reg.Register(c);
+        reg.ApplyPending();
+
+        var snap = new FrameSnapshot();
+        reg.BuildSnapshot(snap);
+        var first = snap.GetComponents<TestTracker>();
+
+        reg.BuildSnapshot(snap); // 双缓冲同实例重建（BuildSnapshot 新建 ComponentGroup）
+        var second = snap.GetComponents<TestTracker>();
+
+        Assert.NotSame(first, second);
+        Assert.Same(c, second[0]);
+    }
+
+    [Fact]
     public void Manager_Current_ReturnsSnapshotAfterCommit()
     {
         var mgr = new FrameSnapshotManager();

@@ -1,5 +1,6 @@
 using System;
 using Silk.NET.OpenGL;
+using SilkEngine.Core;
 using SilkEngine.Core.Assets;
 
 namespace SilkEngine.Render.OpenGL;
@@ -31,7 +32,7 @@ public sealed class OpenGLTexture : IDisposable
 
     /// <summary>
     /// 惰性创建：glGenTexture + 线性过滤 + glTexImage2D(RGBA8)
-    /// 幂等：已创建或已释放时直接返回
+    /// 幂等：已创建或已释放时直接返回；宽高非法（≤0）时以 1x1 白色占位创建（避免 GL_INVALID_VALUE）
     /// </summary>
     public unsafe void EnsureCreated(GL gl)
     {
@@ -39,6 +40,18 @@ public sealed class OpenGLTexture : IDisposable
             return;
         _gl = gl;
         var img = _data.ImageData;
+        int width = img.Width;
+        int height = img.Height;
+        byte[] pixels = img.Pixels;
+        if (width <= 0 || height <= 0)
+        {
+            Log.Warn(
+                $"[Render] Texture '{_data.Name}' 尺寸无效 ({width}x{height})，使用 1x1 白色占位"
+            );
+            width = 1;
+            height = 1;
+            pixels = new byte[] { 255, 255, 255, 255 };
+        }
         _handle = gl.GenTexture();
         gl.BindTexture(TextureTarget.Texture2D, _handle);
         gl.TexParameter(
@@ -51,14 +64,14 @@ public sealed class OpenGLTexture : IDisposable
             TextureParameterName.TextureMagFilter,
             (int)GLEnum.Linear
         );
-        fixed (byte* p = img.Pixels)
+        fixed (byte* p = pixels)
         {
             gl.TexImage2D(
                 TextureTarget.Texture2D,
                 0,
                 InternalFormat.Rgba8,
-                (uint)img.Width,
-                (uint)img.Height,
+                (uint)width,
+                (uint)height,
                 0,
                 PixelFormat.Rgba,
                 PixelType.UnsignedByte,

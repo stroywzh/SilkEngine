@@ -18,6 +18,7 @@ public class OpenGLShader : IShader
 
     /// <summary>
     /// 从 Shader 数据编译 GLSL 程序
+    /// <br/>链接失败抛 InvalidOperationException，且 finally 确保已创建的 program/shader 句柄被释放（防泄漏）
     /// </summary>
     public OpenGLShader(GL gl, Shader data)
     {
@@ -25,20 +26,27 @@ public class OpenGLShader : IShader
         uint vs = CompileStage(gl, data.VertexSource, ShaderType.VertexShader);
         uint fs = CompileStage(gl, data.FragmentSource, ShaderType.FragmentShader);
         _program = gl.CreateProgram();
-        gl.AttachShader(_program, vs);
-        gl.AttachShader(_program, fs);
-        gl.LinkProgram(_program);
-
-        gl.GetProgram(_program, ProgramPropertyARB.LinkStatus, out int status);
-        if (status == 0)
+        try
         {
-            string info = gl.GetProgramInfoLog(_program);
-            throw new InvalidOperationException($"Shader link failed: {info}");
-        }
+            gl.AttachShader(_program, vs);
+            gl.AttachShader(_program, fs);
+            gl.LinkProgram(_program);
 
-        gl.DeleteShader(vs);
-        gl.DeleteShader(fs);
-        IsCompiled = true;
+            gl.GetProgram(_program, ProgramPropertyARB.LinkStatus, out int status);
+            if (status == 0)
+            {
+                string info = gl.GetProgramInfoLog(_program);
+                throw new InvalidOperationException($"Shader link failed: {info}");
+            }
+            IsCompiled = true;
+        }
+        finally
+        {
+            gl.DeleteShader(vs);
+            gl.DeleteShader(fs);
+            if (!IsCompiled)
+                gl.DeleteProgram(_program); // 失败路径：program 不会由 Dispose 释放（构造未完成）
+        }
     }
 
     /// <summary>

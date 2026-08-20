@@ -137,59 +137,68 @@ public class OpenGLRenderBackend : RenderBackendBase
 
         foreach (var cmd in commands)
         {
+            if (!cmd.Enabled)
+                continue;
             if (cmd.Shader == null || cmd.Mesh == null)
                 continue;
+            try
+            {
+                OpenGLShader glShader = _registry.GetOrCreate(cmd.Shader, s => new OpenGLShader(_gl, s));
+                OpenGLMesh glMesh = _registry.GetOrCreate(cmd.Mesh, m => new OpenGLMesh(_gl, m));
 
-            OpenGLShader glShader = _registry.GetOrCreate(cmd.Shader, s => new OpenGLShader(_gl, s));
-            OpenGLMesh glMesh = _registry.GetOrCreate(cmd.Mesh, m => new OpenGLMesh(_gl, m));
+                OpenGLMaterial? glMaterial = null;
+                if (cmd.Material != null)
+                {
+                    glMaterial = _registry.GetOrCreate(
+                        cmd.Material, mat => new OpenGLMaterial(_gl, mat, glShader, _textureRegistry)
+                    );
+                }
 
-            OpenGLMaterial? glMaterial = null;
-            if (cmd.Material != null)
-            {
-                glMaterial = _registry.GetOrCreate(
-                    cmd.Material, mat => new OpenGLMaterial(_gl, mat, glShader, _textureRegistry)
-                );
-            }
+                if (glMaterial != null)
+                {
+                    glMaterial.Apply();
+                }
+                else
+                {
+                    glShader.Use();
+                }
 
-            if (glMaterial != null)
-            {
-                glMaterial.Apply();
+                if (cmd is SingleDrawCommand sdc && sdc.ModelMatrix.HasValue)
+                {
+                    UploadMatrix(glShader, "uModel", sdc.ModelMatrix.Value);
+                }
+                if (cmd is SingleDrawCommand sdc2 && sdc2.ViewMatrix.HasValue)
+                {
+                    UploadMatrix(glShader, "uView", sdc2.ViewMatrix.Value);
+                }
+                if (cmd is SingleDrawCommand sdc3 && sdc3.ProjectionMatrix.HasValue)
+                {
+                    UploadMatrix(glShader, "uProjection", sdc3.ProjectionMatrix.Value);
+                }
+                if (
+                    cmd is SingleDrawCommand sdc4
+                    && sdc4.ProjectionMatrix.HasValue
+                    && sdc4.ViewMatrix.HasValue
+                    && sdc4.ModelMatrix.HasValue
+                )
+                {
+                    UploadMatrix(
+                        glShader,
+                        "uMVP",
+                        Math.Matrix4x4.ComposeMVP(
+                            sdc4.ProjectionMatrix.Value,
+                            sdc4.ViewMatrix.Value,
+                            sdc4.ModelMatrix.Value
+                        )
+                    );
+                }
+                glMesh.Draw();
             }
-            else
+            catch (Exception ex)
             {
-                glShader.Use();
+                // 单命令失败不中断整批绘制
+                Log.Warn($"[Render] Draw command failed ({cmd.GetType().Name}): {ex.Message}");
             }
-
-            if (cmd is SingleDrawCommand sdc && sdc.ModelMatrix.HasValue)
-            {
-                UploadMatrix(glShader, "uModel", sdc.ModelMatrix.Value);
-            }
-            if (cmd is SingleDrawCommand sdc2 && sdc2.ViewMatrix.HasValue)
-            {
-                UploadMatrix(glShader, "uView", sdc2.ViewMatrix.Value);
-            }
-            if (cmd is SingleDrawCommand sdc3 && sdc3.ProjectionMatrix.HasValue)
-            {
-                UploadMatrix(glShader, "uProjection", sdc3.ProjectionMatrix.Value);
-            }
-            if (
-                cmd is SingleDrawCommand sdc4
-                && sdc4.ProjectionMatrix.HasValue
-                && sdc4.ViewMatrix.HasValue
-                && sdc4.ModelMatrix.HasValue
-            )
-            {
-                UploadMatrix(
-                    glShader,
-                    "uMVP",
-                    Math.Matrix4x4.ComposeMVP(
-                        sdc4.ProjectionMatrix.Value,
-                        sdc4.ViewMatrix.Value,
-                        sdc4.ModelMatrix.Value
-                    )
-                );
-            }
-            glMesh.Draw();
         }
     }
 
@@ -200,17 +209,8 @@ public class OpenGLRenderBackend : RenderBackendBase
             return;
         unsafe
         {
-            float[] mat =
-            [
-                m.M11, m.M12, m.M13, m.M14,
-                m.M21, m.M22, m.M23, m.M24,
-                m.M31, m.M32, m.M33, m.M34,
-                m.M41, m.M42, m.M43, m.M44,
-            ];
-            fixed (float* p = mat)
-            {
-                _gl.UniformMatrix4(loc, 1, true, p);
-            }
+            // Matrix4x4 为 Sequential 布局（16 个连续 float），参数按值传入已固定，零分配直传
+            _gl.UniformMatrix4(loc, 1, true, &m.M11);
         }
     }
 
