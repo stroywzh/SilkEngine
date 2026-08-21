@@ -49,12 +49,12 @@ public class RenderThreadLoop : ThreadLoopBase
     /// <summary>泵送窗口事件（透传后端；Embedded 模式下主循环跳过）。</summary>
     public void PumpEvents() => _backend.PumpWindowEvents();
 
-    /// <summary>提交一帧渲染命令并阻塞等待渲染线程完成（帧同步握手；超时抛 TimeoutException）。</summary>
+    /// <summary>提交一帧渲染命令（主线程按 SortOrder 排序，渲染线程直读零排序分配）并阻塞等待渲染线程完成（帧同步握手；超时抛 TimeoutException）。</summary>
     /// <param name="passes">本帧渲染 Pass 列表（按 SortOrder 执行）</param>
     /// <exception cref="TimeoutException">握手在 FrameTimeout（默认 5s）内未完成</exception>
     public void SubmitFrame(IReadOnlyList<RenderPass> passes)
     {
-        _pendingPasses = passes;
+        _pendingPasses = passes.OrderBy(p => p.SortOrder).ToArray();
         _commandsReady.Set();
         if (!_frameDone.Wait(FrameTimeout))
             throw new TimeoutException($"[RenderThread] frame handshake timeout after {FrameTimeout}");
@@ -81,7 +81,7 @@ public class RenderThreadLoop : ThreadLoopBase
                 assetManager.ProcessUnloadQueue(asset => _backend.ReleaseGpuResource(asset));
             if (_pendingPasses != null)
             {
-                foreach (var pass in _pendingPasses.OrderBy(p => p.SortOrder))
+                foreach (var pass in _pendingPasses) // 已按 SortOrder 升序（SubmitFrame 主线程排序）
                 {
                     pass.BeforeCommands?.Invoke(_backend);
                     _backend.ExecutePass(pass.Commands);

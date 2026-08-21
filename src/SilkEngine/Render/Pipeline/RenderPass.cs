@@ -20,6 +20,6 @@ public class RenderPass
     /// <summary>在渲染命令之后调用的后端操作。</summary>
     public Action<IRenderBackend>? AfterCommands { get; init; }
 
-    /// <summary>本 Pass 待执行的绘制命令。</summary>
-    public IReadOnlyList<DrawCommand> Commands { get; init; } = [];
+    /// <summary>本 Pass 待执行的绘制命令（ForwardPipeline 帧间复用实例，仅帧内消费有效）。</summary>
+    public IReadOnlyList<DrawCommand> Commands { get; set; } = [];
 }

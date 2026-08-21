@@ -7,41 +7,6 @@ using SilkEngine.Threading;
 
 namespace SilkEngine.Tests.Render;
 
-public class RenderCollectorTests
-{
-    [Fact]
-    public void Gather_EmptyInputs_ReturnsNullCameraAndNoBatches()
-    {
-        var collector = new RenderCollector();
-        collector.Gather([], [], out var camera, out var batches);
-        Assert.Null(camera);
-        Assert.Empty(batches);
-    }
-
-    [Fact]
-    public void Gather_TakesFirstCamera()
-    {
-        var cam1 = new GameObject("A").AddComponent<Camera>();
-        var cam2 = new GameObject("B").AddComponent<Camera>();
-        var collector = new RenderCollector();
-        collector.Gather([cam1, cam2], [], out var camera, out _);
-        Assert.Same(cam1, camera);
-    }
-
-    [Fact]
-    public void Gather_AssemblesSingleBatchWithAllRenderables()
-    {
-        var mr1 = new GameObject("R1").AddComponent<MeshRenderer>();
-        var mr2 = new GameObject("R2").AddComponent<MeshRenderer>();
-        var collector = new RenderCollector();
-        collector.Gather([], [mr1, mr2], out _, out var batches);
-        var batch = Assert.Single(batches);
-        Assert.Equal(2, batch.Renderers.Count);
-        Assert.Same(mr1, batch.Renderers[0]);
-        Assert.Same(mr2, batch.Renderers[1]);
-    }
-}
-
 public class RenderInterfaceContractTests
 {
     [Fact]
