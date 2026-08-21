@@ -8,6 +8,21 @@ using Silk.NET.Windowing;
 namespace SilkEngine.Render.OpenGL;
 
 /// <summary>
+/// 绘制命令分派结果：单实例绘制 / GPU 实例化绘制 / 未知命令类型
+/// </summary>
+internal enum DrawCommandKind
+{
+    /// <summary>单实例路径（SingleDrawCommand）</summary>
+    DrawOnce,
+
+    /// <summary>GPU 实例化路径（InstancedDrawCommand）</summary>
+    DrawInstanced,
+
+    /// <summary>未知命令类型（告警跳过）</summary>
+    Unknown,
+}
+
+/// <summary>
 /// OpenGL渲染后端
 /// <br/>仅负责窗口创建、上下文切换与一帧的绘制执行，线程调度由 ThreadManager 分配的专用执行者管理。
 /// <br/>GL 上下文归属渲染线程（MakeContextCurrent 绑定，ClearContext 解绑）；
@@ -46,6 +61,18 @@ public class OpenGLRenderBackend : RenderBackendBase
 
     /// <inheritdoc />
     public override int Height => _window?.Size.Y ?? 600;
+
+    /// <summary>
+    /// 单点分派：按命令类型分类绘制路径（纯逻辑，无 GL 依赖，可无头测试）
+    /// </summary>
+    /// <param name="cmd">绘制命令</param>
+    /// <returns>绘制路径分类；未知命令类型返回 <see cref="DrawCommandKind.Unknown"/></returns>
+    internal static DrawCommandKind Classify(DrawCommand cmd) => cmd switch
+    {
+        SingleDrawCommand => DrawCommandKind.DrawOnce,
+        InstancedDrawCommand => DrawCommandKind.DrawInstanced,
+        _ => DrawCommandKind.Unknown,
+    };
 
     /// <summary>设置清除颜色</summary>
     public void SetClearColor(float r, float g, float b, float a)
@@ -137,6 +164,9 @@ public class OpenGLRenderBackend : RenderBackendBase
         _gl.ClearColor(_clearR, _clearG, _clearB, _clearA);
         _gl.Clear((uint)(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit));
 
+        // uView/uProjection 为 Pass 级相机矩阵：每 Pass 每 ShaderProgram 仅上传一次（上传次数收敛）
+        var cameraUploadedPrograms = new HashSet<uint>();
+
         foreach (var cmd in commands)
         {
             if (!cmd.Enabled)
@@ -165,36 +195,18 @@ public class OpenGLRenderBackend : RenderBackendBase
                     glShader.Use();
                 }
 
-                if (cmd is SingleDrawCommand sdc && sdc.ModelMatrix.HasValue)
+                switch (Classify(cmd))
                 {
-                    UploadMatrix(glShader, "uModel", sdc.ModelMatrix.Value);
+                    case DrawCommandKind.DrawOnce:
+                        DrawSingle(glShader, glMesh, (SingleDrawCommand)cmd, cameraUploadedPrograms);
+                        break;
+                    case DrawCommandKind.DrawInstanced:
+                        DrawInstanced(glMesh, (InstancedDrawCommand)cmd);
+                        break;
+                    default:
+                        Log.Warn($"[Render] Unknown draw command type skipped: {cmd.GetType().Name}");
+                        break;
                 }
-                if (cmd is SingleDrawCommand sdc2 && sdc2.ViewMatrix.HasValue)
-                {
-                    UploadMatrix(glShader, "uView", sdc2.ViewMatrix.Value);
-                }
-                if (cmd is SingleDrawCommand sdc3 && sdc3.ProjectionMatrix.HasValue)
-                {
-                    UploadMatrix(glShader, "uProjection", sdc3.ProjectionMatrix.Value);
-                }
-                if (
-                    cmd is SingleDrawCommand sdc4
-                    && sdc4.ProjectionMatrix.HasValue
-                    && sdc4.ViewMatrix.HasValue
-                    && sdc4.ModelMatrix.HasValue
-                )
-                {
-                    UploadMatrix(
-                        glShader,
-                        "uMVP",
-                        Math.Matrix4x4.ComposeMVP(
-                            sdc4.ProjectionMatrix.Value,
-                            sdc4.ViewMatrix.Value,
-                            sdc4.ModelMatrix.Value
-                        )
-                    );
-                }
-                glMesh.Draw();
             }
             catch (Exception ex)
             {
@@ -202,6 +214,53 @@ public class OpenGLRenderBackend : RenderBackendBase
                 Log.Warn($"[Render] Draw command failed ({cmd.GetType().Name}): {ex.Message}");
             }
         }
+    }
+
+    /// <summary>单实例路径：Pass 级相机矩阵（每程序一次）+ 按命令的 uModel/uMVP + 一次绘制</summary>
+    /// <param name="glShader">已绑定的着色器</param>
+    /// <param name="glMesh">网格</param>
+    /// <param name="cmd">单实例命令</param>
+    /// <param name="cameraUploadedPrograms">本 Pass 已上传相机矩阵的程序集合</param>
+    private void DrawSingle(
+        OpenGLShader glShader,
+        OpenGLMesh glMesh,
+        SingleDrawCommand cmd,
+        HashSet<uint> cameraUploadedPrograms
+    )
+    {
+        uint program = glShader.GetProgram();
+        if (cameraUploadedPrograms.Add(program))
+        {
+            if (cmd.ViewMatrix.HasValue)
+                UploadMatrix(glShader, "uView", cmd.ViewMatrix.Value);
+            if (cmd.ProjectionMatrix.HasValue)
+                UploadMatrix(glShader, "uProjection", cmd.ProjectionMatrix.Value);
+        }
+        if (cmd.ModelMatrix.HasValue)
+            UploadMatrix(glShader, "uModel", cmd.ModelMatrix.Value);
+        if (cmd.ViewMatrix.HasValue && cmd.ProjectionMatrix.HasValue && cmd.ModelMatrix.HasValue)
+        {
+            UploadMatrix(
+                glShader,
+                "uMVP",
+                Math.Matrix4x4.ComposeMVP(
+                    cmd.ProjectionMatrix.Value,
+                    cmd.ViewMatrix.Value,
+                    cmd.ModelMatrix.Value
+                )
+            );
+        }
+        glMesh.Draw();
+    }
+
+    /// <summary>实例化路径：一次 GPU 调用绘制 InstanceCount 个实例</summary>
+    /// <param name="glMesh">网格</param>
+    /// <param name="cmd">实例化命令</param>
+    private void DrawInstanced(OpenGLMesh glMesh, InstancedDrawCommand cmd)
+    {
+        // 预留：InstanceData(PerInstanceData[]) → 实例缓冲上传未实现（需 OpenGLMesh 实例缓冲 + glVertexAttribDivisor 扩展）；
+        // 当前先实现 InstanceCount 维度——OpenGLMesh.DrawInstanced 一次调用绘制全部实例
+        glMesh.DrawInstanced(cmd.InstanceCount);
     }
 
     private void UploadMatrix(OpenGLShader glShader, string name, Math.Matrix4x4 m)
