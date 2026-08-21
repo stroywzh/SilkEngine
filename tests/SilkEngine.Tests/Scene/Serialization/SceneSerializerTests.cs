@@ -148,6 +148,53 @@ public class SceneSerializerTests
     }
 
     [Fact]
+    public void DeserializedGameObject_ComponentState_VisibleAfterLoad()
+    {
+        ComponentTypeRegistry.Register(typeof(AwakeProbe).FullName!, () => new AwakeProbe());
+        var scene = new Scene("T");
+        var go = new GameObject("GO");
+        var c = go.AddComponent<AwakeProbe>();
+        c.Speed = 2.5f;
+        scene.AddRootObject(go);
+
+        var scene2 = SceneSerializer.Deserialize(SceneSerializer.Serialize(scene));
+        var c2 = scene2.GetRootGameObjects()[0].GetComponent<AwakeProbe>()!;
+
+        Assert.Equal(2.5f, c2.Speed);        // ReadFrom 恢复序列化值
+        Assert.Equal(2.5f, c2.SeenAtAwake);  // OnAwake 在 ReadFrom 之后（Unity 时序保持）
+    }
+
+    [Fact]
+    public void DeserializedGameObject_NoSerializationStateResidue()
+    {
+        ComponentTypeRegistry.Register(typeof(AwakeProbe).FullName!, () => new AwakeProbe());
+        var key = typeof(AwakeProbe).FullName!;
+        var json = $$"""
+        {
+          "Name": "T",
+          "GameObjects": [
+            {
+              "Name": "GO",
+              "Components": {
+                "Transform": {},
+                "{{key}}": { "Speed": 3.5 }
+              }
+            }
+          ]
+        }
+        """;
+
+        var scene = SceneSerializer.Deserialize(json);
+        var go = scene.GetRootGameObjects()[0];
+
+        var loaded = go.GetComponent<AwakeProbe>()!;
+        Assert.Equal(3.5f, loaded.Speed);            // 正控：加载期 ReadFrom 生效
+
+        var fresh = go.AddComponent<AwakeProbe>();   // 反序列化结束后新挂载
+        Assert.False(fresh.ReadCalled);              // 无 JSON 中间态残留 → 不触发 ReadFrom
+    }
+
+    [Fact]
     public void Deserialize_MissingFields_UseDefaults()
     {
         var json = """
@@ -256,3 +303,21 @@ public class SceneSerializerTests
 
 /// <summary>无字段组件探针：序列化内容为空，用于空节点 Warn 用例。</summary>
 public partial class PlainProbe : Component { }
+
+/// <summary>ReadFrom→OnAwake 时序探针：OnAwake 记录当时的字段值（断言可见序列化恢复值）。</summary>
+public class AwakeProbe : MonoBehaviour
+{
+    public float Speed;
+    public float SeenAtAwake = -1f;
+    public bool ReadCalled;
+
+    public override void OnAwake() => SeenAtAwake = Speed;
+
+    public override void ReadFrom(SerializedNode node)
+    {
+        ReadCalled = true;
+        Speed = node.GetFloat("Speed");
+    }
+
+    public override void WriteTo(SerializedNode node) => node.SetFloat("Speed", Speed);
+}

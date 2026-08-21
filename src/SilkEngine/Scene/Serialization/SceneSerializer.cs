@@ -6,9 +6,9 @@ namespace SilkEngine.Scene.Serialization;
 
 /// <summary>
 /// 场景序列化器：Serialize(Scene)→.scene JSON 字符串；Deserialize(string)→Scene。
-/// 反序列化自动组装：new GameObject → AttachSerializedData → 逐组件
-/// ComponentTypeRegistry.Resolve + AddComponent（工厂内 ReadFrom）→ ClearSerializedData
-/// → 递归子对象 SetParent → AddRootObject。
+/// 反序列化自动组装：DeserializationContext 挂载节点 → Transform 恢复 → 逐组件
+/// ComponentTypeRegistry.Resolve + AddComponent（工厂内经 context 读取 ReadFrom 数据）
+/// → context.Detach → 递归子对象 SetParent → AddRootObject。
 /// </summary>
 public static class SceneSerializer
 {
@@ -39,10 +39,11 @@ public static class SceneSerializer
         var scene = new SilkEngine.Scene.Scene(root["Name"]?.GetValue<string>() ?? "Untitled");
         if (root["GameObjects"] is JsonArray arr)
         {
+            var ctx = new DeserializationContext();   // 局部持有：反序列化窗口内显式传递，不注册全局 Services（避免并行测试污染）
             foreach (var n in arr)
             {
                 if (n is JsonObject goNode)
-                    scene.AddRootObject(ReadGameObject(goNode));
+                    scene.AddRootObject(ReadGameObject(goNode, ctx));
             }
         }
         return scene;
@@ -77,25 +78,26 @@ public static class SceneSerializer
         return node;
     }
 
-    private static GameObject ReadGameObject(JsonObject node)
+    private static GameObject ReadGameObject(JsonObject node, DeserializationContext ctx)
     {
         var go = new GameObject(node["Name"]?.GetValue<string>() ?? "GameObject");
-        go.AttachSerializedData(node);
+        ctx.Attach(go, node);
+        RestoreTransform(go, node);
 
         if (node["Components"] is JsonObject comps)
         {
             foreach (var kv in comps)
             {
                 if (kv.Key == "Transform" || kv.Value is not JsonObject compNode)
-                    continue;   // Transform 已由 AttachSerializedData 恢复
+                    continue;   // Transform 已由 RestoreTransform 恢复
                 var factory = ComponentTypeRegistry.Resolve(kv.Key);
                 if (factory == null)
                     continue;   // 未知类型：警告已记，跳过
-                go.AddComponent(factory());
+                go.AddComponent(factory(), null, ctx);
             }
         }
 
-        go.ClearSerializedData();
+        ctx.Detach(go);   // 组件均完成 ReadFrom，释放中间态
 
         if (node["Children"] is JsonArray children)
         {
@@ -103,11 +105,28 @@ public static class SceneSerializer
             {
                 if (n is JsonObject childNode)
                 {
-                    var child = ReadGameObject(childNode);
+                    var child = ReadGameObject(childNode, ctx);
                     child.Transform.SetParent(go.Transform);
                 }
             }
         }
         return go;
+    }
+
+    /// <summary>恢复 Transform 序列化值（仅覆盖存在键的字段，缺键保留默认）。</summary>
+    /// <param name="go">目标对象</param>
+    /// <param name="node">对象的序列化节点</param>
+    private static void RestoreTransform(GameObject go, JsonObject node)
+    {
+        if (node["Components"] is JsonObject comps && comps["Transform"] is JsonObject t)
+        {
+            var sn = new SerializedNode(t);
+            if (t.ContainsKey("LocalPosition"))
+                go.Transform.LocalPosition = sn.GetVector3("LocalPosition");
+            if (t.ContainsKey("LocalRotation"))
+                go.Transform.LocalRotation = sn.GetQuaternion("LocalRotation");
+            if (t.ContainsKey("LocalScale"))
+                go.Transform.LocalScale = sn.GetVector3("LocalScale");
+        }
     }
 }

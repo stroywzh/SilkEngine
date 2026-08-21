@@ -1,7 +1,6 @@
 using System.Text.Json.Nodes;
 using SilkEngine.Scene;
 using SilkEngine.Scene.Serialization;
-using SilkEngine.Math;
 
 namespace SilkEngine.Tests.Scene;
 
@@ -38,13 +37,19 @@ public class GameObjectSerializationTests
         };
     }
 
+    /// <summary>模拟 SceneSerializer 反序列化窗口：挂载数据并让组件工厂经内部重载读取（context 局部持有，不污染全局 Services）。</summary>
+    private static T WithAttachedData<T>(GameObject go, JsonObject data, Func<DeserializationContext, T> mount)
+    {
+        var ctx = new DeserializationContext();
+        ctx.Attach(go, data);
+        return mount(ctx);
+    }
+
     [Fact]
     public void AddComponent_WithAttachedData_CallsReadFromBeforeAwakeBeforeEnable()
     {
         var go = new GameObject("GO");
-        go.AttachSerializedData(DataWithComponent(3.5f));
-
-        var c = go.AddComponent<TestSerializable>();
+        var c = WithAttachedData(go, DataWithComponent(3.5f), ctx => (TestSerializable)go.AddComponent(new TestSerializable(), null, ctx));
 
         Assert.True(c.ReadCalled);
         Assert.Equal(3.5f, c.Speed);            // 序列化值已生效
@@ -64,18 +69,19 @@ public class GameObjectSerializationTests
     public void AddComponent_NonSerializableComponent_IsIgnored()
     {
         var go = new GameObject("GO");
-        go.AttachSerializedData(DataWithComponent(3.5f));
-        var c = go.AddComponent<Tracker>();
+        var c = WithAttachedData(go, DataWithComponent(3.5f), ctx => (Tracker)go.AddComponent(new Tracker(), null, ctx));
         Assert.False(c.ReadCalled);   // Tracker 未覆写 WriteTo/ReadFrom（基类空默认）
     }
 
     [Fact]
-    public void AddComponent_AfterClearSerializedData_DoesNotCallReadFrom()
+    public void AddComponent_AfterDetach_DoesNotCallReadFrom()
     {
         var go = new GameObject("GO");
-        go.AttachSerializedData(DataWithComponent(3.5f));
-        go.ClearSerializedData();
-        var c = go.AddComponent<TestSerializable>();
+        var c = WithAttachedData(go, DataWithComponent(3.5f), ctx =>
+        {
+            ctx.Detach(go);   // 模拟组件均完成 ReadFrom 后的释放
+            return (TestSerializable)go.AddComponent(new TestSerializable(), null, ctx);
+        });
         Assert.False(c.ReadCalled);
     }
 
@@ -83,40 +89,10 @@ public class GameObjectSerializationTests
     public void AddComponent_NonGeneric_GoesThroughSameFactory()
     {
         var go = new GameObject("GO");
-        go.AttachSerializedData(DataWithComponent(2f));
-        var c = (TestSerializable)go.AddComponent(new TestSerializable());
+        var c = WithAttachedData(go, DataWithComponent(2f), ctx => (TestSerializable)go.AddComponent(new TestSerializable(), null, ctx));
         Assert.True(c.ReadCalled);
         Assert.Equal(2f, c.Speed);
         Assert.Equal(2f, c.SeenAtEnable);
-    }
-
-    [Fact]
-    public void AttachSerializedData_RestoresTransformValues()
-    {
-        var go = new GameObject("GO");
-        var data = JsonNode.Parse(
-            """{ "Name":"GO", "Components": { "Transform": { "LocalPosition": [1,2,3], "LocalRotation": [0,0,0.5,0.866], "LocalScale": [4,5,6] } } }"""
-        )!.AsObject();
-
-        go.AttachSerializedData(data);
-
-        Assert.Equal(new Vector3(1, 2, 3), go.Transform.LocalPosition);
-        Assert.Equal(new Quaternion(0, 0, 0.5f, 0.866f), go.Transform.LocalRotation);
-        Assert.Equal(new Vector3(4, 5, 6), go.Transform.LocalScale);
-    }
-
-    [Fact]
-    public void AttachSerializedData_MissingTransformKeys_KeepCurrentValues()
-    {
-        var go = new GameObject("GO");
-        go.Transform.LocalPosition = new Vector3(9, 9, 9);
-        var data = JsonNode.Parse("""{ "Name":"GO", "Components": {} }""")!.AsObject();
-
-        go.AttachSerializedData(data);
-
-        Assert.Equal(new Vector3(9, 9, 9), go.Transform.LocalPosition);  // 无 Transform 节点 → 不覆盖
-        Assert.Equal(Vector3.One, go.Transform.LocalScale);              // 缺键 → 保留默认 One
-        Assert.Equal(Quaternion.Identity, go.Transform.LocalRotation);   // 缺键 → 保留默认 Identity
     }
 
     private class Tracker : MonoBehaviour
