@@ -7,7 +7,7 @@ namespace SilkEngine.Scene.Serialization;
 /// <summary>
 /// 场景序列化器：Serialize(Scene)→.scene JSON 字符串；Deserialize(string)→Scene。
 /// 反序列化自动组装：DeserializationContext 挂载节点 → Transform 恢复 → 逐组件
-/// ComponentTypeRegistry.Resolve + AddComponent（工厂内经 context 读取 ReadFrom 数据）
+/// 组件键解析（GUID 优先，FullName 回退兼容旧格式文件）+ AddComponent（工厂内经 context 读取 ReadFrom 数据）
 /// → context.Detach → 递归子对象 SetParent → AddRootObject。
 /// </summary>
 public static class SceneSerializer
@@ -64,8 +64,9 @@ public static class SceneSerializer
         {
             var compNode = new JsonObject();
             c.WriteTo(new SerializedNode(compNode));
-            comps[c.GetType().FullName!] = compNode;
-            if (compNode.Count == 0 && warnedOnce.Add(c.GetType().FullName!))
+            var key = ComponentTypeRegistry.GetGuid(c.GetType()).ToString();
+            comps[key] = compNode;
+            if (compNode.Count == 0 && warnedOnce.Add(key))
                 Log.Warn($"[SceneSerializer] component '{c.GetType().FullName}' 序列化内容为空（无字段/字段全排除/未标记 SerializableInternal）");
         }
         if (t.Children.Count > 0)
@@ -86,6 +87,7 @@ public static class SceneSerializer
 
         if (node["Components"] is JsonObject comps)
         {
+            NormalizeComponentKeys(comps);   // GUID 键 → FullName 键：工厂解析与组件数据查找共用同一键空间
             foreach (var kv in comps)
             {
                 if (kv.Key == "Transform" || kv.Value is not JsonObject compNode)
@@ -111,6 +113,23 @@ public static class SceneSerializer
             }
         }
         return go;
+    }
+
+    /// <summary>
+    /// 组件键归一化：GUID 键（新格式）原地改写为类型全名（ResolveGuid 派生；GUID 优先、FullName 键原样保留兼容旧文件）。
+    /// 组件数据节点查找（GameObject.InitializeComponent 按 FullName 取数）与工厂解析共用此键空间。
+    /// </summary>
+    /// <param name="comps">"Components" 节点（原地改写）</param>
+    private static void NormalizeComponentKeys(JsonObject comps)
+    {
+        foreach (var kv in comps.ToList())
+        {
+            if (Guid.TryParse(kv.Key, out var g) && ComponentTypeRegistry.ResolveGuid(g) is { } t)
+            {
+                comps.Remove(kv.Key);
+                comps[t.FullName!] = kv.Value;
+            }
+        }
     }
 
     /// <summary>恢复 Transform 序列化值（仅覆盖存在键的字段，缺键保留默认）。</summary>

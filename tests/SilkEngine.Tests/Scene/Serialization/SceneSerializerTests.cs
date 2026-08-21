@@ -143,7 +143,8 @@ public class SceneSerializerTests
         Assert.Contains("\"Ground\"", json);
         Assert.Contains("\"Transform\"", json);
         Assert.Contains("\"LocalScale\": [", json);
-        Assert.Contains("\"SilkEngine.Scene.MeshRenderer\"", json);
+        Assert.Contains(ComponentTypeRegistry.GetGuid(typeof(MeshRenderer)).ToString(), json);
+        Assert.DoesNotContain(typeof(MeshRenderer).FullName!, json);
         Assert.Contains("\"GameObjects\"", json);
     }
 
@@ -270,7 +271,75 @@ public class SceneSerializerTests
 
         var json = SceneSerializer.Serialize(scene);
 
-        Assert.Contains(typeof(PlainProbe).FullName!, json);
+        Assert.Contains(ComponentTypeRegistry.GetGuid(typeof(PlainProbe)).ToString(), json);
+        Assert.DoesNotContain(typeof(PlainProbe).FullName!, json);
+    }
+
+    [Fact]
+    public void Write_SerializesGuidKey()
+    {
+        var scene = new Scene("T");
+        var go = new GameObject("GO");
+        var c = go.AddComponent<AwakeProbe>();
+        c.Speed = 2.5f;
+        scene.AddRootObject(go);
+
+        var json = SceneSerializer.Serialize(scene);
+
+        Assert.Contains(ComponentTypeRegistry.GetGuid(typeof(AwakeProbe)).ToString(), json);
+        Assert.DoesNotContain(typeof(AwakeProbe).FullName!, json);
+    }
+
+    [Fact]
+    public void Read_FullNameKey_FallbackResolves()
+    {
+        ComponentTypeRegistry.Register(typeof(AwakeProbe).FullName!, () => new AwakeProbe());
+        var key = typeof(AwakeProbe).FullName!;
+        var json = $$"""
+        {
+          "Name": "T",
+          "GameObjects": [
+            {
+              "Name": "GO",
+              "Components": {
+                "Transform": {},
+                "{{key}}": { "Speed": 3.5 }
+              }
+            }
+          ]
+        }
+        """;
+
+        var scene = SceneSerializer.Deserialize(json);
+
+        var c = scene.GetRootGameObjects()[0].GetComponent<AwakeProbe>()!;
+        Assert.Equal(3.5f, c.Speed);   // 旧格式 FullName 键经回退解析
+    }
+
+    [Fact]
+    public void Read_GuidKey_Resolves()
+    {
+        ComponentTypeRegistry.Register<AwakeProbe>();
+        var guid = ComponentTypeRegistry.GetGuid(typeof(AwakeProbe));
+        var json = $$"""
+        {
+          "Name": "T",
+          "GameObjects": [
+            {
+              "Name": "GO",
+              "Components": {
+                "Transform": {},
+                "{{guid}}": { "Speed": 3.5 }
+              }
+            }
+          ]
+        }
+        """;
+
+        var scene = SceneSerializer.Deserialize(json);
+
+        var c = scene.GetRootGameObjects()[0].GetComponent<AwakeProbe>()!;
+        Assert.Equal(3.5f, c.Speed);   // 新格式 GUID 键直接解析
     }
 
     [Fact]

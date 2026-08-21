@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Concurrent;
 using SilkEngine.Core;
 using SilkEngine.Scene;
@@ -63,6 +64,28 @@ public class ComponentTypeRegistryTests
         var factory = ComponentTypeRegistry.Resolve(typeof(GenCameraProbe).FullName!);
         Assert.NotNull(factory);
         Assert.IsType<GenCameraProbe>(factory!());
+    }
+
+    [Fact]
+    public void Register_AssignsDeterministicGuid()
+    {
+        var g1 = ComponentTypeRegistry.GetGuid(typeof(GenCameraProbe));
+        var g2 = ComponentTypeRegistry.GetGuid(typeof(GenCameraProbe));
+        Assert.Equal(g1, g2);
+        Assert.NotEqual(Guid.Empty, g1);
+    }
+
+    [Fact]
+    public void ResolveGuid_KnownType_ReturnsType()
+    {
+        var guid = ComponentTypeRegistry.GetGuid(typeof(GenCameraProbe));
+        Assert.Equal(typeof(GenCameraProbe), ComponentTypeRegistry.ResolveGuid(guid));
+    }
+
+    [Fact]
+    public void ResolveGuid_UnknownGuid_ReturnsNull()
+    {
+        Assert.Null(ComponentTypeRegistry.ResolveGuid(Guid.NewGuid()));
     }
 }
 
