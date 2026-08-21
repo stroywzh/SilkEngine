@@ -71,4 +71,45 @@ public class ImporterFactoryTests
     {
         Assert.IsType<StbImageSharpDecoder>(Decoders.Default);
     }
+
+    private sealed class RecordingImporter : IAssetImporter
+    {
+        public IAsset Import(byte[] raw, ImportSettings? settings = null) =>
+            new Texture2D { Name = "Custom", ImageData = new ImageData(1, 1, [0, 255, 0, 255]) };
+    }
+
+    [Fact]
+    public void Register_NewExtension_ThenCreate_HitsNewImporter()
+    {
+        var importer = new RecordingImporter();
+        ImporterFactory.Register(".custom", _ => importer);
+        Assert.Same(importer, ImporterFactory.Create(".custom"));
+    }
+
+    [Fact]
+    public void Register_DuplicateExtension_Throws()
+    {
+        Assert.Throws<InvalidOperationException>(() => ImporterFactory.Register(".png", _ => new RecordingImporter()));
+    }
+
+    [Fact]
+    public void Register_DuplicateExtension_IgnoringCase_Throws()
+    {
+        Assert.Throws<InvalidOperationException>(() => ImporterFactory.Register(".PNG", _ => new RecordingImporter()));
+    }
+
+    [Fact]
+    public void Register_Create_PassesSettingsToFactory()
+    {
+        ImportSettings? received = null;
+        var importer = new RecordingImporter();
+        ImporterFactory.Register(".cstm", s =>
+        {
+            received = s;
+            return importer;
+        });
+        var settings = new ImportSettings { Path = "assets/x.png" };
+        ImporterFactory.Create(".CSTM", settings);
+        Assert.Same(settings, received);
+    }
 }
