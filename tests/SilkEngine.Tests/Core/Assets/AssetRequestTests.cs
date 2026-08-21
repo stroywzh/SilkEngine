@@ -120,6 +120,7 @@ public class AssetRequestTests
             Assert.True(req.IsDone);
             Assert.Same(tex, req.Asset);
             Assert.Equal(1f, req.Progress);
+            Log.Flush();
             Assert.Contains(
                 tw.Messages,
                 m => m.Contains("continuation failed") && m.Contains("boom"));

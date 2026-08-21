@@ -48,6 +48,7 @@ public class ThreadPoolExecutorTests
             using var exec = new ThreadPoolExecutor();
             var job = exec.Submit(_ => throw new InvalidOperationException("task-boom"));
             job.Wait();
+            Log.Flush();
             Assert.Contains(messages, m => m.Contains("task-boom"));
         }
         finally

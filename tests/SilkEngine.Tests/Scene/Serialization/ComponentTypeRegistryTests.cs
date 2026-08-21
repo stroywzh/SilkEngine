@@ -37,6 +37,7 @@ public class ComponentTypeRegistryTests
         try
         {
             Assert.Null(ComponentTypeRegistry.Resolve("SilkEngine.Missing.Type"));
+            Log.Flush();
             Assert.Contains(tw.Messages, m => m.Contains("SilkEngine.Missing.Type"));
         }
         finally

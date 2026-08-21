@@ -22,6 +22,7 @@ public class LogTests
         var tw = new TestWriter();
         Log.AddWriter(tw);
         Log.Debug("should not appear");
+        Log.Flush();
         Log.RemoveWriter(tw);
         Assert.DoesNotContain(tw.Messages, m => m.Contains("should not appear"));
         Log.MinLevel = LogLevel.Debug;
@@ -34,6 +35,7 @@ public class LogTests
         var tw = new TestWriter();
         Log.AddWriter(tw);
         Log.Info("hello");
+        Log.Flush();
         Log.RemoveWriter(tw);
         Assert.Contains(tw.Messages, m => m.Contains("hello"));
     }
@@ -44,6 +46,7 @@ public class LogTests
         var tw = new TestWriter();
         Log.AddWriter(tw);
         Log.Info("test");
+        Log.Flush();
         Log.RemoveWriter(tw);
         var msg = tw.Messages.First(m => m.Contains("test"));
         Assert.Matches(@"\[\d{2}:\d{2}:\d{2}\.\d{3}\]", msg);
@@ -57,6 +60,7 @@ public class LogTests
         var tw = new TestWriter();
         Log.AddWriter(tw);
         Log.Info("x");
+        Log.Flush();
         Log.RemoveWriter(tw);
         Log.ShowThreadInfo = false;
         Thread.CurrentThread.Name = null;
@@ -71,6 +75,7 @@ public class LogTests
         var tw = new TestWriter();
         Log.AddWriter(tw);
         Log.Info("x");
+        Log.Flush();
         Log.RemoveWriter(tw);
         Assert.DoesNotContain("[X]", tw.Messages.First(m => m.EndsWith("x")));
     }
@@ -81,6 +86,7 @@ public class LogTests
         var tw = new TestWriter();
         Log.AddWriter(tw);
         Log.Info(42);
+        Log.Flush();
         Log.RemoveWriter(tw);
         Assert.Contains("42", tw.Messages.First(m => m.Contains("42")));
     }
@@ -91,6 +97,7 @@ public class LogTests
         var tw = new TestWriter();
         Log.AddWriter(tw);
         Log.Info(null!);
+        Log.Flush();
         Log.RemoveWriter(tw);
         Assert.Contains("null", tw.Messages.First(m => m.Contains("null")));
     }
@@ -102,6 +109,7 @@ public class LogTests
         var tw = new TestWriter();
         Log.AddWriter(tw);
         Log.StackTree("check");
+        Log.Flush();
         Log.RemoveWriter(tw);
         var msg = tw.Messages.First(m => m.Contains("check"));
         Assert.Contains("check", msg);
@@ -116,6 +124,7 @@ public class LogTests
         Log.AddWriter(tw);
         Log.Error("critical");
         Log.Info("skipped");
+        Log.Flush();
         Log.RemoveWriter(tw);
         Assert.Contains(tw.Messages, m => m.Contains("critical"));
         Assert.DoesNotContain(tw.Messages, m => m.Contains("skipped"));
@@ -134,8 +143,31 @@ public class LogTests
             tasks.Add(Task.Run(() => Log.Info($"msg{n}")));
         }
         Task.WaitAll(tasks.ToArray());
+        Log.Flush();
         Log.RemoveWriter(tw);
         foreach (var m in tw.Messages)
             Assert.StartsWith("[", m);
+    }
+
+    [Fact]
+    public void ConcurrentWrites_AfterFlush_AllVisible()
+    {
+        var tw = new TestWriter();
+        Log.AddWriter(tw);
+        try
+        {
+            Parallel.For(0, 100, i => Log.Info($"a5-marker-{i:D4}"));
+            Log.Flush();
+            Assert.Equal(100, tw.Messages.Count(m => m.Contains("a5-marker-")));
+            for (int i = 0; i < 100; i++)
+            {
+                int n = i;
+                Assert.Contains(tw.Messages, m => m.EndsWith($"a5-marker-{n:D4}"));
+            }
+        }
+        finally
+        {
+            Log.RemoveWriter(tw);
+        }
     }
 }

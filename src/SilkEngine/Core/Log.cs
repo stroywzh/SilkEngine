@@ -1,5 +1,5 @@
 using System;
-using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text;
 using System.Threading;
@@ -8,8 +8,19 @@ namespace SilkEngine.Core;
 
 public static class Log
 {
-    private static readonly object _lock = new();
-    private static readonly List<ILogWriter> _writers = new() { new ConsoleLogWriter() };
+    private static readonly ConcurrentQueue<string> _queue = new();
+    private static readonly AutoResetEvent _signal = new(false);
+    private static readonly object _drainLock = new();
+    private static readonly object _writersLock = new();
+    private static volatile ILogWriter[] _writers = new ILogWriter[] { new ConsoleLogWriter() };
+    private static volatile bool _running = true;
+    private static readonly Thread _drainThread;
+
+    static Log()
+    {
+        _drainThread = SilkEngine.Threading.ThreadFactory.CreateThread(DrainLoop, "LogDrain");
+        _drainThread.Start();
+    }
 
     internal static LogLevel MinLevel { get; set; } = LogLevel.Debug;
 
@@ -17,16 +28,28 @@ public static class Log
 
     public static void AddWriter(ILogWriter writer)
     {
-        lock (_lock)
-
-            _writers.Add(writer);
+        lock (_writersLock)
+        {
+            var updated = new ILogWriter[_writers.Length + 1];
+            Array.Copy(_writers, updated, _writers.Length);
+            updated[^1] = writer;
+            _writers = updated;
+        }
     }
 
     internal static void RemoveWriter(ILogWriter writer)
     {
-        lock (_lock)
+        lock (_writersLock)
+        {
+            int index = Array.IndexOf(_writers, writer);
+            if (index < 0)
+                return;
 
-            _writers.Remove(writer);
+            var updated = new ILogWriter[_writers.Length - 1];
+            Array.Copy(_writers, 0, updated, 0, index);
+            Array.Copy(_writers, index + 1, updated, index, _writers.Length - index - 1);
+            _writers = updated;
+        }
     }
 
     public static void Debug(object message) => Write(LogLevel.Debug, message);
@@ -36,6 +59,9 @@ public static class Log
     public static void Warn(object message) => Write(LogLevel.Warn, message);
 
     public static void Error(object message) => Write(LogLevel.Error, message);
+
+    /// <summary>同步排空待写队列（由调用线程执行），返回时此前的日志消息已写入全部 writer。</summary>
+    public static void Flush() => DrainOnce();
 
     internal static void StackTree(object message)
     {
@@ -63,11 +89,32 @@ public static class Log
         string thread = ShowThreadInfo ? $"[{Thread.CurrentThread.Name ?? "Main"}]" : string.Empty;
         string line = $"[{now:HH:mm:ss.fff}]{thread}: {text}";
 
-        lock (_lock)
+        _queue.Enqueue(line);
+        _signal.Set();
+    }
+
+    private static void DrainLoop()
+    {
+        while (_running)
         {
-            foreach (var w in _writers)
+            _signal.WaitOne();
+            DrainOnce();
+        }
+
+        DrainOnce();
+    }
+
+    private static void DrainOnce()
+    {
+        lock (_drainLock)
+        {
+            ILogWriter[] writers = _writers;
+            while (_queue.TryDequeue(out string? line))
             {
-                w.Write(line);
+                foreach (var w in writers)
+                {
+                    w.Write(line);
+                }
             }
         }
     }

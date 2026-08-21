@@ -433,6 +433,7 @@ public class SceneManagerTests : IClassFixture<SceneManagerFixture>
         {
             var path = Path.Combine(Path.GetTempPath(), $"nope_{Guid.NewGuid():N}.scene");
             Assert.False(_sm.LoadSceneFromFile(path));
+            Log.Flush();
             Assert.Contains(tw.Messages, m => m.Contains("LoadSceneFromFile failed"));
         }
         finally
@@ -502,6 +503,7 @@ public class SceneManagerTests : IClassFixture<SceneManagerFixture>
             LogConfig.Scene = true;
             var s = new Scene("T");
             _sm.LoadScene(s);
+            Log.Flush();
             Assert.Contains(tw.Messages, m => m.Contains("[Scene]") && m.Contains("Loaded"));
         }
         finally
@@ -524,6 +526,7 @@ public class SceneManagerTests : IClassFixture<SceneManagerFixture>
             LogConfig.Scene = false;
             var s = new Scene("T");
             _sm.LoadScene(s);
+            Log.Flush();
             Assert.DoesNotContain(tw.Messages, m => m.Contains("[Scene]"));
         }
         finally

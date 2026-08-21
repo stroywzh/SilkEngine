@@ -197,6 +197,7 @@ public class SceneSerializerTests
             var scene = SceneSerializer.Deserialize(json);
             var go = scene.GetRootGameObjects()[0];
             Assert.Empty(go._components);
+            Log.Flush();
             Assert.Contains(tw.Messages, m => m.Contains("SilkEngine.Missing.Type"));
         }
         finally
@@ -241,6 +242,7 @@ public class SceneSerializerTests
 
             SceneSerializer.Serialize(scene);
 
+            Log.Flush();
             var warns = tw.Messages.Where(m => m.Contains("PlainProbe")).ToList();
             Assert.Single(warns);
         }

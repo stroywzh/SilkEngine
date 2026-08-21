@@ -146,6 +146,7 @@ public class ServicesTests
         {
             LogConfig.Services = true;
             Services.Register(new SvcA());
+            Log.Flush();
             Assert.Contains(tw.Messages, m => m.Contains("[Services]") && m.Contains("Register"));
         }
         finally

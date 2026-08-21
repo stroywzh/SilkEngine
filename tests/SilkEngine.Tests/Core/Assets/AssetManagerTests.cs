@@ -254,6 +254,7 @@ public class AssetManagerTests : IDisposable
             LogConfig.Assets = true;
             var am = new AssetManager(new RecordingScheduler());
             am.LoadAsync<Texture2D>(file.FilePath);
+            Log.Flush();
             Assert.Contains(tw.Messages, m => m.Contains("[Assets]") && m.Contains("Load"));
         }
         finally
@@ -299,6 +300,7 @@ public class AssetManagerTests : IDisposable
             am.TryRelease(tex);
             am.ProcessCompleted();
             am.ProcessUnloadQueue(a => { });
+            Log.Flush();
             Assert.Contains(tw.Messages, m => m.Contains("[Assets]") && m.Contains("Released"));
         }
         finally
