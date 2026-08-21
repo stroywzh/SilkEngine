@@ -68,7 +68,7 @@ public sealed class AssetManager
                 $"资产 {path} 类型为 {asset.GetType().Name}，不是 {typeof(T).Name}"
             );
         var entry = _cache.GetOrAdd(guid);
-        entry.Data = typed;
+        _cache.SetData(entry, typed);
         entry.State = AssetState.Ready;
         return typed;
     }
@@ -108,13 +108,13 @@ public sealed class AssetManager
         {
             entry.State = AssetState.Loading;
             entry.Pending = request;
-            entry.Data = null;
+            _cache.SetData(entry, null);
             _lazyPending[request] = (guid, path);
             return request;
         }
         entry.State = AssetState.Loading;
         entry.Pending = request;
-        entry.Data = null;
+        _cache.SetData(entry, null);
         ScheduleLoad(guid, path);
         return request;
     }
@@ -151,14 +151,14 @@ public sealed class AssetManager
             if (result.Error is not null)
             {
                 entry.State = AssetState.Failed;
-                entry.Data = null;
+                _cache.SetData(entry, null);
                 CompleteAwaiters(entry, null, result.Error);
                 Log.Error($"[AssetManager] 资产加载失败 ({entry.Guid}): {result.Error.Message}");
             }
             else
             {
                 entry.State = AssetState.Ready;
-                entry.Data = result.Asset;
+                _cache.SetData(entry, result.Asset);
                 CompleteAwaiters(entry, result.Asset, null);
                 if (LogConfig.Assets)
                     Log.Info($"[Assets] Load completed '{result.Guid}'");
@@ -198,7 +198,7 @@ public sealed class AssetManager
             {
                 if (entry.Data is { } data)
                     release(data);
-                entry.Data = null;
+                _cache.SetData(entry, null);
                 if (LogConfig.Assets)
                     Log.Info($"[Assets] Released '{guid}'");
                 _cache.Remove(guid);
@@ -206,7 +206,7 @@ public sealed class AssetManager
             }
             if (LogConfig.Assets)
                 Log.Info($"[Assets] Unloaded '{guid}'");
-            entry.Data = null;
+            _cache.SetData(entry, null);
             _cache.Remove(guid);
         }
     }
@@ -332,11 +332,5 @@ public sealed class AssetManager
         entry.Awaiters.Clear();
     }
 
-    private AssetEntry? FindEntry(IAsset asset)
-    {
-        foreach (var entry in _cache.All())
-            if (ReferenceEquals(entry.Data, asset))
-                return entry;
-        return null;
-    }
+    private AssetEntry? FindEntry(IAsset asset) => _cache.FindByAsset(asset);
 }

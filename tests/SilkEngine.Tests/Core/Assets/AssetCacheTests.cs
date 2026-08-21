@@ -59,4 +59,65 @@ public class AssetCacheTests
         var cache = new AssetCache();
         Assert.False(cache.Remove(Guid.NewGuid()));
     }
+
+    private sealed class TestAsset : IAsset { }
+
+    [Fact]
+    public void FindByAsset_AfterDataSet_HitsDirect()
+    {
+        var cache = new AssetCache();
+        var entry = cache.GetOrAdd(Guid.NewGuid());
+        var asset = new TestAsset();
+        cache.SetData(entry, asset);
+
+        Assert.Same(entry, cache.FindByAsset(asset));
+    }
+
+    [Fact]
+    public void FindByAsset_AfterRemove_ReturnsNull()
+    {
+        var cache = new AssetCache();
+        var guid = Guid.NewGuid();
+        var entry = cache.GetOrAdd(guid);
+        var asset = new TestAsset();
+        cache.SetData(entry, asset);
+        Assert.Same(entry, cache.FindByAsset(asset));
+
+        Assert.True(cache.Remove(guid));
+        Assert.Null(cache.FindByAsset(asset));
+    }
+
+    [Fact]
+    public void FindByAsset_DataReplaced_IndexUpdated()
+    {
+        var cache = new AssetCache();
+        var entry = cache.GetOrAdd(Guid.NewGuid());
+        var a = new TestAsset();
+        var b = new TestAsset();
+        cache.SetData(entry, a);
+        Assert.Same(entry, cache.FindByAsset(a));
+
+        cache.SetData(entry, b);
+        Assert.Null(cache.FindByAsset(a));
+        Assert.Same(entry, cache.FindByAsset(b));
+    }
+
+    [Fact]
+    public void FindByAsset_Null_ReturnsNull()
+    {
+        var cache = new AssetCache();
+        Assert.Null(cache.FindByAsset(null!));
+    }
+
+    [Fact]
+    public void FindByAsset_DirectDataAssignment_StillResolves()
+    {
+        var cache = new AssetCache();
+        var entry = cache.GetOrAdd(Guid.NewGuid());
+        var asset = new TestAsset();
+        entry.Data = asset;
+
+        Assert.Same(entry, cache.FindByAsset(asset));
+        Assert.Same(entry, cache.FindByAsset(asset));
+    }
 }
