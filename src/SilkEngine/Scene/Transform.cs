@@ -4,9 +4,9 @@ using SilkEngine.Math;
 namespace SilkEngine.Scene;
 
 /// <summary>
-/// 对象层级变换：局部（Local*）相对父级，世界（Position/Rotation）为父链组合值（左手系，与引擎 LookAt/投影约定一致）。
-/// Position = 父 Position + 父 Rotation × LocalPosition；Rotation setter 写回局部（含父时按父旋转逆变换）。
-/// 注意：Scale 不组合父级（P1 已知限制），LocalToWorldMatrix 仍按组合值构造。
+/// 对象层级变换：局部（Local*）相对父级，世界（Position/Rotation/WorldScale）为父链组合值（左手系，与引擎 LookAt/投影约定一致）。
+/// Position = 父 Position + 父 Rotation × LocalPosition；Rotation setter 写回局部（含父时按父旋转逆变换）；
+/// WorldScale = 父 WorldScale × LocalScale（逐分量乘积）。
 /// 局部值变更级联通知子树（NotifyChildren，供后端采集）。
 /// </summary>
 public sealed class Transform
@@ -103,8 +103,20 @@ public sealed class Transform
             NotifyChildren();
         }
     }
-    /// <summary>局部缩放（不组合父级，P1 已知限制）。</summary>
+    /// <summary>局部缩放（相对父级；世界缩放见 <see cref="WorldScale"/>）。</summary>
     public Vector3 Scale => _localScale;
+
+    /// <summary>
+    /// 世界缩放：父链逐分量乘积（父 WorldScale × LocalScale）；无父时等于局部缩放。
+    /// </summary>
+    public Vector3 WorldScale =>
+        _parent != null
+            ? new Vector3(
+                _parent.WorldScale.X * _localScale.X,
+                _parent.WorldScale.Y * _localScale.Y,
+                _parent.WorldScale.Z * _localScale.Z
+            )
+            : _localScale;
 
     /// <summary>父级 Transform；null 表示根对象。</summary>
     public Transform? Parent => _parent;
@@ -115,8 +127,8 @@ public sealed class Transform
     /// <summary>世界前向（Rotation × Vector3.Forward，左手系）。</summary>
     public Vector3 Forward => Rotation * Vector3.Forward;
 
-    /// <summary>局部 → 世界变换矩阵（CreateTRS(Position, Rotation, Scale)）。</summary>
-    public Matrix4x4 LocalToWorldMatrix => Matrix4x4.CreateTRS(Position, Rotation, Scale);
+    /// <summary>局部 → 世界变换矩阵（CreateTRS(Position, Rotation, WorldScale)）。</summary>
+    public Matrix4x4 LocalToWorldMatrix => Matrix4x4.CreateTRS(Position, Rotation, WorldScale);
 
     /// <summary>
     /// 重挂父级：从旧父级摘除并登记入新父级（null 表示成为根对象），随后级联重算激活状态
