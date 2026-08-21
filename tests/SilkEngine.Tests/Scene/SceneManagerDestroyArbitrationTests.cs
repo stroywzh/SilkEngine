@@ -35,6 +35,33 @@ public class SceneManagerDestroyArbitrationTests : IDisposable
         public override void OnDestroy() => OnDestroyCalls++;
     }
 
+    private sealed class LifecycleCounter : MonoBehaviour
+    {
+        public List<string> Order { get; } = new();
+        public override void OnEnable() => Order.Add("Enable");
+        public override void OnDisable() => Order.Add("Disable");
+        public override void OnDestroy() => Order.Add("Destroy");
+    }
+
+    [Fact]
+    public void Destroy_GameObject_FiresOnDisableImmediately_OnDestroyAtFrameEnd()
+    {
+        var scene = new Scene("s");
+        var go = new GameObject("g");
+        var c = go.AddComponent<LifecycleCounter>(_registry);
+        scene.AddRootObject(go);
+        _manager.LoadScene(scene, _registry);
+        CommitFrame(scene);
+
+        c.Order.Clear();
+        Object.Destroy(go);
+        Assert.Equal(["Disable"], c.Order);   // 状态即时：Destroy 调用即失活级联 OnDisable（DestroyRecursive）
+        Assert.False(c._destroyed);           // 帧末提交前物理销毁未发生
+
+        CommitFrame(_manager.ActiveScene!);
+        Assert.Equal(["Disable", "Destroy"], c.Order);  // 帧末 OnDestroy 在 OnDisable 之后
+    }
+
     private void CommitFrame(Scene active)
     {
         _snapshotManager.CommitPending(_registry, _manager._destroyQueue, active, 0.016f);

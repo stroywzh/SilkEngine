@@ -1,5 +1,6 @@
 using SilkEngine.Core;
 using SilkEngine.Scene;
+using Object = SilkEngine.Core.Object;
 
 namespace SilkEngine.Tests.Scene;
 using Scene = SilkEngine.Scene.Scene;
@@ -170,5 +171,38 @@ public class ComponentTests : IClassFixture<SceneManagerFixture>
     {
         public int AwakeCount;
         public override void OnAwake() => AwakeCount++;
+    }
+
+    private class DestroyOrderTracker : MonoBehaviour
+    {
+        public List<string> Order { get; } = new();
+        public bool DisableCalled, DestroyCalled;
+        public override void OnEnable() => Order.Add("Enable");
+        public override void OnDisable() { DisableCalled = true; Order.Add("Disable"); }
+        public override void OnDestroy() { DestroyCalled = true; Order.Add("Destroy"); }
+    }
+
+    [Fact]
+    public void Destroy_Component_FiresOnDisableBeforeOnDestroy()
+    {
+        _sm._destroyQueue.Clear();
+        var reg = new ComponentRegistry();
+        var mgr = new FrameSnapshotManager();
+        var scene = new Scene("T");
+        var go = new GameObject();
+        var c = go.AddComponent<DestroyOrderTracker>(reg);
+        scene.AddRootObject(go);
+        reg.ApplyPending();
+        mgr.CommitPending(reg, _sm._destroyQueue, scene, 0f);
+
+        c.Order.Clear();
+        Object.Destroy(c);
+        Assert.False(c.DisableCalled);   // 生命周期帧末：OnDisable 待帧末提交
+        Assert.False(c.DestroyCalled);
+
+        mgr.CommitPending(reg, _sm._destroyQueue, scene, 0f);
+        Assert.True(c.DisableCalled);    // 组件直接销毁：OnDisable 先于 OnDestroy
+        Assert.True(c.DestroyCalled);
+        Assert.Equal(["Disable", "Destroy"], c.Order);
     }
 }

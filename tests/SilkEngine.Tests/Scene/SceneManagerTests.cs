@@ -351,6 +351,63 @@ public class SceneManagerTests : IClassFixture<SceneManagerFixture>
         Assert.Equal(1, c.DestroyCount);
     }
 
+    private class LifecycleOrderTracker : MonoBehaviour
+    {
+        public List<string> Order { get; } = new();
+        public bool DisableCalled, DestroyCalled;
+        public override void OnEnable() => Order.Add("Enable");
+        public override void OnDisable() { DisableCalled = true; Order.Add("Disable"); }
+        public override void OnDestroy() { DestroyCalled = true; Order.Add("Destroy"); }
+    }
+
+    [Fact]
+    public void LoadScene_Unload_FiresOnDisableBeforeOnDestroy()
+    {
+        _sm._destroyQueue.Clear();
+        var reg = new ComponentRegistry();
+        var mgr = new FrameSnapshotManager();
+        var oldScene = new Scene("old");
+        var go = new GameObject();
+        var c = go.AddComponent<LifecycleOrderTracker>(reg);
+        oldScene.AddRootObject(go);
+        _sm.LoadScene(oldScene, reg);
+        mgr.CommitPending(reg, _sm._destroyQueue, oldScene, 0f);
+
+        c.Order.Clear();
+        var newScene = new Scene("new");
+        _sm.LoadScene(newScene, reg);
+
+        Assert.True(c.DisableCalled);    // 状态即时：卸载立即失活级联 → OnDisable
+        Assert.False(c.DestroyCalled);   // 生命周期帧末：OnDestroy 待提交
+        Assert.Equal(["Disable"], c.Order);
+
+        mgr.CommitPending(reg, _sm._destroyQueue, newScene, 0f);
+        Assert.True(c.DestroyCalled);
+        Assert.Equal(["Disable", "Destroy"], c.Order);
+    }
+
+    [Fact]
+    public void Destroy_Component_NoDispatchUntilFrameEnd()
+    {
+        _sm._destroyQueue.Clear();
+        var reg = new ComponentRegistry();
+        var mgr = new FrameSnapshotManager();
+        var scene = new Scene("T");
+        var go = new GameObject();
+        var c = go.AddComponent<Tracker>(reg);
+        scene.AddRootObject(go);
+        _sm.LoadScene(scene, reg);
+        mgr.CommitPending(reg, _sm._destroyQueue, scene, 0f);
+
+        Object.Destroy(c);
+        _sm.Tick(mgr.Current, 0.016f);   // 快照派发语义：当帧不再派发（_destroyPending 过滤）
+        Assert.False(c.Tick);
+        Assert.False(c.Destroy);         // 帧末提交才 OnDestroy
+
+        mgr.CommitPending(reg, _sm._destroyQueue, scene, 0f);
+        Assert.True(c.Destroy);
+    }
+
     [Fact]
     public void ReloadSameScene_DestroyedOnce_ExplicitDestroyIsIdempotent()
     {

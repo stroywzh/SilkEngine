@@ -59,7 +59,8 @@ public sealed class FrameSnapshot
 
 /// <summary>
 /// 双缓冲快照管理器（[Service(1)] 自动注册）：帧末 CommitPending 统一执行
-/// 销毁队列（OnDestroy + Unregister + 场景容器摘除）→ 注册 ApplyPending → 重建写侧快照 → swap（读侧原子切换）。
+/// 销毁队列（组件 MarkRemoved(OnDisable) → OnDestroy + Unregister + 摘除；对象递归销毁 + 场景摘除，幂等）
+/// → 注册 ApplyPending → 重建写侧快照 → swap（读侧原子切换）。
 /// </summary>
 [Service(1)]
 internal sealed class FrameSnapshotManager
@@ -73,8 +74,8 @@ internal sealed class FrameSnapshotManager
     public FrameSnapshotManager() => Current = _front;
 
     /// <summary>
-    /// 帧末提交：按延迟到期顺序处理销毁队列（组件 OnDestroy + Unregister + 摘除；对象递归销毁 + 场景摘除，幂等），
-    /// 随后 ApplyPending 注册、重建写侧快照并 swap。
+    /// 帧末提交：按延迟到期顺序处理销毁队列（组件 MarkRemoved(OnDisable) → OnDestroy + Unregister + 摘除；
+    /// 对象递归销毁 + 场景摘除，幂等），随后 ApplyPending 注册、重建写侧快照并 swap。
     /// </summary>
     /// <param name="registry">组件注册表（注销与登记目标）</param>
     /// <param name="destroys">帧内累积的销毁队列（SceneManager._destroyQueue）</param>
@@ -99,6 +100,7 @@ internal sealed class FrameSnapshotManager
 
             if (e.Target is Component c && !c._destroyed)
             {
+                c.MarkRemoved(); // OnDisable 先于 OnDestroy（组件直接销毁路径的状态机收尾）
                 c.OnDestroy();
                 c._destroyed = true;
                 registry.Unregister(c);

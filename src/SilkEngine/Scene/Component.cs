@@ -4,9 +4,13 @@ using Object = SilkEngine.Core.Object;
 namespace SilkEngine.Scene;
 
 /// <summary>
-/// 组件基类：挂载于 GameObject 的行为单元。
+/// 组件基类：挂载于 GameObject 的行为单元。生命周期分两套时序：
+/// 1) 状态即时（Unity 语义）：IsActive/Enabled 变更立即经 RecomputeActiveState 翻转沿派发 OnEnable/OnDisable（幂等）；
+/// 2) 生命周期帧末：注册/销毁队列由 CommitPending 统一提交 —— 销毁路径保证 OnDisable 先于 OnDestroy：
+///    组件直接销毁（Object.Destroy(c)）在帧末经 MarkRemoved 收尾补发 OnDisable；宿主销毁/场景卸载
+///    （Object.Destroy(go)）在调用时即经 DestroyRecursive 失活级联触发 OnDisable，OnDestroy 均于帧末恰一次。
 /// 活跃状态机以 RecomputeActiveState 为单一真理源（Enabled ∧ GameObject.IsActiveInHierarchy 决定活跃性）；
-/// 生命周期 OnEnable/OnDisable/OnDestroy 由状态机与帧末销毁队列驱动。
+/// OnAwake 挂载即时、OnStart 首帧补发（仅活跃组件）。
 /// </summary>
 public abstract class Component : Object
 {
