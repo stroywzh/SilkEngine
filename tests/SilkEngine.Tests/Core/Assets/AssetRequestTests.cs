@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using SilkEngine.Core;
 using SilkEngine.Core.Assets;
 
@@ -10,8 +11,8 @@ public class AssetRequestTests
 
     private class TestWriter : ILogWriter
     {
-        public List<string> Messages = new();
-        public void Write(string msg) => Messages.Add(msg);
+        public ConcurrentQueue<string> Messages = new();
+        public void Write(string msg) => Messages.Enqueue(msg);
     }
 
     [Fact]

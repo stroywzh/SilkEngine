@@ -28,27 +28,33 @@ public static class Log
 
     public static void AddWriter(ILogWriter writer)
     {
-        lock (_writersLock)
+        lock (_drainLock)
         {
-            var updated = new ILogWriter[_writers.Length + 1];
-            Array.Copy(_writers, updated, _writers.Length);
-            updated[^1] = writer;
-            _writers = updated;
+            lock (_writersLock)
+            {
+                var updated = new ILogWriter[_writers.Length + 1];
+                Array.Copy(_writers, updated, _writers.Length);
+                updated[^1] = writer;
+                _writers = updated;
+            }
         }
     }
 
     internal static void RemoveWriter(ILogWriter writer)
     {
-        lock (_writersLock)
+        lock (_drainLock)
         {
-            int index = Array.IndexOf(_writers, writer);
-            if (index < 0)
-                return;
+            lock (_writersLock)
+            {
+                int index = Array.IndexOf(_writers, writer);
+                if (index < 0)
+                    return;
 
-            var updated = new ILogWriter[_writers.Length - 1];
-            Array.Copy(_writers, 0, updated, 0, index);
-            Array.Copy(_writers, index + 1, updated, index, _writers.Length - index - 1);
-            _writers = updated;
+                var updated = new ILogWriter[_writers.Length - 1];
+                Array.Copy(_writers, 0, updated, 0, index);
+                Array.Copy(_writers, index + 1, updated, index, _writers.Length - index - 1);
+                _writers = updated;
+            }
         }
     }
 

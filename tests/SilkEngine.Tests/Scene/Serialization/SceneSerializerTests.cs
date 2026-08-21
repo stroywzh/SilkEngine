@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json.Nodes;
 using SilkEngine.Core;
 using SilkEngine.Scene;
@@ -12,8 +13,8 @@ public class SceneSerializerTests
 {
     private class TestWriter : ILogWriter
     {
-        public List<string> Messages = new();
-        public void Write(string msg) => Messages.Add(msg);
+        public ConcurrentQueue<string> Messages = new();
+        public void Write(string msg) => Messages.Enqueue(msg);
     }
 
     private class TestSerializable : MonoBehaviour

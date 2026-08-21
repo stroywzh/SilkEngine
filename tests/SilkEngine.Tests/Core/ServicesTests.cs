@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using SilkEngine.Core;
 
 namespace SilkEngine.Tests.Core;
@@ -131,8 +132,8 @@ public class ServicesTests
 
     private sealed class TestWriter : ILogWriter
     {
-        public List<string> Messages = new();
-        public void Write(string msg) => Messages.Add(msg);
+        public ConcurrentQueue<string> Messages = new();
+        public void Write(string msg) => Messages.Enqueue(msg);
     }
 
     [Fact]
