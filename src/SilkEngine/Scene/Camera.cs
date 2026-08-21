@@ -1,11 +1,12 @@
 using SilkEngine.Math;
+using SilkEngine.Render;
 using SilkEngine.Scene.Serialization;
 
 namespace SilkEngine.Scene;
 
 /// <summary>相机组件：序列化参数由源生成器生成（字段名即 .scene 键）；ViewMatrix/ProjectionMatrix 为运行时计算，不参与序列化。</summary>
 [SerializableInternal]
-public partial class Camera : Component
+public partial class Camera : Component, ICameraView
 {
     /// <summary>透视视场角（度）；键名即 .scene 序列化字段名。</summary>
     public float FieldOfView = 60f;

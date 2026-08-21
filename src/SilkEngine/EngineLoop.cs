@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Linq;
 using SilkEngine.Core;
 using SilkEngine.Core.Assets;
 using SilkEngine.InputSystem;
@@ -20,6 +21,8 @@ public class EngineLoop : IDisposable
     private ThreadManager _threadManager;
     private AssetManager? _assetManager;
     private RenderSystem _renderSystem;
+    private readonly RenderCollector _collector = new();
+    private Camera? _defaultCamera;
     private DateTime _lastTime;
     private volatile bool _stopRequested,
         _paused,
@@ -188,10 +191,35 @@ public class EngineLoop : IDisposable
         _sceneManager.LateTick(_snapshotManager.Current);
     }
 
+    /// <summary>
+    /// 帧渲染桥接（Render 域零 Scene 依赖）：Scene 域查询活跃相机与渲染器（含默认相机回退），
+    /// 经 RenderCollector 组装批次后交 RenderSystem（ICameraView/IRenderable 接口消费）。
+    /// </summary>
     protected virtual void OnRender()
     {
-        _renderSystem!.Render(_snapshotManager.Current);
+        var snapshot = _snapshotManager.Current;
+
+        var cameras = snapshot.GetComponents<Camera>()
+            .Where(c => c.GameObject.IsActiveInHierarchy)
+            .ToList();
+        if (cameras.Count == 0)
+            cameras.Add(GetDefaultCamera());
+
+        var renderables = snapshot.GetComponents<MeshRenderer>()
+            .Where(r => r.Enabled && r.GameObject.IsActiveInHierarchy)
+            .ToList();
+
+        _collector.Gather(cameras, renderables, out var camera, out var batches);
+        _renderSystem!.Render(
+            (float)_renderSystem.Backend.Width / _renderSystem.Backend.Height,
+            camera,
+            batches
+        );
     }
+
+    /// <summary>无活跃相机时的默认相机（惰性创建一次并复用；组件注册经 Services 回退链）。</summary>
+    private Camera GetDefaultCamera() =>
+        _defaultCamera ??= new GameObject("Default Camera").AddComponent<Camera>();
 
     public void Stop() => _stopRequested = true;
 

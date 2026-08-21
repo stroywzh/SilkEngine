@@ -1,4 +1,5 @@
 using SilkEngine.Core.Assets;
+using SilkEngine.Math;
 using SilkEngine.Render;
 using SilkEngine.Scene.Serialization;
 
@@ -6,7 +7,7 @@ namespace SilkEngine.Scene;
 
 /// <summary>网格渲染组件：资产引用字段由源生成器序列化（GUID 路径，经 AssetRefCodec 属性感知规则，键=属性名）。</summary>
 [SerializableInternal]
-public partial class MeshRenderer : Component
+public partial class MeshRenderer : Component, IRenderable
 {
     private Shader? _shader;
     private Mesh? _mesh;
@@ -32,6 +33,9 @@ public partial class MeshRenderer : Component
         get => _material;
         set => AssetManager.SetTrackedAmbient(ref _material, value);
     }
+
+    /// <summary>世界矩阵（对象世界变换，组合父级；IRenderable 契约适配）。</summary>
+    public Matrix4x4 WorldMatrix => Transform.LocalToWorldMatrix;
 
     /// <summary>组件销毁：归还全部资产引用（引用归零的托管资产由帧末卸载）。</summary>
     public override void OnDestroy()

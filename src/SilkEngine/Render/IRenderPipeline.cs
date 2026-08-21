@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using SilkEngine.Scene;
 
 namespace SilkEngine.Render;
 
@@ -11,8 +10,8 @@ public interface IRenderPipeline
     /// <summary>
     /// 构建本帧渲染 Pass 列表
     /// </summary>
-    /// <param name="camera">当前相机（矩阵已由 RenderSystem 预计算）</param>
+    /// <param name="camera">当前相机视图（矩阵已由 RenderSystem 预计算）</param>
     /// <param name="batches">渲染批次</param>
     /// <returns>按 SortOrder 升序执行的 Pass 列表</returns>
-    IReadOnlyList<RenderPass> Build(Camera camera, IReadOnlyList<RenderBatch> batches);
+    IReadOnlyList<RenderPass> Build(ICameraView camera, IReadOnlyList<RenderBatch> batches);
 }

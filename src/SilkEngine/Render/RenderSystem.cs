@@ -1,7 +1,6 @@
 using System;
-using System.Linq;
+using System.Collections.Generic;
 using SilkEngine.Core;
-using SilkEngine.Scene;
 using SilkEngine.Threading;
 
 namespace SilkEngine.Render;
@@ -15,7 +14,6 @@ public sealed class RenderSystem : IDisposable
     private readonly IRenderBackend _backend;
     private readonly ThreadManager _threadManager;
     private readonly RenderThreadLoop _renderThread;
-    private readonly RenderCollector _collector = new();
     private IRenderPipeline _pipeline;
 
     /// <summary>
@@ -61,14 +59,17 @@ public sealed class RenderSystem : IDisposable
     public void PumpEvents() => _renderThread.PumpEvents();
 
     /// <summary>
-    /// 主线程帧渲染入口：收集活跃相机与渲染器 → 更新相机矩阵
-    /// （View/Projection 随命令上传，不突变材质）→ 构建 Pass → SubmitFrame 阻塞等渲染线程执行完毕。
+    /// 主线程帧渲染入口：更新相机矩阵（View/Projection 随命令上传，不突变材质）
+    /// → 构建 Pass → SubmitFrame 阻塞等渲染线程执行完毕。
     /// </summary>
-    /// <param name="snapshot">当前帧组件快照</param>
-    public void Render(FrameSnapshot snapshot)
+    /// <param name="aspect">视口宽高比（宽/高）</param>
+    /// <param name="camera">当前相机视图（null 时跳过本帧渲染）</param>
+    /// <param name="batches">渲染批次（EngineLoop 经 RenderCollector 组装）</param>
+    public void Render(float aspect, ICameraView? camera, IReadOnlyList<RenderBatch> batches)
     {
-        _collector.Gather(snapshot, out var camera, out var batches);
-        camera.UpdateMatrices((float)_backend.Width / _backend.Height);
+        if (camera == null)
+            return;
+        camera.UpdateMatrices(aspect);
         var passes = _pipeline.Build(camera, batches);
         _renderThread.SubmitFrame(passes);
     }

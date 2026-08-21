@@ -6,87 +6,72 @@ using SilkEngine.Scene;
 using SilkEngine.Threading;
 
 namespace SilkEngine.Tests.Render;
-using Scene = SilkEngine.Scene.Scene;
 
 public class RenderCollectorTests
 {
     [Fact]
-    public void Gather_NoCamera_ReturnsDefaultCamera()
+    public void Gather_EmptyInputs_ReturnsNullCameraAndNoBatches()
     {
         var collector = new RenderCollector();
-        var snap = new FrameSnapshot();
-        snap.ActiveScene = new Scene("T");
-
-        collector.Gather(snap, out var camera, out var batches);
-        Assert.NotNull(camera);
-        Assert.NotNull(camera.GameObject);
-        Assert.False(camera.Orthographic);
-        Assert.Empty(batches);
-
-        camera.UpdateMatrices(800f / 600f);
-    }
-
-    [Fact]
-    public void Gather_DefaultCamera_ReusesInstance()
-    {
-        var collector = new RenderCollector();
-        var snap = new FrameSnapshot();
-        snap.ActiveScene = new Scene("T");
-
-        collector.Gather(snap, out var cam1, out _);
-        collector.Gather(snap, out var cam2, out _);
-        Assert.Same(cam1, cam2);
-    }
-
-    [Fact]
-    public void Gather_SkipsRenderersUnderInactiveParent()
-    {
-        var scene = new Scene("T");
-        var parent = new GameObject("P");
-        parent.IsActive = false;
-        var child = new GameObject("C");
-        child.Transform.SetParent(parent.Transform);
-        var mr = child.AddComponent<MeshRenderer>();
-        mr.Enabled = true;
-        scene.AddRootObject(parent);
-
-        var reg = new ComponentRegistry();
-        reg.Register(mr);
-        reg.ApplyPending();
-        var snap = new FrameSnapshot();
-        snap.ActiveScene = scene;
-        reg.BuildSnapshot(snap);
-
-        var collector = new RenderCollector();
-        collector.Gather(snap, out _, out var batches);
+        collector.Gather([], [], out var camera, out var batches);
+        Assert.Null(camera);
         Assert.Empty(batches);
     }
 
     [Fact]
-    public void Gather_UsesSceneCamera()
+    public void Gather_TakesFirstCamera()
     {
-        var scene = new Scene("T");
-        var camObj = new GameObject("Cam");
-        var cam = camObj.AddComponent<Camera>();
-        var go = new GameObject();
-        var mr = go.AddComponent<MeshRenderer>();
-        mr.Enabled = true; go.IsActive = true;
-        scene.AddRootObject(camObj);
-        scene.AddRootObject(go);
-
-        var reg = new ComponentRegistry();
-        reg.Register(cam);
-        reg.Register(mr);
-        reg.ApplyPending();
-
-        var snap = new FrameSnapshot();
-        snap.ActiveScene = scene;
-        reg.BuildSnapshot(snap);
-
+        var cam1 = new GameObject("A").AddComponent<Camera>();
+        var cam2 = new GameObject("B").AddComponent<Camera>();
         var collector = new RenderCollector();
-        collector.Gather(snap, out var foundCam, out var batches);
-        Assert.Same(cam, foundCam);
-        Assert.NotEmpty(batches);
+        collector.Gather([cam1, cam2], [], out var camera, out _);
+        Assert.Same(cam1, camera);
+    }
+
+    [Fact]
+    public void Gather_AssemblesSingleBatchWithAllRenderables()
+    {
+        var mr1 = new GameObject("R1").AddComponent<MeshRenderer>();
+        var mr2 = new GameObject("R2").AddComponent<MeshRenderer>();
+        var collector = new RenderCollector();
+        collector.Gather([], [mr1, mr2], out _, out var batches);
+        var batch = Assert.Single(batches);
+        Assert.Equal(2, batch.Renderers.Count);
+        Assert.Same(mr1, batch.Renderers[0]);
+        Assert.Same(mr2, batch.Renderers[1]);
+    }
+}
+
+public class RenderInterfaceContractTests
+{
+    [Fact]
+    public void MeshRenderer_SatisfiesIRenderableContract()
+    {
+        var mr = new GameObject("MR").AddComponent<MeshRenderer>();
+        mr.Shader = new Shader { Name = "S" };
+        mr.Mesh = new Mesh { Name = "M", Layout = [] };
+        mr.Material = new Material { Name = "Mat" };
+
+        IRenderable r = mr;
+        Assert.Same(mr.Shader, r.Shader);
+        Assert.Same(mr.Mesh, r.Mesh);
+        Assert.Same(mr.Material, r.Material);
+        Assert.Equal(mr.Enabled, r.Enabled);
+        Assert.Equal(mr.Transform.LocalToWorldMatrix, r.WorldMatrix);
+    }
+
+    [Fact]
+    public void Camera_SatisfiesICameraViewContract()
+    {
+        var cam = new GameObject("Cam").AddComponent<Camera>();
+        cam.Orthographic = true;
+        cam.Transform.LocalPosition = new Vector3(0, 0, -5);
+
+        ICameraView view = cam;
+        view.UpdateMatrices(800f / 600f);
+
+        Assert.Equal(cam.ViewMatrix, view.ViewMatrix);
+        Assert.Equal(cam.ProjectionMatrix, view.ProjectionMatrix);
     }
 }
 
@@ -193,29 +178,40 @@ public class RenderSystemTests
         using var backend = new FakeRenderBackend();
         using var sys = new RenderSystem(backend, new ThreadManager());
         sys.Initialize();
+        try
+        {
+            var mr = new GameObject("MR").AddComponent<MeshRenderer>();
+            mr.Shader = new Shader { Name = "S" };
+            mr.Mesh = new Mesh { Name = "M", Layout = [] };
+            var cam = new GameObject("Cam").AddComponent<Camera>();
+            var batches = new List<RenderBatch> { new() { Renderers = [mr] } };
 
-        var snap = new FrameSnapshot();
-        var scene = new Scene("T");
-        var go = new GameObject();
-        var mr = go.AddComponent<MeshRenderer>();
-        mr.Enabled = true; go.IsActive = true;
-        mr.Shader = new Shader { Name = "S" };
-        mr.Mesh = new Mesh { Name = "M", Layout = [] };
-        scene.AddRootObject(go);
+            sys.Render(800f / 600f, cam, batches);
+            Assert.Equal(1, backend.PresentCount);
+            Assert.Single(backend.Passes);
+            Assert.NotEmpty(backend.Passes[0]);
+        }
+        finally
+        {
+            Services.Unregister<RenderSystem>();
+        }
+    }
 
-        var camObj = new GameObject("Cam");
-        var cam = camObj.AddComponent<Camera>();
-        scene.AddRootObject(camObj);
-
-        var reg = new ComponentRegistry();
-        reg.Register(mr); reg.Register(cam);
-        reg.ApplyPending();
-        reg.BuildSnapshot(snap);
-        snap.ActiveScene = scene;
-
-        sys.Render(snap);
-        Assert.Equal(1, backend.PresentCount);
-        Assert.Single(backend.Passes);
-        Assert.NotEmpty(backend.Passes[0]);
+    [Fact]
+    public void RenderSystem_Render_NullCamera_SubmitsNothing()
+    {
+        using var backend = new FakeRenderBackend();
+        using var sys = new RenderSystem(backend, new ThreadManager());
+        sys.Initialize();
+        try
+        {
+            sys.Render(1f, null, []);
+            Assert.Equal(0, backend.PresentCount);
+            Assert.Empty(backend.Passes);
+        }
+        finally
+        {
+            Services.Unregister<RenderSystem>();
+        }
     }
 }
