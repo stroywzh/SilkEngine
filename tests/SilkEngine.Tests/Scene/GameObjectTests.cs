@@ -1,5 +1,6 @@
 using SilkEngine.Core;
 using SilkEngine.Scene;
+using SilkEngine.Scene.Serialization;
 using Object = SilkEngine.Core.Object;
 
 namespace SilkEngine.Tests.Scene;
@@ -247,5 +248,49 @@ public class GameObjectTests : IClassFixture<SceneManagerFixture>
 
         c.Enabled = false;      // 已移除 → 不应再触发 OnDisable
         Assert.False(c.Disabled);
+    }
+
+    private class StatefulComponent : Component
+    {
+        public int Value;
+        public override void WriteTo(SerializedNode node) => node.SetInt("Value", Value);
+        public override void ReadFrom(SerializedNode node) => Value = node.GetInt("Value");
+    }
+
+    private class AwakeCounterComponent : MonoBehaviour
+    {
+        public static int AwakeCount;
+        public override void OnAwake() => AwakeCount++;
+    }
+
+    [Fact]
+    public void Instantiate_ClonesComponentState()
+    {
+        ComponentTypeRegistry.Register(typeof(StatefulComponent).FullName!, () => new StatefulComponent());
+        var go = new GameObject("Src");
+        var c = go.AddComponent<StatefulComponent>();
+        c.Value = 42;
+
+        var clone = (GameObject)Object.Instantiate(go);
+
+        var cloned = clone.GetComponent<StatefulComponent>();
+        Assert.NotNull(cloned);
+        Assert.NotSame(c, cloned);
+        Assert.Equal(42, cloned.Value);
+    }
+
+    [Fact]
+    public void Instantiate_ClonedComponent_AwakeOnce()
+    {
+        ComponentTypeRegistry.Register(typeof(AwakeCounterComponent).FullName!, () => new AwakeCounterComponent());
+        AwakeCounterComponent.AwakeCount = 0;
+        var go = new GameObject("Src");
+        go.AddComponent<AwakeCounterComponent>();   // 源组件已 Awake 一次
+        Assert.Equal(1, AwakeCounterComponent.AwakeCount);
+
+        var clone = (GameObject)Object.Instantiate(go);
+
+        Assert.Equal(2, AwakeCounterComponent.AwakeCount);   // 克隆体恰一次（不重复触发源）
+        Assert.NotNull(clone.GetComponent<AwakeCounterComponent>());
     }
 }

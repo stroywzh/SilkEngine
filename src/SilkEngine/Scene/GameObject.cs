@@ -45,6 +45,17 @@ public sealed class GameObject : Object
         clone.Transform.LocalPosition = go.Transform.LocalPosition;
         clone.Transform.LocalRotation = go.Transform.LocalRotation;
         clone.Transform.LocalScale = go.Transform.LocalScale;
+        foreach (var c in go._components)
+        {
+            var factory = ComponentTypeRegistry.Resolve(c.GetType().FullName!);
+            if (factory == null)
+                continue;
+            var node = new SerializedNode(new JsonObject());
+            c.WriteTo(node);
+            var cloned = factory();
+            cloned.ReadFrom(node);
+            clone.AddComponent(cloned);   // 工厂：挂载→ReadFrom(无 ctx 跳过)→OnAwake→Enable→注册
+        }
         foreach (var child in go.Transform.Children)
         {
             var cgo = InstantiateGameObject(child.GameObject!);
