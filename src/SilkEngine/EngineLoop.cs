@@ -107,9 +107,9 @@ public class EngineLoop : IDisposable
                 _clock.Reset();
                 continue;
             }
-            float dt = _clock.Tick();
+            _clock.Tick();
             Input.Update();
-            _frameScheduler.Tick(dt, fdt => _sceneManager.FixedTick(_snapshotManager.Current, fdt), d => _sceneManager.Tick(_snapshotManager.Current, d), () => _sceneManager.LateTick(_snapshotManager.Current));
+            _frameScheduler.Tick(Time.DeltaTime, fdt => _sceneManager.FixedTick(_snapshotManager.Current, fdt), d => _sceneManager.Tick(_snapshotManager.Current, d), () => _sceneManager.LateTick(_snapshotManager.Current));
             OnRender();
             _sceneManager.PostRender(_snapshotManager.Current);
             _frameCommitter.Commit(_snapshotManager, _registry, _sceneManager, AssetManager);

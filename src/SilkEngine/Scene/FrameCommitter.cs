@@ -1,7 +1,7 @@
+using SilkEngine.Core;
 using SilkEngine.Core.Assets;
-using SilkEngine.Scene;
 
-namespace SilkEngine.Core;
+namespace SilkEngine.Scene;
 
 /// <summary>
 /// 帧末提交编排（原 EngineLoop.CommitFrame 职责，A.4 拆分）：销毁处理 → 注册应用 → 快照 swap → 资产完成拾取。
