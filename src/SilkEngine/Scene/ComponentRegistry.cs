@@ -9,32 +9,32 @@ namespace SilkEngine.Scene;
 /// 类型索引组件注册表（[Service(1)] 自动注册）：Register/Unregister 为延迟语义 ——
 /// 变更先进 pending 队列，ApplyPending 与快照重建（BuildSnapshot）统一在帧末提交时生效，
 /// 保证帧内派发读到的始终是稳定的双缓冲快照。
+/// 组件 → 分组反向索引（引用相等）提供 O(1) 反查：Register 去重、Unregister 摘组、Contains
+/// 均直查索引，消除批量场景下分组列表线性扫描导致的 O(n²) 开销。
 /// </summary>
 [Service(1)]
 public sealed class ComponentRegistry
 {
     private readonly Dictionary<Type, ComponentGroup> _groups = new();
     private readonly Dictionary<Type, List<MonoBehaviour>> _mbIndex = new();
+    private readonly Dictionary<Component, ComponentGroup> _reverse = new(ReferenceEqualityComparer.Instance);
     private readonly List<Component> _pendingAdds = [];
 
     /// <summary>登记组件（延迟：加入 pending 队列，ApplyPending 时生效；重复登记幂等）。</summary>
     /// <param name="c">要登记的组件</param>
     public void Register(Component c)
     {
-        if (_pendingAdds.Contains(c))
-            return;
-        var t = c.GetType();
-        if (_groups.TryGetValue(t, out var g) && g.Components.Contains(c))
+        if (_pendingAdds.Contains(c) || _reverse.ContainsKey(c))
             return;
         _pendingAdds.Add(c);
     }
 
-    /// <summary>立即注销组件（从类型组与 MonoBehaviour 基类索引摘除；空组/空索引同步移除）。</summary>
+    /// <summary>立即注销组件：经反向索引 O(1) 摘除分组（空组/空索引同步移除）并清除索引项。</summary>
     /// <param name="c">要注销的组件</param>
     public void Unregister(Component c)
     {
         _pendingAdds.Remove(c);
-        if (_groups.TryGetValue(c.GetType(), out var g))
+        if (_reverse.Remove(c, out var g))
         {
             g.Components.Remove(c);
             if (g.Components.Count == 0)
@@ -48,7 +48,7 @@ public sealed class ComponentRegistry
         }
     }
 
-    /// <summary>提交 pending 队列：全部待登记组件落入类型组与基类索引（帧末由 CommitPending 调用）。</summary>
+    /// <summary>提交 pending 队列：全部待登记组件落入类型组、反向索引与基类索引（帧末由 CommitPending 调用）。</summary>
     public void ApplyPending()
     {
         foreach (var c in _pendingAdds)
@@ -60,6 +60,7 @@ public sealed class ComponentRegistry
                 _groups[t] = g;
             }
             g.Components.Add(c);
+            _reverse[c] = g;
             if (c is MonoBehaviour mb)
             {
                 if (!_mbIndex.TryGetValue(t, out var list))
@@ -93,6 +94,14 @@ public sealed class ComponentRegistry
             return g.Components as IReadOnlyList<T> ?? g.Components.Cast<T>().ToList();
         return System.Array.Empty<T>();
     }
+
+    /// <summary>
+    /// 反查：组件是否已登记（pending 未应用或已生效均返回 true；引用相等）。
+    /// 反向索引 O(1) 直查，供测试与未来消费；批量注册/注销场景避免分组列表线性扫描。
+    /// </summary>
+    /// <param name="c">要查询的组件</param>
+    /// <returns>已登记返回 true；未登记或已注销返回 false</returns>
+    internal bool Contains(Component c) => _reverse.ContainsKey(c) || _pendingAdds.Contains(c);
 
     /// <summary>MonoBehaviour 基类索引：按具体类型归类的列表视图（SceneManager 派发消费，零分配）。</summary>
     internal IEnumerable<List<MonoBehaviour>> MonoBehaviourGroups => _mbIndex.Values;
