@@ -12,7 +12,6 @@ namespace SilkEngine.Render;
 public sealed class RenderSystem : IDisposable
 {
     private readonly IRenderBackend _backend;
-    private readonly ThreadManager _threadManager;
     private readonly RenderThreadLoop _renderThread;
     private IRenderPipeline _pipeline;
 
@@ -29,9 +28,8 @@ public sealed class RenderSystem : IDisposable
     )
     {
         _backend = backend;
-        _threadManager = threadManager;
 
-        var executor = _threadManager.Request<ILoopExecutor>(
+        var executor = threadManager.Request<ILoopExecutor>(
             new ThreadRequest("RenderThread", ThreadKind.Dedicated)
         );
         _renderThread = new RenderThreadLoop(backend, executor);

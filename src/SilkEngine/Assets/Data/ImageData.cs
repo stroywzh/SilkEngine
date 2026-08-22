@@ -1,21 +1,23 @@
 namespace SilkEngine.Assets;
 
 /// <summary>纯 CPU 图像数据（RGBA8，无 GL 依赖）</summary>
-public sealed class ImageData
+public sealed class ImageData : IAssetDataRaw
 {
     /// <summary>创建图像数据；像素长度不足 width*height*4 抛 ArgumentException。</summary>
     /// <param name="width">像素宽</param>
     /// <param name="height">像素高</param>
-    /// <param name="pixels">RGBA 像素数据，长度 = width*height*4</param>
+    /// <param name="raw">RGBA 像素数据，长度 = width*height*4</param>
     /// <exception cref="ArgumentException">pixels 长度不足 width*height*4</exception>
-    public ImageData(int width, int height, byte[] pixels)
+    public ImageData(int width, int height, byte[] raw)
     {
-        if (pixels.Length < width * height * 4)
+        if (raw.Length < width * height * 4)
             throw new ArgumentException(
-                $"像素长度 {pixels.Length} 不足：{width}x{height}x4 需要 {width * height * 4}", nameof(pixels));
+                $"像素长度 {raw.Length} 不足：{width}x{height}x4 需要 {width * height * 4}",
+                nameof(raw)
+            );
         Width = width;
         Height = height;
-        Pixels = pixels;
+        RawBytes = raw;
     }
 
     /// <summary>像素宽</summary>
@@ -25,5 +27,5 @@ public sealed class ImageData
     public int Height { get; }
 
     /// <summary>RGBA 像素数据（R,G,B,A 顺序，行序自上而下）</summary>
-    public byte[] Pixels { get; }
+    public byte[] RawBytes { get; init; }
 }

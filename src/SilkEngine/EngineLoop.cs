@@ -12,19 +12,23 @@ namespace SilkEngine.Core;
 
 public class EngineLoop : IDisposable
 {
-    private static int Pid => Process.GetCurrentProcess().Id;
+    private static int Pid => Environment.CurrentManagedThreadId;
     private readonly IRenderBackend _backend;
     private readonly FrameClock _clock = new();
     private readonly FrameScheduler _frameScheduler = new();
     private readonly FrameCommitter _frameCommitter = new();
     private ComponentRegistry _registry = null!; // Initialize 从 Services 取（[Service] 自动注册）
+
+    // 我还是不太能理解为什么MainLoop需要直接持有这么多Manager的引用,
+    // 按道理来讲，ThreadManager可以有但是AssetManager/RenderSystem不该有，因为设计上它们应该是主线程创建接口通讯（草拟的AI完全没写接口）
     private FrameSnapshotManager _snapshotManager = null!;
     private readonly SceneManager _sceneManager;
     private ThreadManager _threadManager = null!;
     private AssetManager? _assetManager;
     private RenderSystem _renderSystem = null!;
+    // RenderCollector不应有主线程持有
     private readonly RenderCollector _collector = new();
-    private Camera? _defaultCamera;
+    private Camera? _defaultCamera; // 实际无用逻辑
     private volatile bool _stopRequested, _paused, _disposed, _canStart;
 
     /// <summary>线程管理器实例（[Service] 自动注册，ctor 已赋值，恒非空）</summary>
