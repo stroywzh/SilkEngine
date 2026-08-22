@@ -1,4 +1,4 @@
-namespace SilkEngine.Core.Assets;
+namespace SilkEngine.Assets;
 
 /// <summary>纯 CPU 图像数据（RGBA8，无 GL 依赖）</summary>
 public sealed class ImageData

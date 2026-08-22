@@ -1,6 +1,6 @@
 using StbiSharp;
 
-namespace SilkEngine.Core.Assets.Importer;
+namespace SilkEngine.Assets.Importer;
 
 /// <summary>
 /// 基于 StbiSharp（stb_image 原生封装）的解码器

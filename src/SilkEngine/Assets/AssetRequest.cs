@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
 using SilkEngine.Core;
 
-namespace SilkEngine.Core.Assets;
+namespace SilkEngine.Assets;
 
 /// <summary>异步加载模式</summary>
 public enum AsyncLoadMode

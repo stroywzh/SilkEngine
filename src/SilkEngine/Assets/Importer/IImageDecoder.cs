@@ -1,4 +1,4 @@
-namespace SilkEngine.Core.Assets.Importer;
+namespace SilkEngine.Assets.Importer;
 
 /// <summary>图像解码器：raw 字节 → 纯 CPU ImageData</summary>
 public interface IImageDecoder

@@ -1,5 +1,5 @@
 using SilkEngine.Core;
-using SilkEngine.Core.Assets;
+using SilkEngine.Assets;
 using SilkEngine.Render;
 using SilkEngine.Threading;
 using SilkEngine.Tests.Core.Assets;

@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 using SilkEngine.Core;
-using SilkEngine.Core.Assets;
+using SilkEngine.Assets;
 
 namespace SilkEngine.Tests.Core.Assets;
 

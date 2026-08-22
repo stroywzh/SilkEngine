@@ -1,5 +1,5 @@
 using System.Linq;
-using SilkEngine.Core.Assets;
+using SilkEngine.Assets;
 
 namespace SilkEngine.Render;
 

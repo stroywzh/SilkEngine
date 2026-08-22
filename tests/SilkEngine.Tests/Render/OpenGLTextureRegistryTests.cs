@@ -1,4 +1,4 @@
-using SilkEngine.Core.Assets;
+using SilkEngine.Assets;
 using SilkEngine.Render.OpenGL;
 
 namespace SilkEngine.Tests.Render;

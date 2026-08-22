@@ -1,9 +1,10 @@
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
-using SilkEngine.Core.Assets.Importer;
+using SilkEngine.Assets.Importer;
+using SilkEngine.Core;
 
-namespace SilkEngine.Core.Assets;
+namespace SilkEngine.Assets;
 
 /// <summary>
 /// 资产门面（主线程专用 API）：同步/异步加载、GUID 缓存、引用计数闭环、帧末完成拾取。
@@ -313,7 +314,11 @@ public sealed class AssetManager
             {
                 var raw = await File.ReadAllBytesAsync(path, ct);
                 var importer = ImporterFactory.Create(Path.GetExtension(path));
-                result = new AssetLoadResult(guid, importer.Import(raw, new ImportSettings { Path = path }), null);
+                result = new AssetLoadResult(
+                    guid,
+                    importer.Import(raw, new ImportSettings { Path = path }),
+                    null
+                );
             }
             catch (Exception ex)
             {

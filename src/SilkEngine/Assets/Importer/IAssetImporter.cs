@@ -1,4 +1,4 @@
-namespace SilkEngine.Core.Assets.Importer;
+namespace SilkEngine.Assets.Importer;
 
 /// <summary>资产导入器：raw 字节 → 资产实例</summary>
 public interface IAssetImporter

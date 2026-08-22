@@ -2,7 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Linq;
 using SilkEngine.Core;
-using SilkEngine.Core.Assets;
+using SilkEngine.Assets;
 using SilkEngine.InputSystem;
 using SilkEngine.Render;
 using SilkEngine.Scene;

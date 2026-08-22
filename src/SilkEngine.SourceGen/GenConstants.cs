@@ -35,7 +35,7 @@ internal static class GenConstants
     public const string Shader = "global::SilkEngine.Render.Shader";
     public const string Mesh = "global::SilkEngine.Render.Mesh";
     public const string Material = "global::SilkEngine.Render.Material";
-    public const string Texture2D = "global::SilkEngine.Core.Assets.Texture2D";
+    public const string Texture2D = "global::SilkEngine.Assets.Texture2D";
 
     /// <summary>资产编解码桥（任务 5 创建，最终位置；任务 4 仅生成文本、不参与编译）。</summary>
     public const string AssetRefCodec = "SilkEngine.Scene.Serialization.AssetRefCodec";

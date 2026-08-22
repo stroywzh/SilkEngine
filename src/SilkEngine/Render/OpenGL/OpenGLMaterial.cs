@@ -1,6 +1,6 @@
 using System;
 using Silk.NET.OpenGL;
-using SilkEngine.Core.Assets;
+using SilkEngine.Assets;
 
 namespace SilkEngine.Render.OpenGL;
 

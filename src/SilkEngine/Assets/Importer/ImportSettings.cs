@@ -1,4 +1,4 @@
-namespace SilkEngine.Core.Assets.Importer;
+namespace SilkEngine.Assets.Importer;
 
 /// <summary>
 /// 导入设置（签名扩展点；采样/翻转等参数由后续 Part 扩展）

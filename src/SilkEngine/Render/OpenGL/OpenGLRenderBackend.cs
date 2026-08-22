@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using SilkEngine.Core;
-using SilkEngine.Core.Assets;
+using SilkEngine.Assets;
 using Silk.NET.OpenGL;
 using Silk.NET.Windowing;
 

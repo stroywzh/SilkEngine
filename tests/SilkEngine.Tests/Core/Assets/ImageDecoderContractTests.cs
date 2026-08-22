@@ -1,5 +1,5 @@
-using SilkEngine.Core.Assets;
-using SilkEngine.Core.Assets.Importer;
+using SilkEngine.Assets;
+using SilkEngine.Assets.Importer;
 
 namespace SilkEngine.Tests.Core.Assets;
 

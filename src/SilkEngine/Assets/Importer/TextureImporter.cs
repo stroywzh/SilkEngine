@@ -1,4 +1,4 @@
-namespace SilkEngine.Core.Assets.Importer;
+namespace SilkEngine.Assets.Importer;
 
 /// <summary>纹理导入器：委托 IImageDecoder 解码</summary>
 public sealed class TextureImporter : IAssetImporter

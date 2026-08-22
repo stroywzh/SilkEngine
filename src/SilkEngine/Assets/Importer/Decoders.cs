@@ -1,4 +1,4 @@
-namespace SilkEngine.Core.Assets.Importer;
+namespace SilkEngine.Assets.Importer;
 
 /// <summary>解码器注册点：Default 可整体切换，ImporterFactory 按需取用</summary>
 public static class Decoders

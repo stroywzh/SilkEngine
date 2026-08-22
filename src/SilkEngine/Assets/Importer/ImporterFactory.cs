@@ -1,4 +1,4 @@
-namespace SilkEngine.Core.Assets.Importer;
+namespace SilkEngine.Assets.Importer;
 
 /// <summary>按扩展名创建导入器：内置注册 .png/.jpg，新导入器经 <see cref="Register"/> 接入（开闭原则）</summary>
 public static class ImporterFactory

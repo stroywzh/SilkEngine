@@ -1,4 +1,4 @@
-namespace SilkEngine.Core.Assets;
+namespace SilkEngine.Assets;
 
 /// <summary>资产生命周期状态</summary>
 public enum AssetState

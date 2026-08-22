@@ -1,5 +1,5 @@
 using SilkEngine.Core;
-using SilkEngine.Core.Assets;
+using SilkEngine.Assets;
 using SilkEngine.Scene;
 using SilkEngine.Tests.Core.Assets;
 using Object = SilkEngine.Core.Object;

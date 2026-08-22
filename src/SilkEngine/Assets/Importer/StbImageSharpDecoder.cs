@@ -1,6 +1,6 @@
 using StbImageSharp;
 
-namespace SilkEngine.Core.Assets.Importer;
+namespace SilkEngine.Assets.Importer;
 
 /// <summary>基于 StbImageSharp（纯托管 stb_image 移植）的解码器</summary>
 public sealed class StbImageSharpDecoder : IImageDecoder

@@ -1,4 +1,4 @@
-using SilkEngine.Core.Assets;
+using SilkEngine.Assets;
 using SilkEngine.Math;
 using SilkEngine.Render;
 using SilkEngine.Scene.Serialization;

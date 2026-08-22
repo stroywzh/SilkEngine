@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace SilkEngine.Core.Assets;
+namespace SilkEngine.Assets;
 
 /// <summary>GUID → AssetEntry 的并发缓存（主线程读写；并发字典保证安全性），附带 IAsset 实例引用 → 条目 的反向索引（O(1) 引用查找）</summary>
 public sealed class AssetCache

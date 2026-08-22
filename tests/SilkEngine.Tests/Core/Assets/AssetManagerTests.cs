@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using SilkEngine.Core;
-using SilkEngine.Core.Assets;
-using SilkEngine.Core.Assets.Importer;
+using SilkEngine.Assets;
+using SilkEngine.Assets.Importer;
 using SilkEngine.Threading;
 
 namespace SilkEngine.Tests.Core.Assets;

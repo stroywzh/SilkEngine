@@ -1,5 +1,5 @@
 using SilkEngine.Core;
-using SilkEngine.Core.Assets;
+using SilkEngine.Assets;
 using SilkEngine.Tests.Core.Assets;
 
 namespace SilkEngine.Tests.Core.Assets;
