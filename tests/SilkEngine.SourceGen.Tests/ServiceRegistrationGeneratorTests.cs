@@ -40,8 +40,8 @@ public class ServiceRegistrationGeneratorTests
         // 生成器仅接受 SilkEngine 程序集（SERV001），此处显式以引擎程序集名编译
         var (generated, diags) = ServiceHarness.Run(Snippet, assemblyName: "SilkEngine");
         Assert.Empty(diags.Where(d => d.Severity == DiagnosticSeverity.Error));
-        Assert.Equal(GeneratorHarness.Normalize(ExpectedBootstrap),
-            GeneratorHarness.Normalize(Assert.Single(generated, g => g.Contains("__ServiceBootstrap"))));
+        Assert.Equal(ServiceHarness.Normalize(ExpectedBootstrap),
+            ServiceHarness.Normalize(Assert.Single(generated, g => g.Contains("__ServiceBootstrap"))));
     }
 
     [Fact]
