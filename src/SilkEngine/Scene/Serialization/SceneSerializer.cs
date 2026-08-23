@@ -95,7 +95,7 @@ public static class SceneSerializer
                 var factory = ComponentTypeRegistry.Resolve(kv.Key);
                 if (factory == null)
                     continue;   // 未知类型：警告已记，跳过
-                go.AddComponent(factory(), null, ctx);
+                go.AddComponent(factory(), null);   // A3 后组件按默认值挂载，不再恢复序列化状态
             }
         }
 

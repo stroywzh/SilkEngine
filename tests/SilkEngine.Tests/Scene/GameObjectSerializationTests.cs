@@ -49,7 +49,7 @@ public class GameObjectSerializationTests
     public void AddComponent_WithAttachedData_CallsReadFromBeforeAwakeBeforeEnable()
     {
         var go = new GameObject("GO");
-        var c = WithAttachedData(go, DataWithComponent(3.5f), ctx => (TestSerializable)go.AddComponent(new TestSerializable(), null, ctx));
+        var c = WithAttachedData(go, DataWithComponent(3.5f), ctx => (TestSerializable)go.AddComponent(new TestSerializable(), null));
 
         Assert.True(c.ReadCalled);
         Assert.Equal(3.5f, c.Speed);            // 序列化值已生效
@@ -69,7 +69,7 @@ public class GameObjectSerializationTests
     public void AddComponent_NonSerializableComponent_IsIgnored()
     {
         var go = new GameObject("GO");
-        var c = WithAttachedData(go, DataWithComponent(3.5f), ctx => (Tracker)go.AddComponent(new Tracker(), null, ctx));
+        var c = WithAttachedData(go, DataWithComponent(3.5f), ctx => (Tracker)go.AddComponent(new Tracker(), null));
         Assert.False(c.ReadCalled);   // Tracker 未覆写 WriteTo/ReadFrom（基类空默认）
     }
 
@@ -80,7 +80,7 @@ public class GameObjectSerializationTests
         var c = WithAttachedData(go, DataWithComponent(3.5f), ctx =>
         {
             ctx.Detach(go);   // 模拟组件均完成 ReadFrom 后的释放
-            return (TestSerializable)go.AddComponent(new TestSerializable(), null, ctx);
+            return (TestSerializable)go.AddComponent(new TestSerializable(), null);
         });
         Assert.False(c.ReadCalled);
     }
@@ -89,7 +89,7 @@ public class GameObjectSerializationTests
     public void AddComponent_NonGeneric_GoesThroughSameFactory()
     {
         var go = new GameObject("GO");
-        var c = WithAttachedData(go, DataWithComponent(2f), ctx => (TestSerializable)go.AddComponent(new TestSerializable(), null, ctx));
+        var c = WithAttachedData(go, DataWithComponent(2f), ctx => (TestSerializable)go.AddComponent(new TestSerializable(), null));
         Assert.True(c.ReadCalled);
         Assert.Equal(2f, c.Speed);
         Assert.Equal(2f, c.SeenAtEnable);

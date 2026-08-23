@@ -253,8 +253,6 @@ public class GameObjectTests : IClassFixture<SceneManagerFixture>
     private class StatefulComponent : Component
     {
         public int Value;
-        public override void WriteTo(SerializedNode node) => node.SetInt("Value", Value);
-        public override void ReadFrom(SerializedNode node) => Value = node.GetInt("Value");
     }
 
     private class AwakeCounterComponent : MonoBehaviour
@@ -264,9 +262,9 @@ public class GameObjectTests : IClassFixture<SceneManagerFixture>
     }
 
     [Fact]
-    public void Instantiate_ClonesComponentState()
+    public void Instantiate_CreatesComponentWithDefaultState()
     {
-        ComponentTypeRegistry.Register(typeof(StatefulComponent).FullName!, () => new StatefulComponent());
+        ComponentFactory.Register(typeof(StatefulComponent).FullName!, () => new StatefulComponent());
         var go = new GameObject("Src");
         var c = go.AddComponent<StatefulComponent>();
         c.Value = 42;
@@ -276,13 +274,13 @@ public class GameObjectTests : IClassFixture<SceneManagerFixture>
         var cloned = clone.GetComponent<StatefulComponent>();
         Assert.NotNull(cloned);
         Assert.NotSame(c, cloned);
-        Assert.Equal(42, cloned.Value);
+        Assert.Equal(0, cloned.Value);   // 默认值重建，不复刻状态
     }
 
     [Fact]
     public void Instantiate_ClonedComponent_AwakeOnce()
     {
-        ComponentTypeRegistry.Register(typeof(AwakeCounterComponent).FullName!, () => new AwakeCounterComponent());
+        ComponentFactory.Register(typeof(AwakeCounterComponent).FullName!, () => new AwakeCounterComponent());
         AwakeCounterComponent.AwakeCount = 0;
         var go = new GameObject("Src");
         go.AddComponent<AwakeCounterComponent>();   // 源组件已 Awake 一次

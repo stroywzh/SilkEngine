@@ -1,15 +1,12 @@
 using System.Collections.Generic;
-using System.Linq;
-using System.Text.Json.Nodes;
 using SilkEngine.Core;
-using SilkEngine.Scene.Serialization;
 using Object = SilkEngine.Core.Object;
 
 namespace SilkEngine.Scene;
 
 /// <summary>
 /// 场景对象工厂：承载 Transform 与组件集合的树节点。
-/// 组件经 AddComponent 挂载（顺序：挂载 → ReadFrom(序列化数据) → OnAwake → RecomputeActiveState(Enable) → 注册），
+/// 组件经 AddComponent 挂载（顺序：挂载 → OnAwake → RecomputeActiveState(Enable) → 注册），
 /// 销毁走帧末队列（Object.Destroy → SceneManager 帧末统一 OnDestroy + Unregister）。
 /// </summary>
 public sealed class GameObject : Object
@@ -47,14 +44,10 @@ public sealed class GameObject : Object
         clone.Transform.LocalScale = go.Transform.LocalScale;
         foreach (var c in go._components)
         {
-            var factory = ComponentTypeRegistry.Resolve(c.GetType().FullName!);
+            var factory = ComponentFactory.Resolve(c.GetType().FullName!);
             if (factory == null)
                 continue;
-            var node = new SerializedNode(new JsonObject());
-            c.WriteTo(node);
-            var cloned = factory();
-            cloned.ReadFrom(node);
-            clone.AddComponent(cloned);   // 工厂：挂载→ReadFrom(无 ctx 跳过)→OnAwake→Enable→注册
+            clone.AddComponent(factory());   // 默认值重建：挂载→OnAwake→Enable→注册（不复刻状态）
         }
         foreach (var child in go.Transform.Children)
         {
@@ -125,10 +118,6 @@ public sealed class GameObject : Object
     /// <returns>已挂载的组件实例</returns>
     /// <exception cref="InvalidOperationException">同实例重复添加，或组件已挂载于其他 GameObject</exception>
     public Component AddComponent(Component c, ComponentRegistry? registry = null)
-        => AddComponent(c, registry, null);
-
-    /// <summary>内部重载：反序列化管道传入 context（组件 ReadFrom 数据源），其余同公开重载。</summary>
-    internal Component AddComponent(Component c, ComponentRegistry? registry, DeserializationContext? ctx)
     {
         if (_components.Contains(c))
             throw new InvalidOperationException(
@@ -138,7 +127,7 @@ public sealed class GameObject : Object
             throw new InvalidOperationException(
                 $"Component '{c.GetType().Name}' is already attached to GameObject '{host.Name}'"
             );
-        InitializeComponent(c, registry, ctx);
+        InitializeComponent(c, registry);
         return c;
     }
 
@@ -152,24 +141,12 @@ public sealed class GameObject : Object
     }
 
     /// <summary>
-    /// 组件工厂：挂载 → ReadFrom(DeserializationContext 序列化数据) → OnAwake → RecomputeActiveState(Enable) → 注册。
-    /// 顺序遵循 Unity 语义：OnAwake 中看到的字段即为序列化恢复后的值；
-    /// context 为 null 或该对象无挂载数据时 ReadFrom 不调用（基类空默认）。
+    /// 组件工厂：挂载 → OnAwake → RecomputeActiveState(Enable) → 注册。
     /// </summary>
-    internal void InitializeComponent(Component c, ComponentRegistry? registry, DeserializationContext? ctx)
+    internal void InitializeComponent(Component c, ComponentRegistry? registry)
     {
         c.GameObject = this;
         _components.Add(c);
-
-        if (
-            ctx != null
-            && ctx.TryGet(this, out var node)
-            && node["Components"] is JsonObject comps
-            && comps[c.GetType().FullName!] is JsonObject compNode
-        )
-        {
-            c.ReadFrom(new SerializedNode(compNode));
-        }
 
         if (c is MonoBehaviour mb && !mb.Awaked)
         {
