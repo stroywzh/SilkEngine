@@ -23,6 +23,6 @@ public sealed class TextureImporter : IAssetImporter
         var name = settings?.Path is { Length: > 0 } path
             ? Path.GetFileNameWithoutExtension(path)
             : "Texture";
-        return new Texture2D { Name = name, ImageData = data };
+        return new Texture2D { Name = name, Data = data };
     }
 }

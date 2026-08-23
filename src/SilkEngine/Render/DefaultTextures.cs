@@ -10,7 +10,7 @@ public static class DefaultTextures
         new Texture2D
         {
             Name = "DefaultWhite",
-            ImageData = new ImageData(1, 1, [255, 255, 255, 255]),
+            Data = new ImageData(1, 1, [255, 255, 255, 255]),
         });
 
     /// <summary>1×1 纯白占位纹理（无主纹理 / LazyAsync 未就绪时绑定）</summary>

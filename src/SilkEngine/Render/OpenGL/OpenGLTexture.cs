@@ -36,10 +36,10 @@ public sealed class OpenGLTexture : IDisposable
         if (_disposed || _handle != 0)
             return;
         _gl = gl;
-        var img = _data.ImageData;
+        var img = _data.Data;
         int width = img.Width;
         int height = img.Height;
-        byte[] pixels = img.Pixels;
+        byte[] pixels = img.RawBytes;
         if (width <= 0 || height <= 0)
         {
             Log.Warn(
