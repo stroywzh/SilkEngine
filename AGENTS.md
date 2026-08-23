@@ -90,7 +90,7 @@ tests/SilkEngine.SourceGen.Tests/  # 7 个 Service 注册测试
 - RenderPass.Filter 已定义未接线
 - Transform.Scale 不组合父级
 - SetParent 无环检测
-- Instantiate 不克隆组件
+- Instantiate 组件按默认值重建（不复刻状态；ComponentFactory 未注册类型静默跳过）
 - 场景卸载只发 OnDestroy 不发 OnDisable
 - Sprite/图片渲染组件（SpriteRenderer）与 UI 系统（Canvas/RawImage）待建；当前图片显示仅经 Material+MeshRenderer（TestPNGQuad 模式）
 - FindEntry 线性扫描（规模增长需反向索引）
