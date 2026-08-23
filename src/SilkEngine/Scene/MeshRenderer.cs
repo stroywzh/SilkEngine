@@ -1,13 +1,11 @@
 using SilkEngine.Assets;
 using SilkEngine.Math;
 using SilkEngine.Render;
-using SilkEngine.Scene.Serialization;
 
 namespace SilkEngine.Scene;
 
-/// <summary>网格渲染组件：资产引用字段由源生成器序列化（GUID 路径，经 AssetRefCodec 属性感知规则，键=属性名）。</summary>
-[SerializableInternal]
-public partial class MeshRenderer : Component, IRenderable
+/// <summary>网格渲染组件：三资产引用计数闭环 + IRenderable 实现（RendererBase 抽取见子计划 B）。</summary>
+public class MeshRenderer : Component, IRenderable
 {
     private Shader? _shader;
     private Mesh? _mesh;

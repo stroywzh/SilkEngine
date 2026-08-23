@@ -1,9 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Text.Json;
 using SilkEngine.Core;
-using SilkEngine.Scene.Serialization;
 using Object = SilkEngine.Core.Object;
 
 namespace SilkEngine.Scene;
@@ -184,34 +181,5 @@ public class SceneManager : IDisposable
         if (LogConfig.Scene)
             Log.Info($"[Scene] Added object '{go.Name}'");
         return true;
-    }
-
-    /// <summary>
-    /// 从 .scene JSON 文件加载场景：读文件 → SceneSerializer.Deserialize → LoadScene（带注入的注册表）。
-    /// 失败（文件缺失/无权限/JSON 格式错误）记录错误日志且不抛未捕获异常。
-    /// </summary>
-    /// <param name="path">.scene 文件路径</param>
-    /// <returns>是否成功（成功时 ActiveScene 已切换并完成注册）</returns>
-    public bool LoadSceneFromFile(string path)
-    {
-        try
-        {
-            var scene = SceneSerializer.Deserialize(File.ReadAllText(path));
-            LoadScene(scene, _registry);
-            if (LogConfig.Scene)
-                Log.Info($"[Scene] Loaded scene from file '{path}'");
-            return true;
-        }
-        catch (Exception e)
-            when (e
-                    is IOException
-                        or UnauthorizedAccessException
-                        or JsonException
-                        or InvalidOperationException
-            )
-        {
-            Log.Error($"LoadSceneFromFile failed: {path} — {e.Message}");
-            return false;
-        }
     }
 }

@@ -1,4 +1,3 @@
-using SilkEngine.Scene.Serialization;
 using Object = SilkEngine.Core.Object;
 
 namespace SilkEngine.Scene;
@@ -79,10 +78,4 @@ public abstract class Component : Object
 
     /// <summary>组件销毁时调用：帧末销毁队列（FrameSnapshotManager.CommitPending）统一执行；仅调用一次。</summary>
     public virtual void OnDestroy() { }
-
-    /// <summary>序列化出口：将组件字段写入节点。基类空默认 no-op；SceneSerializer.Serialize 对全部组件调用。</summary>
-    public virtual void WriteTo(SerializedNode node) { }
-
-    /// <summary>序列化入口：从节点恢复字段。基类空默认 no-op；组件工厂在反序列化管道内调用。</summary>
-    public virtual void ReadFrom(SerializedNode node) { }
 }

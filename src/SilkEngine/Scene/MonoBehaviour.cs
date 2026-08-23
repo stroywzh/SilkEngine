@@ -8,7 +8,7 @@ namespace SilkEngine.Scene;
 /// </summary>
 public abstract class MonoBehaviour : Component
 {
-    /// <summary>挂载时立即调用一次（AddComponent 工厂内，ReadFrom 之后、Enable 之前）；不受活跃性门控。</summary>
+    /// <summary>挂载时立即调用一次（AddComponent 工厂内、组件启用前）；不受活跃性门控。</summary>
     public virtual void OnAwake() { }
 
     /// <summary>首帧 Tick 派发前补发一次（仅活跃组件；已补发则不再触发，迟激活组件在激活后首帧补发）。</summary>

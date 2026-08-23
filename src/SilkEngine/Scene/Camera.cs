@@ -1,14 +1,12 @@
 using SilkEngine.Math;
 using SilkEngine.Render;
-using SilkEngine.Scene.Serialization;
 
 namespace SilkEngine.Scene;
 
-/// <summary>相机组件：序列化参数由源生成器生成（字段名即 .scene 键）；ViewMatrix/ProjectionMatrix 为运行时计算，不参与序列化。</summary>
-[SerializableInternal]
-public partial class Camera : Component, ICameraView
+/// <summary>相机组件：ViewMatrix/ProjectionMatrix 为运行时计算。</summary>
+public class Camera : Component, ICameraView
 {
-    /// <summary>透视视场角（度）；键名即 .scene 序列化字段名。</summary>
+    /// <summary>透视视场角（度）。</summary>
     public float FieldOfView = 60f;
 
     /// <summary>近裁剪面距离（>0）。</summary>
@@ -23,10 +21,10 @@ public partial class Camera : Component, ICameraView
     /// <summary>true = 正交投影，false = 透视投影。</summary>
     public bool Orthographic = false;
 
-    /// <summary>世界空间视图矩阵（UpdateMatrices 计算；运行时值，不参与序列化）。</summary>
+    /// <summary>世界空间视图矩阵（UpdateMatrices 计算）。</summary>
     public Matrix4x4 ViewMatrix { get; private set; }
 
-    /// <summary>投影矩阵（UpdateMatrices 计算；运行时值，不参与序列化）。</summary>
+    /// <summary>投影矩阵（UpdateMatrices 计算）。</summary>
     public Matrix4x4 ProjectionMatrix { get; private set; }
 
     /// <summary>
