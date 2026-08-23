@@ -6,7 +6,7 @@ namespace SilkEngine.Tests.Render;
 public class OpenGLTextureRegistryTests
 {
     private static Texture2D MakeTex(string name) =>
-        new() { Name = name, ImageData = new ImageData(1, 1, [255, 255, 255, 255]) };
+        new() { Name = name, Data = new ImageData(1, 1, [255, 255, 255, 255]) };
 
     [Fact]
     public void GetOrCreate_Hit_ReturnsSameInstance_WithoutNewFactoryCall()

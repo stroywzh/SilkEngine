@@ -2,7 +2,7 @@ using SilkEngine.Core;
 using SilkEngine.Assets;
 using SilkEngine.Render;
 using SilkEngine.Threading;
-using SilkEngine.Tests.Core.Assets;
+using SilkEngine.Tests.Core;
 
 namespace SilkEngine.Tests.Threading;
 

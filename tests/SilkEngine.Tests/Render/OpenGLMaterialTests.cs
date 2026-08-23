@@ -20,7 +20,7 @@ public class OpenGLMaterialTests
         var tex = new Texture2D
         {
             Name = "T",
-            ImageData = new ImageData(1, 1, [1, 2, 3, 4]),
+            Data = new ImageData(1, 1, [1, 2, 3, 4]),
         };
         var mat = new Material { MainTexture = tex };
 

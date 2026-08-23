@@ -1,20 +1,24 @@
 using System.Text.Json.Nodes;
 using SilkEngine.Scene;
 using SilkEngine.Assets;
+using SilkEngine.Core;
 using SilkEngine.Scene.Serialization;
 using SilkEngine.Render;
-using SilkEngine.Tests.Core.Assets;
+using SilkEngine.Threading;
 
 namespace SilkEngine.Tests.Scene.Serialization;
 using Scene = SilkEngine.Scene.Scene;
 
-// 反序列化经 Services.TryGet 解析资产管理器（WriteGuid/Resolve ambient），须与注册者同集合串行
+// 反序列化经 Services.TryGet 解析资产管理器（WriteGuid/Resolve ambient），
+// 本类自建 AssetManager 实例，须与注册者同集合串行
 [Collection("Assets")]
-public class MeshRendererSerializationTests : IClassFixture<AssetsFixture>
+public class MeshRendererSerializationTests : IDisposable
 {
     private readonly AssetManager _am;
 
-    public MeshRendererSerializationTests(AssetsFixture fixture) => _am = fixture.Manager;
+    public MeshRendererSerializationTests() => _am = new AssetManager(new ThreadPoolExecutor());
+
+    public void Dispose() => Services.Unregister<AssetManager>();
 
     private const string GuidShader = "1f2e3d4c-5b6a-7988-99aa-bbccddeeff00";
     private const string GuidMesh = "2a3b4c5d-6e7f-80a1-b2c3-d4e5f6071829";

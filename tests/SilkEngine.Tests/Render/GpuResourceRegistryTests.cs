@@ -5,7 +5,7 @@ namespace SilkEngine.Tests.Render;
 
 public class GpuResourceRegistryTests
 {
-    private sealed class Asset : IAsset { public string Name { get; set; } = ""; }
+    private sealed class Asset : IAsset { public string Name { get; init; } = ""; }
     private sealed class Gpu : IDisposable
     {
         public bool Disposed;

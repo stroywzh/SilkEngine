@@ -10,8 +10,8 @@ public class DefaultTexturesTests
     {
         var tex = DefaultTextures.White;
 
-        Assert.Equal(1, tex.ImageData.Width);
-        Assert.Equal(1, tex.ImageData.Height);
+        Assert.Equal(1, tex.Data.Width);
+        Assert.Equal(1, tex.Data.Height);
     }
 
     [Fact]
@@ -19,7 +19,7 @@ public class DefaultTexturesTests
     {
         var tex = DefaultTextures.White;
 
-        Assert.Equal(new byte[] { 255, 255, 255, 255 }, tex.ImageData.Pixels);
+        Assert.Equal(new byte[] { 255, 255, 255, 255 }, tex.Data.RawBytes);
     }
 
     [Fact]

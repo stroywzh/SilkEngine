@@ -1,19 +1,22 @@
 using SilkEngine.Assets;
+using SilkEngine.Core;
 using SilkEngine.Render;
-using SilkEngine.Tests.Core.Assets;
+using SilkEngine.Threading;
 
 namespace SilkEngine.Tests.Render;
 
-// 与 Part 2 资产测试同集合：本类经夹具注册的实例缓存（Services.TryGet ambient 解析）
+// 与 Part 2 资产测试同集合：本类自建实例缓存（Services.TryGet ambient 解析）
 [Collection("Assets")]
-public class MaterialMainTextureTests : IClassFixture<AssetsFixture>
+public class MaterialMainTextureTests : IDisposable
 {
     private readonly AssetManager _am;
 
-    public MaterialMainTextureTests(AssetsFixture fixture) => _am = fixture.Manager;
+    public MaterialMainTextureTests() => _am = new AssetManager(new ThreadPoolExecutor());
+
+    public void Dispose() => Services.Unregister<AssetManager>();
 
     private static Texture2D MakeTex(string name) =>
-        new() { Name = name, ImageData = new ImageData(1, 1, [255, 255, 255, 255]) };
+        new() { Name = name, Data = new ImageData(1, 1, [255, 255, 255, 255]) };
 
     // Part 2 测试惯例：先登记缓存条目（托管化），再经 entry.RefCount 断言
     private AssetEntry RegisterManaged(IAsset asset)

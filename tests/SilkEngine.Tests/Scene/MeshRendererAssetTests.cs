@@ -1,16 +1,19 @@
 using SilkEngine.Assets;
+using SilkEngine.Core;
 using SilkEngine.Render;
 using SilkEngine.Scene;
-using SilkEngine.Tests.Core.Assets;
+using SilkEngine.Threading;
 
 namespace SilkEngine.Tests.Scene;
 
 [Collection("Assets")]
-public class MeshRendererAssetTests : IClassFixture<AssetsFixture>
+public class MeshRendererAssetTests : IDisposable
 {
     private readonly AssetManager _am;
 
-    public MeshRendererAssetTests(AssetsFixture fixture) => _am = fixture.Manager;
+    public MeshRendererAssetTests() => _am = new AssetManager(new ThreadPoolExecutor());
+
+    public void Dispose() => Services.Unregister<AssetManager>();
 
     private AssetEntry RegisterManaged(IAsset asset)
     {

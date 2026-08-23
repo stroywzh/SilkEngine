@@ -1,20 +1,23 @@
 using System.Text.Json.Nodes;
 using SilkEngine.Assets;
+using SilkEngine.Core;
 using SilkEngine.Render;
 using SilkEngine.Scene.Serialization;
-using SilkEngine.Tests.Core.Assets;
+using SilkEngine.Threading;
 using Xunit;
 
 namespace SilkEngine.Tests.Scene.Serialization;
 
-// 契约 C3：经 AssetsFixture 注册的 AssetManager 实例访问（AssetRefCodec 内部经 Services 解析，
-// 与本集合内其他夹具串行，避免重复注册/注销竞争）
+// 契约 C3：自建 AssetManager 实例访问（AssetRefCodec 内部经 Services 解析，
+// 本类自建实例，与本集合内其他测试串行，避免重复注册/注销竞争）
 [Collection("Assets")]
-public class AssetRefCodecTests : IClassFixture<AssetsFixture>
+public class AssetRefCodecTests : IDisposable
 {
     private readonly AssetManager _am;
 
-    public AssetRefCodecTests(AssetsFixture fixture) => _am = fixture.Manager;
+    public AssetRefCodecTests() => _am = new AssetManager(new ThreadPoolExecutor());
+
+    public void Dispose() => Services.Unregister<AssetManager>();
 
     private Shader RegisterManaged(Guid guid)
     {

@@ -1,7 +1,7 @@
 using SilkEngine.Core;
 using SilkEngine.Assets;
 using SilkEngine.Render.OpenGL;
-using SilkEngine.Tests.Core.Assets;
+using SilkEngine.Tests.Core;
 
 namespace SilkEngine.Tests.Render;
 
@@ -20,7 +20,7 @@ public class TextureUnloadTests : IDisposable
         var tex = new Texture2D
         {
             Name = "T",
-            ImageData = new ImageData(1, 1, [255, 255, 255, 255]),
+            Data = new ImageData(1, 1, [255, 255, 255, 255]),
         };
         var glTex = backend.TextureRegistry.GetOrCreate(tex);
 
@@ -37,7 +37,7 @@ public class TextureUnloadTests : IDisposable
         var backend = new OpenGLRenderBackend();
 
         backend.ReleaseTexture(
-            new Texture2D { Name = "T", ImageData = new ImageData(1, 1, [1, 1, 1, 1]) }
+            new Texture2D { Name = "T", Data = new ImageData(1, 1, [1, 1, 1, 1]) }
         );
 
         Assert.Equal(0, backend.TextureRegistry.Count);
