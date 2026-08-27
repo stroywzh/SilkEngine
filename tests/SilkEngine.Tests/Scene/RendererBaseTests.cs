@@ -1,8 +1,10 @@
 using SilkEngine.Assets;
+using SilkEngine.Assets.Importer;
+using SilkEngine.Assets.VirtualFileSystem;
 using SilkEngine.Core;
 using SilkEngine.Render;
 using SilkEngine.Scene;
-using SilkEngine.Threading;
+using SilkEngine.Tests.Core;
 
 namespace SilkEngine.Tests.Scene;
 
@@ -11,13 +13,14 @@ public class RendererBaseTests : IDisposable
 {
     private readonly AssetManager _am;
 
-    public RendererBaseTests() => _am = new AssetManager(new ThreadPoolExecutor());
+    public RendererBaseTests() =>
+        _am = new AssetManager(new InMemoryAssetFileSystem("Assets"), new AssetImporterRegistry(), new RecordingScheduler());
 
     public void Dispose() => Services.Unregister<AssetManager>();
 
     private AssetEntry RegisterManaged(IAsset asset)
     {
-        var entry = _am.Cache.GetOrAdd(Guid.NewGuid());
+        var entry = _am.Cache.GetOrAdd(new AssetId(Guid.NewGuid()));
         entry.Data = asset;
         entry.State = AssetState.Ready;
         return entry;

@@ -100,4 +100,30 @@ public class AssetCatalogTests
     {
         Assert.IsType<TextureImporter>(ImporterFactory.Create(".png"));
     }
+
+    [Fact]
+    public void Catalog_InvalidateSource_BumpsRevisionOfMatchingRecordsOnly()
+    {
+        var catalog = new AssetCatalog();
+        var node = new VirtualNodeId(Guid.NewGuid());
+        var other = new VirtualNodeId(Guid.NewGuid());
+        var a = catalog.GetOrAdd(node, new AssetTypeId("texture"));
+        var b = catalog.GetOrAdd(other, new AssetTypeId("texture"));
+
+        catalog.InvalidateSource(node);
+
+        Assert.Equal(1UL, a.SourceRevision);
+        Assert.Equal(0UL, b.SourceRevision);
+    }
+
+    [Fact]
+    public void Registry_TryGetAssetType_ResolvesRegisteredExtension()
+    {
+        var registry = new AssetImporterRegistry();
+
+        Assert.True(registry.TryGetAssetType(".png", out var png));
+        Assert.Equal(AssetImporterRegistry.TextureAssetTypeId, png);
+        Assert.True(registry.TryGetAssetType("JPG", out _));
+        Assert.False(registry.TryGetAssetType(".bin", out _));
+    }
 }

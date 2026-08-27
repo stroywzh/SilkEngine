@@ -1,7 +1,9 @@
 using SilkEngine.Assets;
+using SilkEngine.Assets.Importer;
+using SilkEngine.Assets.VirtualFileSystem;
 using SilkEngine.Core;
 using SilkEngine.Render;
-using SilkEngine.Threading;
+using SilkEngine.Tests.Core;
 
 namespace SilkEngine.Tests.Render;
 
@@ -11,7 +13,8 @@ public class MaterialMainTextureTests : IDisposable
 {
     private readonly AssetManager _am;
 
-    public MaterialMainTextureTests() => _am = new AssetManager(new ThreadPoolExecutor());
+    public MaterialMainTextureTests() =>
+        _am = new AssetManager(new InMemoryAssetFileSystem("Assets"), new AssetImporterRegistry(), new RecordingScheduler());
 
     public void Dispose() => Services.Unregister<AssetManager>();
 
@@ -21,7 +24,7 @@ public class MaterialMainTextureTests : IDisposable
     // Part 2 测试惯例：先登记缓存条目（托管化），再经 entry.RefCount 断言
     private AssetEntry RegisterManaged(IAsset asset)
     {
-        var entry = _am.Cache.GetOrAdd(Guid.NewGuid());
+        var entry = _am.Cache.GetOrAdd(new AssetId(Guid.NewGuid()));
         entry.Data = asset;
         entry.State = AssetState.Ready;
         return entry;

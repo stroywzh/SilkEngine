@@ -1,5 +1,7 @@
 using SilkEngine.Core;
 using SilkEngine.Assets;
+using SilkEngine.Assets.Importer;
+using SilkEngine.Assets.VirtualFileSystem;
 using SilkEngine.Render;
 using SilkEngine.Threading;
 using SilkEngine.Tests.Core;
@@ -38,13 +40,14 @@ public class UnloadQueueTests
     [Fact]
     public void RenderThread_FrameStart_ProcessesUnloadQueue()
     {
-        var am = new AssetManager(new RecordingScheduler());
+        var am = new AssetManager(
+            new InMemoryAssetFileSystem("Assets"), new AssetImporterRegistry(), new RecordingScheduler());
         // 渲染线程帧首经 Services.TryGet 解析管理器，ctor 已自注册
         try
         {
             // 准备一个 Unloaded 条目并已入释放队列
             var tex = new Texture2D { Name = "T" };
-            var entry = am.Cache.GetOrAdd(Guid.NewGuid());
+            var entry = am.Cache.GetOrAdd(new AssetId(Guid.NewGuid()));
             entry.Data = tex;
             entry.State = AssetState.Ready;
             am.TryAddRef(tex);

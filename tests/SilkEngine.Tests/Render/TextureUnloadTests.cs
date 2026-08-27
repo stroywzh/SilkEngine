@@ -1,5 +1,7 @@
 using SilkEngine.Core;
 using SilkEngine.Assets;
+using SilkEngine.Assets.Importer;
+using SilkEngine.Assets.VirtualFileSystem;
 using SilkEngine.Render.OpenGL;
 using SilkEngine.Tests.Core;
 
@@ -12,10 +14,18 @@ public class TextureUnloadTests : IDisposable
     /// <summary>测试级清理：注销测试内 ctor 自注册的 AssetManager 实例（Unregister 幂等）</summary>
     public void Dispose() => Services.Unregister<AssetManager>();
 
+    /// <summary>测试辅助：内存文件系统预置红色 PNG，返回可加载的资产管理器</summary>
+    private static AssetManager CreateManager()
+    {
+        var files = new InMemoryAssetFileSystem("Assets");
+        files.Add("T.png", PngFixtures.RedPng);
+        return new AssetManager(files, new AssetImporterRegistry(), new RecordingScheduler());
+    }
+
     [Fact]
     public void ReleaseTexture_RemovesFromCache_AndDisposes()
     {
-        var am = new AssetManager(new RecordingScheduler());
+        using var am = CreateManager();
         var backend = new OpenGLRenderBackend();
         var tex = new Texture2D
         {
@@ -33,7 +43,7 @@ public class TextureUnloadTests : IDisposable
     [Fact]
     public void ReleaseTexture_UnknownTexture_IsNoOp()
     {
-        var am = new AssetManager(new RecordingScheduler());
+        using var am = CreateManager();
         var backend = new OpenGLRenderBackend();
 
         backend.ReleaseTexture(
@@ -46,9 +56,8 @@ public class TextureUnloadTests : IDisposable
     [Fact]
     public void ProcessUnloadQueue_ForwardsUnloadedTexturesToReleaser()
     {
-        var am = new AssetManager(new RecordingScheduler());
-        using var file = PngTestFile.Create();
-        var tex = am.Load<Texture2D>(file.FilePath);
+        using var am = CreateManager();
+        var tex = am.Load<Texture2D>("T.png");
         am.TryAddRef(tex);
         am.TryRelease(tex);
         am.ProcessCompleted();
@@ -63,10 +72,9 @@ public class TextureUnloadTests : IDisposable
     [Fact]
     public void UnloadChain_UnloadedTexture_IsReleasedThroughBackend()
     {
-        var am = new AssetManager(new RecordingScheduler());
+        using var am = CreateManager();
         var backend = new OpenGLRenderBackend();
-        using var file = PngTestFile.Create();
-        var tex = am.Load<Texture2D>(file.FilePath);
+        var tex = am.Load<Texture2D>("T.png");
         var glTex = backend.TextureRegistry.GetOrCreate(tex);
         am.TryAddRef(tex);
         am.TryRelease(tex);

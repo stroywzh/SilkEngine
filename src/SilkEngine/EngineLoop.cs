@@ -3,6 +3,8 @@ using System.Diagnostics;
 using System.Linq;
 using SilkEngine.Core;
 using SilkEngine.Assets;
+using SilkEngine.Assets.Importer;
+using SilkEngine.Assets.VirtualFileSystem;
 using SilkEngine.InputSystem;
 using SilkEngine.Render;
 using SilkEngine.Scene;
@@ -67,7 +69,10 @@ public class EngineLoop : IDisposable
         _registry = Services.Get<ComponentRegistry>();
         _snapshotManager = Services.Get<FrameSnapshotManager>();
         _renderSystem = new RenderSystem(_backend, _threadManager);
-        _assetManager = new AssetManager((SilkEngine.Core.ITaskScheduler)_threadManager.Request<ITaskExecutor>(new ThreadRequest("Workers", ThreadKind.WorkerPool)));
+        _assetManager = new AssetManager(
+            new DiskAssetFileSystem("Assets"),
+            new AssetImporterRegistry(),
+            (SilkEngine.Core.ITaskScheduler)_threadManager.Request<ITaskExecutor>(new ThreadRequest("Workers", ThreadKind.WorkerPool)));
         _sceneManager = new SceneManager();
     }
 

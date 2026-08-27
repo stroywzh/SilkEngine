@@ -1,5 +1,7 @@
 using SilkEngine.Core;
 using SilkEngine.Assets;
+using SilkEngine.Assets.Importer;
+using SilkEngine.Assets.VirtualFileSystem;
 using SilkEngine.Scene;
 using Object = SilkEngine.Core.Object;
 
@@ -22,7 +24,8 @@ public class CommitFrameAssetOrderTests : IDisposable
         public ComponentRegistry Reg = new();
         public FrameSnapshotManager Mgr = new();
         public SceneManager Sm = new();
-        public AssetManager Am = new(new RecordingScheduler());
+        public AssetManager Am =
+            new(new InMemoryAssetFileSystem("Assets"), new AssetImporterRegistry(), new RecordingScheduler());
 
         public Fixture()
         {
@@ -52,7 +55,7 @@ public class CommitFrameAssetOrderTests : IDisposable
         var go = new GameObject();
         var releaser = go.AddComponent<ReleaseOnDestroy>(fx.Reg);
         var tex = new Texture2D();
-        var entry = fx.Am.Cache.GetOrAdd(Guid.NewGuid());
+        var entry = fx.Am.Cache.GetOrAdd(new AssetId(Guid.NewGuid()));
         entry.Data = tex;
         entry.State = AssetState.Ready;
         fx.Am.TryAddRef(tex);              // RefCount 0 → 1

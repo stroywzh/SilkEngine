@@ -2,97 +2,119 @@ using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using SilkEngine.Assets.Importer;
+using SilkEngine.Assets.VirtualFileSystem;
 using SilkEngine.Core;
 
 namespace SilkEngine.Assets;
 
 /// <summary>
-/// 资产门面（主线程专用 API）：同步/异步加载、GUID 缓存、引用计数闭环、帧末完成拾取。
+/// 资产门面（主线程专用 API）：同步/异步加载、AssetId+源修订缓存、失效重载、引用计数闭环、帧末完成拾取。
 /// ctor 自注册进 Services（EngineLoop 创建）；帧末 ProcessCompleted 由 EngineLoop.CommitFrame 调用；
 /// LazyAsync 首次 await/访问 Asset 即触发实际调度；卸载（RefCount==0 帧末迁移）经 AssetUnloaded 事件发布，
 /// GPU 删除由消费方在渲染线程执行。
+/// 加载键为 AssetId + SourceRevision：后台结果携带调度时捕获的修订号，帧末与目录当前记录比较，
+/// 过期结果丢弃并按当前修订重新调度；缓存命中只接受当前修订（Invalidate 使旧数据失效）。
 /// </summary>
-public sealed class AssetManager
+public sealed class AssetManager : IDisposable
 {
+    private readonly IAssetFileSystem _files;
+    private readonly AssetImporterRegistry _registry;
     private readonly ITaskScheduler _scheduler;
+    private readonly AssetCatalog _catalog = new();
     private readonly AssetCache _cache = new();
     private readonly ConcurrentQueue<AssetLoadResult> _completed = new();
-    private readonly ConcurrentQueue<Guid> _pendingUnload = new();
-    private readonly ConcurrentQueue<Guid> _unloadQueue = new();
-    private readonly ConcurrentDictionary<IAssetRequest, (Guid Guid, string Path)> _lazyPending =
+    private readonly ConcurrentQueue<AssetId> _pendingUnload = new();
+    private readonly ConcurrentQueue<AssetId> _unloadQueue = new();
+    private readonly ConcurrentDictionary<IAssetRequest, (AssetId AssetId, string Path)> _lazyPending =
         new();
+    private ulong _operationCounter;
 
     /// <summary>帧末资产迁移 Unloaded 时发布（主线程）；GPU 删除由消费方在渲染线程执行。</summary>
     internal event Action<IAsset>? AssetUnloaded;
 
-    /// <summary>构造注入任务调度器（引擎运行时经 ThreadManager 申请的 WorkerPool 执行者转型；执行者生命周期归 ThreadManager）</summary>
-    public AssetManager(ITaskScheduler scheduler)
+    /// <summary>
+    /// 构造注入文件服务、导入器注册表与任务调度器（引擎运行时经 ThreadManager 申请的 WorkerPool 执行者转型；
+    /// 执行者生命周期归 ThreadManager）。构造即自注册进 Services。
+    /// </summary>
+    /// <param name="files">资产文件服务（逻辑路径只读访问）</param>
+    /// <param name="registry">导入器注册表（扩展名 → 资产类型/导入器解析）</param>
+    /// <param name="scheduler">后台加载任务调度器</param>
+    public AssetManager(
+        IAssetFileSystem files,
+        AssetImporterRegistry registry,
+        ITaskScheduler scheduler)
     {
+        _files = files ?? throw new ArgumentNullException(nameof(files));
+        _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         _scheduler = scheduler ?? throw new ArgumentNullException(nameof(scheduler));
         Services.Register(this);
     }
 
-    /// <summary>路径 → 稳定 GUID（归一化：反斜杠→斜杠、统一小写；跨运行与平台确定性）。纯函数，保持静态。</summary>
-    /// <param name="path">资产路径</param>
-    /// <returns>稳定 GUID（MD5 哈希）</returns>
-    public static Guid PathToGuid(string path)
-    {
-        var normalized = path.Replace('\\', '/').ToLowerInvariant();
-        var hash = MD5.HashData(Encoding.UTF8.GetBytes(normalized));
-        return new Guid(hash);
-    }
+    /// <summary>释放：注销服务定位器中的自注册（幂等；框架生命周期仍由 Services.Shutdown 反序管理）</summary>
+    public void Dispose() => Services.Unregister<AssetManager>();
 
-    /// <summary>完全同步加载（主线程 IO+解码；原型期仅适用于小资产）。失败直接抛出。</summary>
+    /// <summary>
+    /// 完全同步加载（主线程 IO+解码；原型期仅适用于小资产）。失败直接抛出。
+    /// </summary>
     /// <typeparam name="T">资产类型</typeparam>
-    /// <param name="path">资产路径（反斜杠/大小写差异不影响 GUID 稳定）</param>
+    /// <param name="path">资产逻辑路径（相对文件服务根目录；大小写/分隔符差异不影响键稳定）</param>
     /// <returns>已就绪的资产实例（并写入缓存）</returns>
-    /// <exception cref="ArgumentException">path 为 null 或空白</exception>
+    /// <exception cref="ArgumentException">path 为 null/空白或非法路径</exception>
+    /// <exception cref="NotSupportedException">扩展名无对应导入器</exception>
     /// <exception cref="InvalidOperationException">资产正在异步加载中（同步 Load 不可用）；或缓存条目类型与 T 不符</exception>
     public T Load<T>(string path)
         where T : IAsset
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        var guid = PathToGuid(path);
-        var hit = _cache.Find(guid);
-        if (hit is { State: AssetState.Ready, Data: T ready })
-        {
-            if (LogConfig.Assets)
-                Log.Info($"[Assets] Cache hit '{path}'");
+        var normalized = _files.Normalize(path);
+        var record = ResolveRecord(normalized, out _);
+        var entry = _cache.Find(record.AssetId);
+        if (
+            entry is { State: AssetState.Ready, Data: T ready }
+            && entry.SourceRevision == record.SourceRevision
+        )
             return ready;
-        }
-        if (hit is { State: AssetState.Loading })
+        if (entry is { State: AssetState.Loading })
             throw new InvalidOperationException($"资产 {path} 正在异步加载中，同步 Load 不可用");
 
-        var importer = ImporterFactory.Create(Path.GetExtension(path));
-        var asset = importer.Import(File.ReadAllBytes(path), new ImportSettings { Path = path });
+        var importer = _registry.Resolve(
+            record.AssetTypeId,
+            Path.GetExtension(normalized),
+            new ImportSettings { Path = normalized }
+        );
+        var raw = _files.ReadAsync(normalized).AsTask().GetAwaiter().GetResult();
+        var asset = importer.Import(raw.ToArray(), new ImportSettings { Path = normalized });
         if (asset is not T typed)
             throw new InvalidOperationException(
                 $"资产 {path} 类型为 {asset.GetType().Name}，不是 {typeof(T).Name}"
             );
-        var entry = _cache.GetOrAdd(guid);
+        entry ??= _cache.GetOrAdd(record.AssetId);
         _cache.SetData(entry, typed);
         entry.State = AssetState.Ready;
+        entry.SourceRevision = record.SourceRevision;
         return typed;
     }
 
     /// <summary>
-    /// 异步加载：缓存命中直接返回已完成请求；否则登记 Loading + 工作线程调度。
-    /// 同一 GUID 加载中时合并等待者，不重复调度；Failed 条目再次调用视为重试；
-    /// LazyAsync 登记不调度，首次 await/访问 Asset 才触发。
+    /// 异步加载：缓存命中（条目 Ready 且源修订与目录一致）直接返回已完成请求；否则登记 Loading + 工作线程调度。
+    /// 同一 AssetId 加载中时合并等待者，不重复调度；Invalidate 后旧修订数据视为未命中重新调度；
+    /// Failed 条目再次调用视为重试；LazyAsync 登记不调度，首次 await/访问 Asset 才触发。
     /// </summary>
     /// <typeparam name="T">资产类型</typeparam>
-    /// <param name="path">资产路径</param>
+    /// <param name="path">资产逻辑路径（相对文件服务根目录）</param>
     /// <param name="mode">加载模式（默认 NormalAsync）</param>
     /// <returns>可 await 的加载请求（帧末 ProcessCompleted 唤醒续延）</returns>
-    /// <exception cref="ArgumentException">path 为 null 或空白</exception>
-    /// <exception cref="InvalidOperationException">缓存条目已就绪但类型与 T 不符</exception>
+    /// <exception cref="ArgumentException">path 为 null/空白或非法路径</exception>
+    /// <exception cref="NotSupportedException">扩展名无对应导入器</exception>
+    /// <exception cref="InvalidOperationException">缓存条目已就绪且修订一致但类型与 T 不符</exception>
     public AssetRequest<T> LoadAsync<T>(string path, AsyncLoadMode mode = AsyncLoadMode.NormalAsync)
         where T : IAsset
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        var guid = PathToGuid(path);
-        var entry = _cache.GetOrAdd(guid);
-        if (entry.State == AssetState.Ready)
+        var normalized = _files.Normalize(path);
+        var record = ResolveRecord(normalized, out _);
+        var entry = _cache.GetOrAdd(record.AssetId);
+        if (entry.State == AssetState.Ready && entry.SourceRevision == record.SourceRevision)
         {
             if (entry.Data is not T typed)
                 throw new InvalidOperationException(
@@ -111,14 +133,23 @@ public sealed class AssetManager
             entry.State = AssetState.Loading;
             entry.Pending = request;
             _cache.SetData(entry, null);
-            _lazyPending[request] = (guid, path);
+            _lazyPending[request] = (record.AssetId, normalized);
             return request;
         }
         entry.State = AssetState.Loading;
         entry.Pending = request;
         _cache.SetData(entry, null);
-        ScheduleLoad(guid, path);
+        ScheduleLoad(entry, record, normalized);
         return request;
+    }
+
+    /// <summary>源变更失效：该路径目录记录修订号递增，旧修订缓存数据失效（下次访问重新加载）。</summary>
+    /// <param name="path">资产逻辑路径（相对文件服务根目录）</param>
+    /// <exception cref="ArgumentException">path 为 null/空白或非法路径</exception>
+    public void Invalidate(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        _catalog.InvalidateSource(NodeIdFromPath(_files.Normalize(path)));
     }
 
     /// <summary>
@@ -129,53 +160,65 @@ public sealed class AssetManager
     {
         if (!_lazyPending.TryRemove(request, out var pending))
             return;
-        var entry = _cache.Find(pending.Guid);
+        var entry = _cache.Find(pending.AssetId);
         if (
             entry is null
             || entry.State != AssetState.Loading
             || !ReferenceEquals(entry.Pending, request)
         )
             return;
-        ScheduleLoad(pending.Guid, pending.Path);
+        if (_catalog.TryGet(pending.AssetId, out var record))
+            ScheduleLoad(entry, record, pending.Path);
     }
 
     /// <summary>
-    /// 帧末完成拾取：填 Asset/Error → IsDone → 主线程唤醒全部续延
+    /// 帧末完成拾取：比较目录当前修订，过期结果丢弃（不写缓存、不唤醒续延）并按当前修订重新调度；
+    /// 有效结果填 Asset/Error → IsDone → 主线程唤醒全部续延。
     /// <br/>由 EngineLoop 每帧末调用；测试直接调用以模拟帧末
     /// </summary>
     public void ProcessCompleted()
     {
         while (_completed.TryDequeue(out var result))
         {
-            var entry = _cache.Find(result.Guid);
-            if (entry is null)
+            var entry = _cache.Find(result.AssetId);
+            if (entry is null || result.OperationToken != entry.OperationToken)
                 continue;
+            if (!_catalog.TryGet(result.AssetId, out var record))
+                continue;
+            if (record.SourceRevision != result.SourceRevision)
+            {
+                // 过期结果：源已变更；仍有等待者时按当前修订重新调度
+                if (entry.Pending is not null || entry.Awaiters.Count > 0)
+                    ScheduleLoad(entry, record, entry.SourcePath!);
+                continue;
+            }
             if (result.Error is not null)
             {
                 entry.State = AssetState.Failed;
                 _cache.SetData(entry, null);
                 CompleteAwaiters(entry, null, result.Error);
-                Log.Error($"[AssetManager] 资产加载失败 ({entry.Guid}): {result.Error.Message}");
+                Log.Error($"[AssetManager] 资产加载失败 ({entry.AssetId}): {result.Error.Message}");
             }
             else
             {
                 entry.State = AssetState.Ready;
+                entry.SourceRevision = result.SourceRevision;
                 _cache.SetData(entry, result.Asset);
                 CompleteAwaiters(entry, result.Asset, null);
                 if (LogConfig.Assets)
-                    Log.Info($"[Assets] Load completed '{result.Guid}'");
+                    Log.Info($"[Assets] Load completed '{entry.AssetId}'");
             }
         }
 
         // 帧末卸载复核：仅检查归零候选（RefCount==0 且未被同帧重新引用）
-        while (_pendingUnload.TryDequeue(out var unloadGuid))
+        while (_pendingUnload.TryDequeue(out var unloadAssetId))
         {
-            var entry = _cache.Find(unloadGuid);
+            var entry = _cache.Find(unloadAssetId);
             if (entry is null || entry.RefCount != 0 || entry.State != AssetState.Ready)
                 continue;
             entry.State = AssetState.Unloaded;
             AssetUnloaded?.Invoke(entry.Data!);
-            _unloadQueue.Enqueue(unloadGuid);
+            _unloadQueue.Enqueue(unloadAssetId);
         }
     }
 
@@ -185,9 +228,9 @@ public sealed class AssetManager
     /// </summary>
     internal void ProcessUnloadQueue(Action<IAsset>? release = null)
     {
-        while (_unloadQueue.TryDequeue(out var guid))
+        while (_unloadQueue.TryDequeue(out var assetId))
         {
-            var entry = _cache.Find(guid);
+            var entry = _cache.Find(assetId);
             if (entry is null || entry.State != AssetState.Unloaded)
                 continue;
             if (entry.RefCount > 0)
@@ -202,14 +245,14 @@ public sealed class AssetManager
                     release(data);
                 _cache.SetData(entry, null);
                 if (LogConfig.Assets)
-                    Log.Info($"[Assets] Released '{guid}'");
-                _cache.Remove(guid);
+                    Log.Info($"[Assets] Released '{assetId}'");
+                _cache.Remove(assetId);
                 continue;
             }
             if (LogConfig.Assets)
-                Log.Info($"[Assets] Unloaded '{guid}'");
+                Log.Info($"[Assets] Unloaded '{assetId}'");
             _cache.SetData(entry, null);
-            _cache.Remove(guid);
+            _cache.Remove(assetId);
         }
     }
 
@@ -236,7 +279,7 @@ public sealed class AssetManager
         entry.RefCount--;
         if (entry.RefCount == 0)
         {
-            _pendingUnload.Enqueue(entry.Guid);
+            _pendingUnload.Enqueue(entry.AssetId);
             if (asset is IReleaseAwareAsset aware)
                 aware.OnAssetReleased(this);
         }
@@ -277,53 +320,77 @@ public sealed class AssetManager
             field = value;
     }
 
-    /// <summary>按实例引用查询缓存条目 GUID；非托管资产（缓存无条目）返回 false</summary>
-    internal bool TryGetGuid(IAsset asset, out Guid guid)
+    /// <summary>按实例引用查询缓存条目资产 ID；非托管资产（缓存无条目）返回 false</summary>
+    internal bool TryGetAssetId(IAsset asset, out AssetId assetId)
     {
         var entry = FindEntry(asset);
         if (entry is not null)
         {
-            guid = entry.Guid;
+            assetId = entry.AssetId;
             return true;
         }
-        guid = Guid.Empty;
+        assetId = default;
         return false;
     }
 
     /// <summary>测试断言用：当前缓存</summary>
     internal AssetCache Cache => _cache;
 
-    /// <summary>GUID → 缓存资产（Data 为 T 即返回）；未命中或类型不符返回 null。</summary>
+    /// <summary>AssetId → 缓存资产（Data 为 T 且目录修订一致才返回）；未命中、类型不符或源已失效返回 null。</summary>
     /// <typeparam name="T">资产类型</typeparam>
-    /// <param name="guid">资产 GUID</param>
-    /// <returns>已就绪资产；未命中/类型不符为 null</returns>
-    public T? TryResolve<T>(Guid guid)
+    /// <param name="assetId">资产 ID</param>
+    /// <returns>已就绪资产；未命中/类型不符/失效为 null</returns>
+    public T? TryResolve<T>(AssetId assetId)
         where T : class, IAsset
     {
-        var entry = _cache.Find(guid);
-        return entry is { Data: T asset } ? asset : null;
+        var entry = _cache.Find(assetId);
+        if (entry is not { Data: T asset })
+            return null;
+        // 缓存命中只接受当前修订：目录记录存在且修订不一致说明源已失效
+        if (_catalog.TryGet(assetId, out var record) && entry.SourceRevision != record.SourceRevision)
+            return null;
+        return asset;
     }
 
-    private void ScheduleLoad(Guid guid, string path)
+    private AssetRecord ResolveRecord(string normalizedPath, out AssetTypeId assetTypeId)
     {
+        var extension = Path.GetExtension(normalizedPath);
+        if (!_registry.TryGetAssetType(extension, out assetTypeId))
+            throw new NotSupportedException($"No importer for extension '{extension}'");
+        return _catalog.GetOrAdd(NodeIdFromPath(normalizedPath), assetTypeId);
+    }
+
+    private void ScheduleLoad(AssetEntry entry, AssetRecord record, string path)
+    {
+        var operationToken = ++_operationCounter;
+        var sourceRevision = record.SourceRevision;
+        entry.OperationToken = operationToken;
+        entry.SourceRevision = sourceRevision;
+        entry.SourcePath = path;
         if (LogConfig.Assets)
-            Log.Info($"[Assets] Load started '{path}' (guid: {guid})");
+            Log.Info($"[Assets] Load started '{path}' (asset: {record.AssetId}, rev: {sourceRevision})");
         _scheduler.Submit(async ct =>
         {
             AssetLoadResult result;
             try
             {
-                var raw = await File.ReadAllBytesAsync(path, ct);
-                var importer = ImporterFactory.Create(Path.GetExtension(path));
+                var raw = await _files.ReadAsync(path);
+                var importer = _registry.Resolve(
+                    record.AssetTypeId,
+                    Path.GetExtension(path),
+                    new ImportSettings { Path = path }
+                );
                 result = new AssetLoadResult(
-                    guid,
-                    importer.Import(raw, new ImportSettings { Path = path }),
+                    record.AssetId,
+                    sourceRevision,
+                    operationToken,
+                    importer.Import(raw.ToArray(), new ImportSettings { Path = path }),
                     null
                 );
             }
             catch (Exception ex)
             {
-                result = new AssetLoadResult(guid, null, ex);
+                result = new AssetLoadResult(record.AssetId, sourceRevision, operationToken, null, ex);
             }
             _completed.Enqueue(result);
         });
@@ -339,4 +406,11 @@ public sealed class AssetManager
     }
 
     private AssetEntry? FindEntry(IAsset asset) => _cache.FindByAsset(asset);
+
+    /// <summary>规范化逻辑路径 → 稳定虚拟节点 ID（MD5 哈希；跨运行与平台确定性）</summary>
+    private static VirtualNodeId NodeIdFromPath(string normalizedPath)
+    {
+        var hash = MD5.HashData(Encoding.UTF8.GetBytes(normalizedPath));
+        return new VirtualNodeId(new Guid(hash));
+    }
 }

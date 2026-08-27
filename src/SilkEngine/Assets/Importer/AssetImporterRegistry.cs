@@ -51,5 +51,20 @@ public sealed class AssetImporterRegistry
         return entry.Factory(settings);
     }
 
+    /// <summary>查询扩展名对应的资产类型（解析前置：AssetManager 据此登记目录记录；扩展名大小写不敏感、含点处理）。</summary>
+    /// <param name="extension">文件扩展名（如 ".png" 或 "png"）</param>
+    /// <param name="assetTypeId">命中的资产类型（未命中为 default）</param>
+    /// <returns>扩展名已注册时为 true</returns>
+    public bool TryGetAssetType(string extension, out AssetTypeId assetTypeId)
+    {
+        if (_importers.TryGetValue(NormalizeExtension(extension), out var entry))
+        {
+            assetTypeId = entry.TypeId;
+            return true;
+        }
+        assetTypeId = default;
+        return false;
+    }
+
     private static string NormalizeExtension(string extension) => "." + extension.Trim().TrimStart('.');
 }
