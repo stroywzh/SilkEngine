@@ -19,7 +19,7 @@ public class OpenGLMaterial : IMaterial
     private readonly BoundMaterialValue _data;
     private readonly OpenGLShader _shader;
     private readonly OpenGLTextureRegistry _textures;
-    private readonly Func<AssetHandle<TextureAsset>, Texture2D?>? _textureResolver;
+    private readonly Func<AssetHandle<TextureAsset>, TextureAsset?>? _textureResolver;
     private bool _disposed;
 
     /// <summary>
@@ -29,13 +29,13 @@ public class OpenGLMaterial : IMaterial
     /// <param name="data">绑定就绪载荷（只读参数快照 + 依赖句柄）</param>
     /// <param name="shader">已编译着色器</param>
     /// <param name="textures">纹理注册中心</param>
-    /// <param name="textureResolver">纹理句柄 → Texture2D 解析委托（缺省 null → 白色占位回落）</param>
+    /// <param name="textureResolver">纹理句柄 → TextureAsset 解析委托（缺省 null → 白色占位回落）</param>
     public OpenGLMaterial(
         GL gl,
         BoundMaterialValue data,
         OpenGLShader shader,
         OpenGLTextureRegistry textures,
-        Func<AssetHandle<TextureAsset>, Texture2D?>? textureResolver = null)
+        Func<AssetHandle<TextureAsset>, TextureAsset?>? textureResolver = null)
     {
         _gl = gl;
         _data = data;
@@ -86,11 +86,11 @@ public class OpenGLMaterial : IMaterial
     /// 解析绑定实际纹理：无主纹理句柄（含解析未命中）→ 引擎白色占位
     /// </summary>
     /// <param name="material">绑定就绪载荷</param>
-    /// <param name="resolver">纹理句柄 → Texture2D 解析委托（可为 null）</param>
+    /// <param name="resolver">纹理句柄 → TextureAsset 解析委托（可为 null）</param>
     /// <returns>绑定的纹理；无主纹理或解析失败时为白色占位</returns>
-    internal static Texture2D ResolveTexture(
+    internal static TextureAsset ResolveTexture(
         BoundMaterialValue material,
-        Func<AssetHandle<TextureAsset>, Texture2D?>? resolver) =>
+        Func<AssetHandle<TextureAsset>, TextureAsset?>? resolver) =>
         material.MainTexture is { } handle && resolver?.Invoke(handle) is { } texture
             ? texture
             : DefaultTextures.White;

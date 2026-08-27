@@ -53,17 +53,12 @@ public abstract class RenderBackendBase : IRenderBackend
         throw new NotSupportedException($"[{GetType().Name}] DrawIndirect 未实现");
 
     /// <inheritdoc />
-    public virtual void ReleaseTexture(Texture2D texture) =>
+    public virtual void ReleaseTexture(TextureAsset texture) =>
         throw new NotSupportedException($"[{GetType().Name}] ReleaseTexture 未实现");
 
     /// <inheritdoc />
-    public virtual void ReleaseGpuResource(IAsset asset)
-    {
-        if (asset is Texture2D t)
-            ReleaseTexture(t);
-        else
-            throw new NotSupportedException($"[{GetType().Name}] ReleaseGpuResource 未实现");
-    }
+    public virtual void ReleaseGpuResource(IAsset asset) =>
+        throw new NotSupportedException($"[{GetType().Name}] ReleaseGpuResource 未实现");
 
     /// <inheritdoc />
     public virtual void Dispose()

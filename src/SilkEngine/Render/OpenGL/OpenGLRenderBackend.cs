@@ -35,7 +35,7 @@ public class OpenGLRenderBackend : RenderBackendBase
 
     private readonly GpuResourceRegistry _registry = new();
     private readonly OpenGLTextureRegistry _textureRegistry = new(t => new OpenGLTexture(t));
-    private readonly Func<AssetHandle<TextureAsset>, Texture2D?>? _materialTextureResolver;
+    private readonly Func<AssetHandle<TextureAsset>, TextureAsset?>? _materialTextureResolver;
 
     private float _clearR = 0.1f,
         _clearG = 0.1f,
@@ -45,8 +45,8 @@ public class OpenGLRenderBackend : RenderBackendBase
     /// <summary>
     /// 创建 OpenGL 渲染后端
     /// </summary>
-    /// <param name="materialTextureResolver">材质主纹理句柄 → Texture2D 解析委托（缺省 null → 白色占位回落；TextureAsset→GL 通道属后续资产管线）</param>
-    public OpenGLRenderBackend(Func<AssetHandle<TextureAsset>, Texture2D?>? materialTextureResolver = null) =>
+    /// <param name="materialTextureResolver">材质主纹理句柄 → TextureAsset 解析委托（缺省 null → 白色占位回落；TextureAsset→GL 通道属后续资产管线）</param>
+    public OpenGLRenderBackend(Func<AssetHandle<TextureAsset>, TextureAsset?>? materialTextureResolver = null) =>
         _materialTextureResolver = materialTextureResolver;
 
     /// <summary>OpenGL API 实例</summary>
@@ -118,7 +118,7 @@ public class OpenGLRenderBackend : RenderBackendBase
     public override void Present() => _window!.SwapBuffers();
 
     /// <inheritdoc />
-    public override void ReleaseTexture(Texture2D texture)
+    public override void ReleaseTexture(TextureAsset texture)
     {
         if (_textureRegistry.TryRemove(texture, out var glTex))
         {
@@ -127,14 +127,8 @@ public class OpenGLRenderBackend : RenderBackendBase
         }
     }
 
-    /// <summary>通用 GPU 资源释放入口（渲染线程帧首卸载队列回调）。</summary>
-    public override void ReleaseGpuResource(IAsset asset)
-    {
-        if (asset is Texture2D tex)
-            ReleaseTexture(tex);
-        else
-            _registry.Evict(asset);
-    }
+    /// <summary>通用 GPU 资源释放入口（过渡期遗留：旧 IAsset 实例驱逐；Payload 纹理经无资产语义释放请求流程）。</summary>
+    public override void ReleaseGpuResource(IAsset asset) => _registry.Evict(asset);
 
     /// <inheritdoc />
     public override IRenderBuffer CreateBuffer(int sizeBytes)

@@ -11,15 +11,15 @@ namespace SilkEngine.Render.OpenGL;
 /// </summary>
 public sealed class OpenGLTexture : IDisposable
 {
-    private readonly Texture2D _data;
+    private readonly TextureAsset _data;
     private GL? _gl;
     private uint _handle;
     private bool _disposed;
 
-    public OpenGLTexture(Texture2D data) => _data = data;
+    public OpenGLTexture(TextureAsset data) => _data = data;
 
     /// <summary>CPU 侧纹理数据</summary>
-    internal Texture2D Data => _data;
+    internal TextureAsset Data => _data;
 
     /// <summary>GL 纹理句柄（EnsureCreated 前为 0）</summary>
     public uint Handle => _handle;

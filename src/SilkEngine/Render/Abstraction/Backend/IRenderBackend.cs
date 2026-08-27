@@ -56,7 +56,7 @@ public interface IRenderBackend : IDisposable
     Silk.NET.Windowing.IWindow? NativeWindow { get; }
 
     /// <summary>释放指定纹理的 GL 资源（渲染线程，帧首卸载队列处理）</summary>
-    void ReleaseTexture(Texture2D texture);
+    void ReleaseTexture(TextureAsset texture);
 
     /// <summary>释放指定资产的 GPU 资源（渲染线程，帧首卸载队列处理）</summary>
     void ReleaseGpuResource(IAsset asset);

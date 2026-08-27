@@ -43,6 +43,6 @@ public class RenderBackendStubTests
     public void ReleaseTexture_NotImplemented_Throws()
     {
         var backend = new StubBackend();
-        Assert.Throws<NotSupportedException>(() => backend.ReleaseTexture(new Texture2D()));
+        Assert.Throws<NotSupportedException>(() => backend.ReleaseTexture(new TextureAsset("t", new ImageData(1, 1, [1, 2, 3, 4]))));
     }
 }

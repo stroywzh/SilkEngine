@@ -1,6 +1,6 @@
 namespace SilkEngine.Assets.Importer;
 
-/// <summary>纹理导入器：委托 IImageDecoder 解码为 <see cref="TextureAsset"/>（不返回 Texture2D）</summary>
+/// <summary>纹理导入器：委托 IImageDecoder 解码为 <see cref="TextureAsset"/> 载荷</summary>
 public sealed class TextureImporter : IAssetImporter
 {
     private readonly IImageDecoder _decoder;

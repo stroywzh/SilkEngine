@@ -23,7 +23,7 @@ public class UnloadQueueTests
         public void Present() { }
         public IRenderBuffer CreateBuffer(int sizeBytes) => new StubBuffer();
         public void DrawIndirect(IRenderBuffer buffer, int offset, int drawCount) { }
-        public void ReleaseTexture(Texture2D texture) { }
+        public void ReleaseTexture(TextureAsset texture) { }
         public void ReleaseGpuResource(IAsset asset) { }
         public void Dispose() { }
 

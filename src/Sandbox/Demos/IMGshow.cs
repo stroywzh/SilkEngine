@@ -22,7 +22,7 @@ public static class IMGShow
         };
 
         string path = Path.Combine(AppContext.BaseDirectory, "Resources", PictureName);
-        var tex = engine.AssetManager.Load<Texture2D>(path);
+        var tex = engine.AssetManager.Load<TextureAsset>(path);
 
         var mat = new Material(new MaterialReference(new AssetId(Guid.NewGuid())));
 

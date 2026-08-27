@@ -17,11 +17,7 @@ public class OpenGLMaterialTests
     [Fact]
     public void ResolveTexture_HasMainTexture_ResolverResolves_ReturnsIt()
     {
-        var tex = new Texture2D
-        {
-            Name = "T",
-            Data = new ImageData(1, 1, [1, 2, 3, 4]),
-        };
+        var tex = new TextureAsset("T", new ImageData(1, 1, [1, 2, 3, 4]));
         var bound = BoundValue(mainTexture: new AssetHandle<TextureAsset>(new AssetId(Guid.NewGuid())));
 
         Assert.Same(tex, OpenGLMaterial.ResolveTexture(bound, _ => tex));

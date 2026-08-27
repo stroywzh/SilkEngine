@@ -1,8 +1,9 @@
 using SilkEngine.Core;
 using SilkEngine.Assets;
-using SilkEngine.Assets.Importer;
 using SilkEngine.Assets.VirtualFileSystem;
 using SilkEngine.Render.OpenGL;
+using SilkEngine.Rendering.Abstraction;
+using SilkEngine.Threading;
 using SilkEngine.Tests.Core;
 using SilkEngine.Tests.Core.Assets;
 
@@ -15,25 +16,21 @@ public class TextureUnloadTests : IDisposable
     /// <summary>测试级清理：注销测试内 ctor 自注册的 AssetManager 实例（Unregister 幂等）</summary>
     public void Dispose() => Services.Unregister<AssetManager>();
 
-    /// <summary>测试辅助：内存文件系统预置红色 PNG（已索引），返回可加载的资产管理器</summary>
-    private static AssetManager CreateManager()
+    /// <summary>测试辅助：内存文件系统预置红色 PNG（已索引），返回可加载的资产管理器上下文</summary>
+    private static ManagerContext CreateManagerContext()
     {
         var files = new InMemoryAssetFileSystem("Assets");
         files.Add("T.png", PngFixtures.RedPng);
-        return TestAssetPipeline.CreateManager(files, index =>
+        return TestAssetPipeline.CreateContext(files, index =>
             index.Apply(ScanResult.FromFiles([ScanFile.File("T.png", 1)])));
     }
 
     [Fact]
     public void ReleaseTexture_RemovesFromCache_AndDisposes()
     {
-        using var am = CreateManager();
+        var context = CreateManagerContext();
         var backend = new OpenGLRenderBackend();
-        var tex = new Texture2D
-        {
-            Name = "T",
-            Data = new ImageData(1, 1, [255, 255, 255, 255]),
-        };
+        var tex = new TextureAsset("T", new ImageData(1, 1, [255, 255, 255, 255]));
         var glTex = backend.TextureRegistry.GetOrCreate(tex);
 
         backend.ReleaseTexture(tex);
@@ -45,13 +42,28 @@ public class TextureUnloadTests : IDisposable
     [Fact]
     public void ReleaseTexture_UnknownTexture_IsNoOp()
     {
-        using var am = CreateManager();
+        var context = CreateManagerContext();
         var backend = new OpenGLRenderBackend();
 
-        backend.ReleaseTexture(
-            new Texture2D { Name = "T", Data = new ImageData(1, 1, [1, 1, 1, 1]) }
-        );
+        backend.ReleaseTexture(new TextureAsset("T", new ImageData(1, 1, [1, 1, 1, 1])));
 
         Assert.Equal(0, backend.TextureRegistry.Count);
+    }
+
+    [Fact]
+    public void UnloadUnused_EvictsUnheldTexture_QueuesAssetFreeReleaseRequest()
+    {
+        var context = CreateManagerContext();
+        context.Manager.Load<TextureAsset>("T.png");
+        context.Runtime.Drain(MainThreadPhase.FrameCommit);
+        var entry = Assert.Single(context.Manager.Cache.All());
+        context.Manager.PublishRenderTexture(entry.AssetId, new RenderTextureHandle(7));
+
+        context.Manager.UnloadUnused();
+
+        Assert.False(context.Manager.TryResolve(new AssetHandle<TextureAsset>(entry.AssetId), out TextureAsset? _));
+        Assert.True(context.Manager.TryDequeueRenderRelease(out var request));
+        Assert.Equal(RenderResourceKind.Texture, request.Kind);
+        Assert.Equal(7UL, request.Handle);
     }
 }

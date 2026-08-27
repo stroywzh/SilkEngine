@@ -2,6 +2,7 @@ using SilkEngine.Core;
 using SilkEngine.Assets;
 using SilkEngine.Assets.Importer;
 using SilkEngine.Assets.VirtualFileSystem;
+using SilkEngine.Render;
 using SilkEngine.Scene;
 using SilkEngine.Threading;
 using SilkEngine.Tests.Core.Assets;
@@ -63,7 +64,7 @@ public class CommitFrameAssetOrderTests : IDisposable
 
     private class ReleaseOnDestroy : MonoBehaviour
     {
-        public Texture2D? Target;
+        public Shader? Target;
         public AssetManager? Manager;
         public override void OnDestroy() => Manager!.TryRelease(Target!);
     }
@@ -76,12 +77,12 @@ public class CommitFrameAssetOrderTests : IDisposable
         var scene = new Scene("T");
         var go = new GameObject();
         var releaser = go.AddComponent<ReleaseOnDestroy>(fx.Reg);
-        var tex = new Texture2D();
+        var shader = new Shader { Name = "S" };
         var entry = fx.Am.Cache.GetOrAdd(new AssetId(Guid.NewGuid()));
-        entry.Payload = tex;
+        entry.Payload = shader;
         entry.State = AssetState.Ready;
-        fx.Am.TryAddRef(tex);              // RefCount 0 → 1
-        releaser.Target = tex;
+        fx.Am.TryAddRef(shader);           // RefCount 0 → 1
+        releaser.Target = shader;
         releaser.Manager = fx.Am;
         scene.AddRootObject(go);
         fx.Reg.ApplyPending();
