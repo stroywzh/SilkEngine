@@ -39,4 +39,11 @@ public sealed class MaterialAsset
         Defaults = defaults;
         Revision = revision;
     }
+
+    /// <summary>
+    /// 派生运行时材质实例：每次调用生成独立实例（覆盖参数集独立，互不影响）。
+    /// 默认参数由绑定层在解析时合并，不写入实例覆盖。
+    /// </summary>
+    /// <returns>独立的运行时材质实例</returns>
+    public Material ToInstance() => new(new MaterialReference(Id));
 }
