@@ -14,5 +14,5 @@ public readonly record struct AssetTypeId(string Value);
 public readonly record struct AssetHandle<T>(AssetId Id)
     where T : class;
 
-/// <summary>非泛型资产句柄：序列化等需要在运行时解析类型的场景使用</summary>
-public readonly record struct UntypedAssetHandle(AssetId Id);
+/// <summary>非泛型资产句柄：序列化等需要在运行时解析类型的场景使用；TypeId 可缺省（仅按 ID 引用时）</summary>
+public readonly record struct UntypedAssetHandle(AssetId Id, AssetTypeId TypeId = default);
