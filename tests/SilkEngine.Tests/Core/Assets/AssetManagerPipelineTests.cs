@@ -141,26 +141,6 @@ public class AssetManagerPipelineTests : IDisposable
     }
 
     [Fact]
-    public async Task LazyAsync_DefersSubmission_UntilFirstAccess()
-    {
-        var files = new ControlledAssetFileSystem();
-        files.Add("a.png", PngFixtures.RedPng);
-        var scheduler = new DeferredTaskScheduler();
-        using var assets = new AssetManager(files, CreateRegistry(), scheduler);
-
-        var req = assets.LoadAsync<Texture2D>("a.png", AsyncLoadMode.LazyAsync);
-        Assert.Equal(0, scheduler.SubmissionCount);
-
-        _ = req.Asset; // 首次访问触发实际调度
-        Assert.Equal(1, scheduler.SubmissionCount);
-
-        scheduler.RunNext();
-        assets.ProcessCompleted();
-        Assert.True(req.IsDone);
-        Assert.NotNull(req.Asset);
-    }
-
-    [Fact]
     public void SyncLoad_ResolvesThroughFileSystemAndCatalog()
     {
         var files = new ControlledAssetFileSystem();

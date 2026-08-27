@@ -3,24 +3,18 @@ using SilkEngine.Core;
 
 namespace SilkEngine.Assets;
 
-/// <summary>异步加载模式</summary>
-public enum AsyncLoadMode
-{
-    /// <summary>调用即登记并调度工作线程加载</summary>
-    NormalAsync,
-
-    /// <summary>登记但不调度，首次访问 Asset 时触发（登记不调度；Asset 首次访问时触发加载）</summary>
-    LazyAsync,
-}
-
-/// <summary>等待者抽象：AssetEntry 以非泛型方式持有各类 AssetRequest</summary>
+/// <summary>
+/// 等待者抽象：AssetEntry 以非泛型方式持有各类 AssetRequest
+/// </summary>
 internal interface IAssetRequest
 {
     /// <summary>由主线程帧末调用，填值并唤醒续延</summary>
     void Complete(IAsset? asset, Exception? error);
 }
 
-/// <summary>可 await 的资产加载请求（Unity 式自定义 awaitable）</summary>
+/// <summary>
+/// 旧式可 await 资产加载请求（过渡期兼容表面，由任务 5 删除；新异步模型见 <see cref="AssetOperation{T}"/>）。
+/// </summary>
 /// <typeparam name="T">资产类型</typeparam>
 public sealed class AssetRequest<T> : INotifyCompletion, IAssetRequest
     where T : class
@@ -28,23 +22,16 @@ public sealed class AssetRequest<T> : INotifyCompletion, IAssetRequest
     private Action? _continuation;
     private T? _asset;
 
-    /// <summary>创建方管理器（LoadAsync 注入）；LazyAsync 触发经此调用，避免全局解析</summary>
+    /// <summary>创建方管理器（LoadAsync 注入）</summary>
     internal AssetManager? Manager { get; set; }
 
     /// <summary>是否已完成（成功或失败）</summary>
     public bool IsDone { get; internal set; }
 
-    /// <summary>
-    /// 加载完成的资产；未完成/失败时为 null
-    /// <br/>LazyAsync 模式首次访问触发实际加载调度（触发后重复访问不再触发）
-    /// </summary>
+    /// <summary>加载完成的资产；未完成/失败时为 null</summary>
     public T? Asset
     {
-        get
-        {
-            Manager?.TriggerLazy(this);
-            return _asset;
-        }
+        get => _asset;
         internal set => _asset = value;
     }
 
@@ -66,15 +53,8 @@ public sealed class AssetRequest<T> : INotifyCompletion, IAssetRequest
     /// <summary>await 机制入口：请求自身即 awaiter</summary>
     public AssetRequest<T> GetAwaiter() => this;
 
-    /// <summary>await 机制：是否无需挂起（LazyAsync 首次检查即触发实际加载调度）</summary>
-    public bool IsCompleted
-    {
-        get
-        {
-            Manager?.TriggerLazy(this);
-            return IsDone;
-        }
-    }
+    /// <summary>await 机制：是否无需挂起</summary>
+    public bool IsCompleted => IsDone;
 
     /// <summary>await 结果；失败时抛出 Error。</summary>
     /// <returns>加载完成的资产实例</returns>

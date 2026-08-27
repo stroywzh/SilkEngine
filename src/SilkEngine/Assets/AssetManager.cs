@@ -5,6 +5,7 @@ using SilkEngine.Assets.Importer;
 using SilkEngine.Assets.Serialization;
 using SilkEngine.Assets.VirtualFileSystem;
 using SilkEngine.Core;
+using SilkEngine.Threading;
 
 namespace SilkEngine.Assets;
 
@@ -23,14 +24,14 @@ public sealed class AssetManager : IDisposable
     private readonly IVirtualFileIndex? _index;
     private readonly AssetImporterRegistry _registry;
     private readonly ITaskScheduler _scheduler;
+    private readonly IMainThreadDispatcher? _mainThread;
+    private readonly ThreadRuntime? _runtime;
     private readonly AssetSerializerRegistry _serializerRegistry;
     private readonly AssetCatalog _catalog = new();
     private readonly AssetCache _cache = new();
     private readonly ConcurrentQueue<AssetLoadResult> _completed = new();
     private readonly ConcurrentQueue<AssetId> _pendingUnload = new();
     private readonly ConcurrentQueue<AssetId> _unloadQueue = new();
-    private readonly ConcurrentDictionary<IAssetRequest, (AssetId AssetId, string Path)> _lazyPending =
-        new();
     private ulong _operationCounter;
 
     /// <summary>帧末资产迁移 Unloaded 时发布（主线程）；GPU 删除由消费方在渲染线程执行。</summary>
@@ -54,12 +55,16 @@ public sealed class AssetManager : IDisposable
         IAssetFileSystem files,
         AssetImporterRegistry registry,
         ITaskScheduler scheduler,
-        AssetSerializerRegistry? serializerRegistry = null)
+        AssetSerializerRegistry? serializerRegistry = null,
+        IMainThreadDispatcher? mainThread = null,
+        ThreadRuntime? runtime = null)
     {
         _files = files ?? throw new ArgumentNullException(nameof(files));
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         _scheduler = scheduler ?? throw new ArgumentNullException(nameof(scheduler));
         _serializerRegistry = serializerRegistry ?? new AssetSerializerRegistry();
+        _mainThread = mainThread;
+        _runtime = runtime;
         Resolver = new CatalogReferenceResolver(this);
         Services.Register(this);
     }
@@ -79,8 +84,10 @@ public sealed class AssetManager : IDisposable
         IVirtualFileIndex index,
         AssetImporterRegistry registry,
         ITaskScheduler scheduler,
-        AssetSerializerRegistry? serializerRegistry = null)
-        : this(files, registry, scheduler, serializerRegistry)
+        AssetSerializerRegistry? serializerRegistry = null,
+        IMainThreadDispatcher? mainThread = null,
+        ThreadRuntime? runtime = null)
+        : this(files, registry, scheduler, serializerRegistry, mainThread, runtime)
     {
         _index = index ?? throw new ArgumentNullException(nameof(index));
     }
@@ -97,6 +104,22 @@ public sealed class AssetManager : IDisposable
     /// <summary>注册序列化器（直通注册表；同类型重复注册抛 <see cref="InvalidOperationException"/>）</summary>
     /// <param name="serializer">待注册序列化器</param>
     public void RegisterSerializer(IAssetSerializer serializer) => _serializerRegistry.Register(serializer);
+
+    /// <summary>
+    /// 将外部任务包装为业务安全操作：不改变外部 Task 执行域，只把完成发布纳入 Main 安全阶段；
+    /// 取消只影响本操作。经 <see cref="AssetOperation{T}.FromTask"/> 调用。
+    /// </summary>
+    /// <typeparam name="T">资产载荷类型</typeparam>
+    /// <param name="task">外部任务</param>
+    /// <returns>安全操作</returns>
+    /// <exception cref="InvalidOperationException">管理器未装配主线程派发器/线程运行时</exception>
+    internal AssetOperation<T> WrapExternalTask<T>(Task<T> task)
+        where T : class, IAssetPayload
+    {
+        if (_mainThread is null || _runtime is null)
+            throw new InvalidOperationException("资产管理器未装配主线程派发器与线程运行时，无法创建安全操作。");
+        return new AssetOperation<T>(default, task, null, _mainThread, _runtime);
+    }
 
     /// <summary>按类型与 schema 版本解析序列化器（直通注册表；未知类型或版本不支持抛 <see cref="NotSupportedException"/>）</summary>
     /// <param name="typeId">资产类型标识</param>
@@ -151,18 +174,18 @@ public sealed class AssetManager : IDisposable
     }
 
     /// <summary>
-    /// 异步加载：缓存命中（条目 Ready 且源修订与目录一致）直接返回已完成请求；否则登记 Loading + 工作线程调度。
+    /// 异步加载（过渡期旧式请求 API，任务 5 切换为 <see cref="AssetOperation{T}"/>）：
+    /// 缓存命中（条目 Ready 且源修订与目录一致）直接返回已完成请求；否则登记 Loading + 工作线程调度。
     /// 同一 AssetId 加载中时合并等待者，不重复调度；Invalidate 后旧修订数据视为未命中重新调度；
-    /// Failed 条目再次调用视为重试；LazyAsync 登记不调度，首次 await/访问 Asset 才触发。
+    /// Failed 条目再次调用视为重试。
     /// </summary>
     /// <typeparam name="T">资产类型</typeparam>
     /// <param name="path">资产逻辑路径（相对文件服务根目录）</param>
-    /// <param name="mode">加载模式（默认 NormalAsync）</param>
     /// <returns>可 await 的加载请求（帧末 ProcessCompleted 唤醒续延）</returns>
     /// <exception cref="ArgumentException">path 为 null/空白或非法路径</exception>
     /// <exception cref="NotSupportedException">扩展名无对应导入器</exception>
     /// <exception cref="InvalidOperationException">缓存条目已就绪且修订一致但类型与 T 不符</exception>
-    public AssetRequest<T> LoadAsync<T>(string path, AsyncLoadMode mode = AsyncLoadMode.NormalAsync)
+    public AssetRequest<T> LoadAsync<T>(string path)
         where T : class
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
@@ -181,14 +204,6 @@ public sealed class AssetManager : IDisposable
         if (entry.State == AssetState.Loading && entry.Pending is not null)
         {
             entry.Awaiters.Add(request);
-            return request;
-        }
-        if (mode == AsyncLoadMode.LazyAsync)
-        {
-            entry.State = AssetState.Loading;
-            entry.Pending = request;
-            _cache.SetData(entry, null);
-            _lazyPending[request] = (record.AssetId, normalized);
             return request;
         }
         entry.State = AssetState.Loading;
@@ -212,25 +227,6 @@ public sealed class AssetManager : IDisposable
             return;
         }
         _catalog.InvalidateSource(NodeIdFromPath(normalized));
-    }
-
-    /// <summary>
-    /// LazyAsync 触发点：AssetRequest.Asset 首次访问调用。
-    /// <br/>登记存在且条目仍由该请求持有（Loading + Pending 匹配）才真正调度，幂等去重
-    /// </summary>
-    internal void TriggerLazy(IAssetRequest request)
-    {
-        if (!_lazyPending.TryRemove(request, out var pending))
-            return;
-        var entry = _cache.Find(pending.AssetId);
-        if (
-            entry is null
-            || entry.State != AssetState.Loading
-            || !ReferenceEquals(entry.Pending, request)
-        )
-            return;
-        if (_catalog.TryGet(pending.AssetId, out var record))
-            ScheduleLoad(entry, record, pending.Path);
     }
 
     /// <summary>
