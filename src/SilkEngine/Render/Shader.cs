@@ -3,10 +3,10 @@ using SilkEngine.Assets;
 namespace SilkEngine.Render;
 
 /// <summary>
-/// 纯数据着色器容器
+/// 纯数据着色器容器（过渡期类型：同时承载旧 IAsset 引用计数面与 IAssetPayload 缓存面，由遗留清理计划删除）
 /// <br/>后端将其编译为 GPU 资源 (IShader)
 /// </summary>
-public class Shader : IAsset
+public class Shader : IAsset, IAssetPayload
 {
     /// <summary>着色器标识名称</summary>
     public string Name { get; set; } = string.Empty;

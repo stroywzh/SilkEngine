@@ -1,10 +1,8 @@
 using SilkEngine.Core;
 using SilkEngine.Assets;
-using SilkEngine.Assets.Importer;
-using SilkEngine.Assets.VirtualFileSystem;
 using SilkEngine.Render;
 using SilkEngine.Threading;
-using SilkEngine.Tests.Core;
+using SilkEngine.Tests.Core.Assets;
 
 namespace SilkEngine.Tests.Threading;
 
@@ -40,29 +38,18 @@ public class UnloadQueueTests
     [Fact]
     public void RenderThread_FrameStart_ProcessesUnloadQueue()
     {
-        var am = new AssetManager(
-            new InMemoryAssetFileSystem("Assets"), new AssetImporterRegistry(), new RecordingScheduler());
+        var am = TestAssetPipeline.CreateManager();
         // 渲染线程帧首经 Services.TryGet 解析管理器，ctor 已自注册
         try
         {
-            // 准备一个 Unloaded 条目并已入释放队列
-            var tex = new Texture2D { Name = "T" };
-            var entry = am.Cache.GetOrAdd(new AssetId(Guid.NewGuid()));
-            entry.Data = tex;
-            entry.State = AssetState.Ready;
-            am.TryAddRef(tex);
-            am.TryRelease(tex);
-            am.ProcessCompleted();
-            Assert.Equal(AssetState.Unloaded, entry.State);
-
             using var fake = new FakeBackend();
             using var exec = new DedicatedThreadExecutor("TestUnload");
             using var loop = new RenderThreadLoop(fake, exec);
             loop.Initialize();
-            // 提交一帧 → 渲染线程帧首应处理释放队列
+            // 提交一帧 → 渲染线程帧首应排空释放请求队列（新模型：驱逐在 UnloadUnused 接入，当前无请求）
             loop.SubmitFrame([new RenderPass { Commands = [] }]);
 
-            Assert.Null(entry.Data);
+            Assert.False(am.TryDequeueRenderRelease(out _));
         }
         finally
         {

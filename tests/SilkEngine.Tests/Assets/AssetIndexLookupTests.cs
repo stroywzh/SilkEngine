@@ -2,7 +2,8 @@ using SilkEngine.Assets;
 using SilkEngine.Assets.Importer;
 using SilkEngine.Assets.VirtualFileSystem;
 using SilkEngine.Core;
-using SilkEngine.Tests.Core;
+using SilkEngine.Threading;
+using SilkEngine.Tests.Core.Assets;
 
 namespace SilkEngine.Tests.Assets;
 
@@ -19,39 +20,64 @@ public class AssetIndexLookupTests : IDisposable
     [Fact]
     public void Load_UnindexedPath_ThrowsDetailedInvalidOperationExceptionWithoutSideEffects()
     {
-        using var assets = CreateManagerWithEmptyIndex();
-
+        using var fx = CreateManagerWithIndex();
         var ex = Assert.Throws<InvalidOperationException>(
-            () => assets.Load<TextureAsset>("Textures/missing.png"));
+            () => fx.Manager.Load<TextureAsset>("Textures/missing.png"));
 
         Assert.Contains("Textures/missing.png", ex.Message);
         Assert.Contains("VFS index", ex.Message);
         Assert.Contains("startup asset scan", ex.Message);
-        Assert.Equal(0, assets.CatalogCountForTests);
+        Assert.Equal(0, fx.Pipeline.CatalogCountForTests);
     }
 
     [Fact]
     public void Load_IndexedDirectory_ThrowsInvalidOperationException()
     {
-        using var assets = CreateManagerWithIndex(ScanFile.Directory("Textures"));
-
+        using var fx = CreateManagerWithIndex(ScanFile.Directory("Textures"));
         var ex = Assert.Throws<InvalidOperationException>(
-            () => assets.Load<TextureAsset>("Textures"));
+            () => fx.Manager.Load<TextureAsset>("Textures"));
 
         Assert.Contains("directory", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static AssetManager CreateManagerWithEmptyIndex() => CreateManagerWithIndex();
-
-    private static AssetManager CreateManagerWithIndex(params ScanFile[] files)
+    private static ManagerFixture CreateManagerWithIndex(params ScanFile[] files)
     {
+        var runtime = new ThreadRuntime();
+        runtime.RegisterMainThread();
         var index = new InMemoryVirtualFileIndex();
         if (files.Length > 0)
             index.Apply(ScanResult.FromFiles(files));
-        return new AssetManager(
+        var pipeline = new AssetPipeline(
             new InMemoryAssetFileSystem("Assets"),
             index,
+            new AssetCatalog(),
             new AssetImporterRegistry(),
-            new RecordingScheduler());
+            new SyncBackgroundScheduler(),
+            runtime.MainThread,
+            runtime);
+        return new ManagerFixture(pipeline, runtime);
+    }
+
+    /// <summary>索引测试夹具（测试夹具）</summary>
+    private sealed class ManagerFixture : IDisposable
+    {
+        public AssetPipeline Pipeline { get; }
+
+        public AssetManager Manager { get; }
+
+        private readonly ThreadRuntime _runtime;
+
+        public ManagerFixture(AssetPipeline pipeline, ThreadRuntime runtime)
+        {
+            Pipeline = pipeline;
+            _runtime = runtime;
+            Manager = new AssetManager(pipeline, runtime.MainThread, runtime);
+        }
+
+        public void Dispose()
+        {
+            Services.Unregister<AssetManager>();
+            _runtime.Dispose();
+        }
     }
 }

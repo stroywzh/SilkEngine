@@ -72,11 +72,17 @@ public class EngineLoop : IDisposable
         _registry = Services.Get<ComponentRegistry>();
         _snapshotManager = Services.Get<FrameSnapshotManager>();
         _renderSystem = new RenderSystem(_backend, _threadManager);
-        _assetManager = new AssetManager(
-            new DiskAssetFileSystem("Assets"),
+        var files = new DiskAssetFileSystem("Assets");
+        var pipeline = new AssetPipeline(
+            files,
+            new InMemoryVirtualFileIndex(),
+            new AssetCatalog(),
             new AssetImporterRegistry(),
-            (SilkEngine.Core.ITaskScheduler)_threadManager.Request<ITaskExecutor>(new ThreadRequest("Workers", ThreadKind.WorkerPool)),
-            new AssetSerializerRegistry());
+            _threadRuntime.Background,
+            _threadRuntime.MainThread,
+            _threadRuntime);
+        pipeline.ApplyScan(files.Scan());
+        _assetManager = new AssetManager(pipeline, _threadRuntime.MainThread, _threadRuntime, new AssetSerializerRegistry());
         _sceneManager = new SceneManager();
     }
 
@@ -92,7 +98,7 @@ public class EngineLoop : IDisposable
             Input.SetProvider(inputProvider);
         }
         _sceneManager.RegisterScene();
-        _frameCommitter.Commit(_snapshotManager, _registry, _sceneManager, AssetManager, _threadRuntime);
+        _frameCommitter.Commit(_snapshotManager, _registry, _sceneManager, _threadRuntime);
         _stopRequested = false;
         _clock.Reset();
         _canStart = true;
@@ -127,7 +133,7 @@ public class EngineLoop : IDisposable
             _threadRuntime.Drain(MainThreadPhase.PreRender);
             OnRender();
             _sceneManager.PostRender(_snapshotManager.Current);
-            _frameCommitter.Commit(_snapshotManager, _registry, _sceneManager, AssetManager, _threadRuntime);
+            _frameCommitter.Commit(_snapshotManager, _registry, _sceneManager, _threadRuntime);
         }
         if (LogConfig.EngineLoop)
             Log.Info("[EngineLoop] Run finished");

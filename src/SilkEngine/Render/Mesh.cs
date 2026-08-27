@@ -4,9 +4,10 @@ using SilkEngine.Assets;
 namespace SilkEngine.Render;
 
 /// <summary>
-/// 纯数据网格容器（顶点/布局/索引），后端将其编译为 GPU 网格 (IMesh)
+/// 纯数据网格容器（过渡期类型：同时承载旧 IAsset 引用计数面与 IAssetPayload 缓存面，由遗留清理计划删除）；
+/// 顶点/布局/索引数据容器，后端将其编译为 GPU 网格 (IMesh)
 /// </summary>
-public class Mesh : IAsset
+public class Mesh : IAsset, IAssetPayload
 {
     /// <summary>网格标识名称</summary>
     public string Name { get; set; } = string.Empty;

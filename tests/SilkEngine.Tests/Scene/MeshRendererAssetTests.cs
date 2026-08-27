@@ -1,10 +1,9 @@
 using SilkEngine.Assets;
-using SilkEngine.Assets.Importer;
-using SilkEngine.Assets.VirtualFileSystem;
 using SilkEngine.Core;
 using SilkEngine.Render;
 using SilkEngine.Scene;
 using SilkEngine.Tests.Core;
+using SilkEngine.Tests.Core.Assets;
 
 namespace SilkEngine.Tests.Scene;
 
@@ -14,14 +13,14 @@ public class MeshRendererAssetTests : IDisposable
     private readonly AssetManager _am;
 
     public MeshRendererAssetTests() =>
-        _am = new AssetManager(new InMemoryAssetFileSystem("Assets"), new AssetImporterRegistry(), new RecordingScheduler());
+        _am = TestAssetPipeline.CreateManager();
 
     public void Dispose() => Services.Unregister<AssetManager>();
 
     private AssetEntry RegisterManaged(IAsset asset)
     {
         var entry = _am.Cache.GetOrAdd(new AssetId(Guid.NewGuid()));
-        entry.Data = asset;
+        entry.Payload = asset;
         entry.State = AssetState.Ready;
         return entry;
     }
@@ -55,7 +54,7 @@ public class MeshRendererAssetTests : IDisposable
         mr.Material = mat;
 
         Assert.Same(mat, mr.Material);
-        Assert.DoesNotContain(_am.Cache.All(), e => ReferenceEquals(e.Data, mat));
+        Assert.DoesNotContain(_am.Cache.All(), e => ReferenceEquals(e.Payload, mat));
     }
 
     [Fact]

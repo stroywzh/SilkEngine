@@ -2,230 +2,157 @@ using SilkEngine.Assets;
 using SilkEngine.Assets.Importer;
 using SilkEngine.Assets.VirtualFileSystem;
 using SilkEngine.Core;
+using SilkEngine.Threading;
 using SilkEngine.Tests.Core;
 
 namespace SilkEngine.Tests.Core.Assets;
 
 /// <summary>
-/// 资产管线加载提交流程测试：AssetId+修订键、失效重载、过期结果丢弃、去重合并、失败重试、LazyAsync。
-/// 后台任务经 DeferredTaskScheduler 手动完成，不依赖 sleep。
+/// 资产门面管线测试：AssetManager 降级为 Payload 门面（路径解析 + Pipeline 转发 + 缓存应用），
+/// 不持有 Importer/调度器；同键加载返回规范 Payload 实例；失败重试；失效后解析失效。
 /// </summary>
 [Collection("Assets")]
 public class AssetManagerPipelineTests : IDisposable
 {
     public void Dispose() => Services.Unregister<AssetManager>();
 
-    /// <summary>测试辅助：内建默认 .png/.jpg 注册的导入器注册表</summary>
-    private static AssetImporterRegistry CreateRegistry() => new();
-
     [Fact]
-    public async Task LoadAsync_DeduplicatesAndRejectsStaleCompletion()
+    public void AssetManager_DoesNotOwnImporterOrWorkerScheduler()
     {
-        var files = new ControlledAssetFileSystem();
-        files.Add("Textures/a.png", [1]);
-        var scheduler = new RecordingScheduler();
-        using var assets = new AssetManager(files, CreateRegistry(), scheduler);
+        var source = File.ReadAllText(FindSource("AssetManager.cs"));
 
-        var first = assets.LoadAsync<TextureAsset>("Textures/a.png");
-        files.Replace("Textures/a.png", [2]);
-        assets.Invalidate("Textures/a.png");
-        var second = assets.LoadAsync<TextureAsset>("Textures/a.png");
-
-        Assert.Equal(1, scheduler.ScheduleCalls);
-        Assert.NotSame(first, second);
+        Assert.DoesNotContain("IAssetImporter", source);
+        Assert.DoesNotContain("ReadAsync", source);
+        Assert.DoesNotContain("Task.Run", source);
+        Assert.Contains("IAssetPipeline", source);
     }
 
     [Fact]
-    public async Task LoadAsync_SameSourceAndType_JoinSameEntryWithStableAssetId()
+    public async Task LoadAsync_ReturnsCanonicalPayloadInstance()
     {
-        var files = new ControlledAssetFileSystem();
-        files.Add("Textures/a.png", [1]);
-        using var assets = new AssetManager(files, CreateRegistry(), new RecordingScheduler());
+        using var fx = new ManagerFixture();
+        var first = await fx.Manager.LoadAsync<TextureAsset>("Textures/a.png");
+        var second = await fx.Manager.LoadAsync<TextureAsset>("Textures/a.png");
 
-        var first = assets.LoadAsync<TextureAsset>("Textures/a.png");
-        var second = assets.LoadAsync<TextureAsset>("Textures/a.png");
-
-        var entry = Assert.Single(assets.Cache.All());
-        Assert.NotSame(first, second);
-        Assert.False(second.IsDone);
-        Assert.Single(entry.Awaiters);
+        Assert.Same(first, second);
+        Assert.Equal(1, fx.Pipeline.ExecutionCount);
     }
 
     [Fact]
-    public async Task ProcessCompleted_DropsStaleResult_AndReschedulesCurrentRevision()
+    public async Task LoadAsync_UnknownExtension_FailsFast()
     {
-        var files = new ControlledAssetFileSystem();
-        files.Add("Textures/a.png", PngFixtures.RedPng);
-        var scheduler = new DeferredTaskScheduler();
-        using var assets = new AssetManager(files, CreateRegistry(), scheduler);
+        using var fx = new ManagerFixture();
 
-        var first = assets.LoadAsync<TextureAsset>("Textures/a.png");
-        Assert.Equal(1, scheduler.SubmissionCount);
-        var entry = Assert.Single(assets.Cache.All());
+        Assert.Throws<NotSupportedException>(() => fx.Manager.LoadAsync<TextureAsset>("a.bin"));
+    }    [Fact]
+    public void SyncLoad_ResolvesThroughPipelineAndAppliesAtFrameCommit()
+    {
+        using var fx = new ManagerFixture();
 
-        files.Replace("Textures/a.png", PngFixtures.RedPng);
-        assets.Invalidate("Textures/a.png");
-        var second = assets.LoadAsync<TextureAsset>("Textures/a.png");
-        Assert.Equal(1, scheduler.SubmissionCount);
-        Assert.Same(entry, Assert.Single(assets.Cache.All()));
+        var tex = fx.Manager.Load<TextureAsset>("Textures/a.png");
 
-        scheduler.RunNext();       // 旧修订任务完成
-        assets.ProcessCompleted(); // 帧末：过期结果丢弃 + 按当前修订重新调度
-        Assert.Equal(2, scheduler.SubmissionCount);
-        Assert.Equal(AssetState.Loading, entry.State);
-        Assert.Null(entry.Data);
-        Assert.False(first.IsDone);
-        Assert.False(second.IsDone);
-
-        scheduler.RunNext();       // 新修订任务完成
-        assets.ProcessCompleted(); // 帧末：提交
+        Assert.NotNull(tex);
+        Assert.Equal("a", tex.Name);
+        fx.Runtime.Drain(MainThreadPhase.FrameCommit);
+        var entry = Assert.Single(fx.Manager.Cache.All());
         Assert.Equal(AssetState.Ready, entry.State);
-        Assert.True(first.IsDone);
-        Assert.True(second.IsDone);
-        Assert.Null(first.Error);
-        Assert.Same(first.Asset, second.Asset);
-        Assert.Same(first.Asset, assets.TryResolve<TextureAsset>(entry.AssetId));
-    }
-
-    [Fact]
-    public async Task LoadAsync_CacheHit_OnlyAcceptsCurrentRevision()
-    {
-        var files = new ControlledAssetFileSystem();
-        files.Add("a.png", PngFixtures.RedPng);
-        var scheduler = new RecordingScheduler();
-        using var assets = new AssetManager(files, CreateRegistry(), scheduler);
-
-        var first = assets.LoadAsync<TextureAsset>("a.png");
-        assets.ProcessCompleted();
-        Assert.Equal(1, scheduler.ScheduleCalls);
-
-        var hit = assets.LoadAsync<TextureAsset>("a.png"); // 同修订 → 缓存命中
-        Assert.Equal(1, scheduler.ScheduleCalls);
-        Assert.True(hit.IsDone);
-        Assert.Same(first.Asset, hit.Asset);
-
-        assets.Invalidate("a.png");                     // 源变更 → 修订递增 → 旧数据失效
-        var stale = assets.LoadAsync<TextureAsset>("a.png");
-        Assert.Equal(2, scheduler.ScheduleCalls);
-        Assert.False(stale.IsDone);
-
-        assets.ProcessCompleted();
-        Assert.True(stale.IsDone);
-        Assert.Null(stale.Error);
-        Assert.NotSame(first.Asset, stale.Asset); // 新修订重新导入的实例
+        Assert.Same(tex, entry.Payload);
+        Assert.Same(tex, fx.Manager.TryResolve<TextureAsset>(entry.AssetId));
     }
 
     [Fact]
     public async Task FailedLoad_RetryAfterSourceFixed_Succeeds()
     {
-        var files = new ControlledAssetFileSystem();
-        files.Add("broken.png", PngFixtures.CorruptPng);
-        using var assets = new AssetManager(files, CreateRegistry(), new RecordingScheduler());
+        using var fx = new ManagerFixture();
 
-        var failed = assets.LoadAsync<TextureAsset>("broken.png");
-        assets.ProcessCompleted();
-        Assert.True(failed.IsDone);
-        Assert.NotNull(failed.Error);
-        var entry = Assert.Single(assets.Cache.All());
-        Assert.Equal(AssetState.Failed, entry.State);
+        Assert.Throws<InvalidOperationException>(() => fx.Manager.Load<TextureAsset>("broken.png"));
 
-        files.Replace("broken.png", PngFixtures.RedPng);
-        var retry = assets.LoadAsync<TextureAsset>("broken.png"); // Failed 条目再次加载 = 重试
-        Assert.NotSame(failed, retry);
-        Assert.False(retry.IsDone);
+        fx.Files.Add("broken.png", PngFixtures.RedPng);
+        fx.Manager.Invalidate("broken.png");
+        var retry = fx.Manager.Load<TextureAsset>("broken.png");
 
-        assets.ProcessCompleted();
-        Assert.Null(retry.Error);
-        Assert.NotNull(retry.Asset);
-        Assert.Equal(AssetState.Ready, entry.State);
+        Assert.NotNull(retry);
+        Assert.Equal("broken", retry.Name);
     }
 
     [Fact]
-    public void SyncLoad_ResolvesThroughFileSystemAndCatalog()
+    public async Task LoadAsync_Failure_PropagatesToOperation()
     {
-        var files = new ControlledAssetFileSystem();
-        files.Add("Textures/a.png", PngFixtures.RedPng);
-        using var assets = new AssetManager(files, CreateRegistry(), new RecordingScheduler());
+        using var fx = new ManagerFixture();
 
-        var tex = assets.Load<TextureAsset>("Textures/a.png");
-
-        Assert.NotNull(tex);
-        Assert.Equal("a", tex.Name);
-        var entry = Assert.Single(assets.Cache.All());
-        Assert.Equal(AssetState.Ready, entry.State);
-        Assert.Same(tex, entry.Data);
-        Assert.Same(tex, assets.TryResolve<TextureAsset>(entry.AssetId));
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => fx.Manager.LoadAsync<TextureAsset>("broken.png").AsTask());
     }
 
     [Fact]
     public async Task TryResolve_AfterInvalidate_ReturnsNullUntilReloaded()
     {
-        var files = new ControlledAssetFileSystem();
-        files.Add("a.png", PngFixtures.RedPng);
-        using var assets = new AssetManager(files, CreateRegistry(), new RecordingScheduler());
+        using var fx = new ManagerFixture();
+        var first = fx.Manager.Load<TextureAsset>("Textures/a.png");
+        fx.Runtime.Drain(MainThreadPhase.FrameCommit);
+        var entry = Assert.Single(fx.Manager.Cache.All());
+        Assert.NotNull(fx.Manager.TryResolve<TextureAsset>(entry.AssetId));
 
-        var req = assets.LoadAsync<TextureAsset>("a.png");
-        assets.ProcessCompleted();
-        var entry = Assert.Single(assets.Cache.All());
-        Assert.NotNull(assets.TryResolve<TextureAsset>(entry.AssetId));
+        fx.Manager.Invalidate("Textures/a.png");
+        Assert.Null(fx.Manager.TryResolve<TextureAsset>(entry.AssetId));
 
-        assets.Invalidate("a.png"); // 源变更 → 旧修订数据不再可解析
-        Assert.Null(assets.TryResolve<TextureAsset>(entry.AssetId));
-
-        var reload = assets.LoadAsync<TextureAsset>("a.png");
-        assets.ProcessCompleted();
-        Assert.NotNull(assets.TryResolve<TextureAsset>(entry.AssetId));
+        var reload = fx.Manager.Load<TextureAsset>("Textures/a.png");
+        fx.Runtime.Drain(MainThreadPhase.FrameCommit);
+        Assert.NotNull(fx.Manager.TryResolve<TextureAsset>(entry.AssetId));
+        Assert.NotSame(first, reload);
     }
 
-    [Fact]
-    public void LoadAsync_UnknownExtension_FailsFast()
+    private static string FindSource(string fileName)
     {
-        var files = new ControlledAssetFileSystem();
-        files.Add("a.bin", [1]);
-        using var assets = new AssetManager(files, CreateRegistry(), new RecordingScheduler());
-
-        Assert.Throws<NotSupportedException>(() => assets.LoadAsync<TextureAsset>("a.bin"));
-    }
-}
-
-/// <summary>受控文件系统夹具：组合 InMemoryAssetFileSystem（根 "Assets"），Add 写入、Replace 覆盖（版本递增）</summary>
-internal sealed class ControlledAssetFileSystem : IAssetFileSystem
-{
-    private readonly InMemoryAssetFileSystem _inner = new("Assets");
-
-    public void Add(string path, byte[] content) => _inner.Add(path, content);
-
-    /// <summary>替换文件内容（覆盖写入并递增版本）</summary>
-    public void Replace(string path, byte[] content) => _inner.Add(path, content);
-
-    public string Normalize(string path) => _inner.Normalize(path);
-
-    public bool Exists(string path) => _inner.Exists(path);
-
-    public ValueTask<ReadOnlyMemory<byte>> ReadAsync(string path) => _inner.ReadAsync(path);
-
-    public ValueTask<FileMetadata> GetMetadataAsync(string path) => _inner.GetMetadataAsync(path);
-}
-
-/// <summary>手动完成调度器夹具：捕获提交的任务，RunNext 逐个执行（结果仅入队，不依赖 sleep）</summary>
-internal sealed class DeferredTaskScheduler : ITaskScheduler
-{
-    private readonly List<Func<CancellationToken, ValueTask>> _pending = [];
-
-    /// <summary>累计提交次数（RunNext 执行不减少）</summary>
-    public int SubmissionCount { get; private set; }
-
-    public void Submit(Func<CancellationToken, ValueTask> work)
-    {
-        SubmissionCount++;
-        _pending.Add(work);
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null)
+        {
+            var candidate = Path.Combine(dir.FullName, "src", "SilkEngine", "Assets", fileName);
+            if (File.Exists(candidate))
+                return candidate;
+            dir = dir.Parent;
+        }
+        throw new InvalidOperationException($"Source file '{fileName}' not found.");
     }
 
-    /// <summary>执行下一个已捕获任务</summary>
-    public void RunNext()
+    /// <summary>门面测试夹具：内存文件系统 + 同步调度管线 + 已索引路径（测试夹具）</summary>
+    private sealed class ManagerFixture : IDisposable
     {
-        var work = _pending[0];
-        _pending.RemoveAt(0);
-        work(CancellationToken.None).GetAwaiter().GetResult();
+        public ThreadRuntime Runtime { get; } = new();
+
+        public InMemoryAssetFileSystem Files { get; } = new("Assets");
+
+        public AssetPipeline Pipeline { get; }
+
+        public AssetManager Manager { get; }
+
+        public ManagerFixture()
+        {
+            Runtime.RegisterMainThread();
+            Files.Add("Textures/a.png", PngFixtures.RedPng);
+            Files.Add("broken.png", PngFixtures.CorruptPng);
+            Files.Add("a.bin", [1]);
+            var index = new InMemoryVirtualFileIndex();
+            index.Apply(ScanResult.FromFiles([
+                ScanFile.File("Textures/a.png", 1),
+                ScanFile.File("broken.png", 1),
+                ScanFile.File("a.bin", 1),
+            ]));
+            Pipeline = new AssetPipeline(
+                Files,
+                index,
+                new AssetCatalog(),
+                new AssetImporterRegistry(),
+                new SyncBackgroundScheduler(),
+                Runtime.MainThread,
+                Runtime);
+            Manager = new AssetManager(Pipeline, Runtime.MainThread, Runtime);
+        }
+
+        public void Dispose()
+        {
+            Services.Unregister<AssetManager>();
+            Runtime.Dispose();
+        }
     }
 }

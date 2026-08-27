@@ -76,9 +76,10 @@ public class RenderThreadLoop : ThreadLoopBase
         _commandsReady.Reset();
         try
         {
-            // 帧首：处理资产释放队列（GL 释放由后端接入；无注册管理器（测试）时跳过）
+            // 帧首：排空资产释放请求队列（新模型：无资产语义的 RenderResourceReleaseRequest；
+            // 渲染侧消费由 Rendering Integration 计划接入，当前占位 Log + 丢弃）
             if (Services.TryGet<AssetManager>(out var assetManager))
-                assetManager.ProcessUnloadQueue(asset => _backend.ReleaseGpuResource(asset));
+                assetManager.ProcessUnloadQueue();
             if (_pendingPasses != null)
             {
                 foreach (var pass in _pendingPasses) // 已按 SortOrder 升序（SubmitFrame 主线程排序）

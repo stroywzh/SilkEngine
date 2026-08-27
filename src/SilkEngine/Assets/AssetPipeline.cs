@@ -5,13 +5,31 @@ using SilkEngine.Threading;
 namespace SilkEngine.Assets;
 
 /// <summary>
+/// 路径解析与结果投递契约（AssetManager 经此使用管线能力；internal，不进入 IAssetPipeline 公开面）。
+/// </summary>
+internal interface IAssetKeyResolver
+{
+    /// <summary>解析逻辑路径为构建键（索引未命中抛详细 InvalidOperationException；目录路径拒绝）</summary>
+    AssetBuildKey ResolveKey(string path);
+
+    /// <summary>查询资产当前源修订（无记录时 0）</summary>
+    ulong CurrentSourceRevision(AssetId assetId);
+
+    /// <summary>使指定资产的已完成缓存作业失效并递增源修订</summary>
+    void Invalidate(AssetId assetId);
+
+    /// <summary>结果接收器（AssetManager 设置；成功结果经 FrameCommit 阶段投递）</summary>
+    Action<AssetPipelineResult>? ResultSink { get; set; }
+}
+
+/// <summary>
 /// 资产管线协调器：按 <see cref="AssetBuildKey"/> 在 in-flight 字典中合并请求（锁保护，兼容测试多线程）；
 /// Worker 只执行 Read/Import/依赖解析/Validate，生成不可变 <see cref="AssetPipelineResult"/>；
 /// 成功结果经 FrameCommit 投递给 <see cref="ResultSink"/>（AssetManager 应用）。
 /// 依赖以 DFS active set 检测循环，失败携带依赖链；源/导入器修订不匹配时过期结果以
 /// <see cref="AssetStaleResultException"/> 失败，不写入缓存。
 /// </summary>
-public sealed class AssetPipeline : IAssetPipeline
+public sealed class AssetPipeline : IAssetPipeline, IAssetKeyResolver
 {
     private readonly IAssetFileSystem _files;
     private readonly IVirtualFileIndex _index;
@@ -52,8 +70,53 @@ public sealed class AssetPipeline : IAssetPipeline
     /// <summary>结果接收器：成功结果经 FrameCommit 阶段投递（AssetManager 设置；Main 域执行）</summary>
     internal Action<AssetPipelineResult>? ResultSink { get; set; }
 
+    Action<AssetPipelineResult>? IAssetKeyResolver.ResultSink
+    {
+        get => ResultSink;
+        set => ResultSink = value;
+    }
+
     /// <summary>已创建作业数量（测试断言用：同键去重只执行一次）</summary>
     internal int ExecutionCount => Volatile.Read(ref _executionCount);
+
+    /// <summary>已登记目录记录数量（测试断言用）</summary>
+    internal int CatalogCountForTests => _catalog.Count;
+
+    /// <summary>启动扫描入口：将一次扫描结果应用到虚拟文件索引（不预加载任何 Payload）。</summary>
+    /// <param name="scan">启动扫描结果</param>
+    public void ApplyScan(ScanResult scan) => _index.Apply(scan);
+
+    /// <summary>解析逻辑路径为构建键：规范化 → 索引查询（未命中/目录抛详细异常）→ 目录登记 → 键。</summary>
+    /// <param name="path">资产逻辑路径（相对文件服务根目录）</param>
+    /// <returns>构建键</returns>
+    /// <exception cref="ArgumentException">path 为 null/空白或非法路径</exception>
+    /// <exception cref="InvalidOperationException">路径未进入 VFS 索引或解析到目录（详细消息）</exception>
+    /// <exception cref="NotSupportedException">扩展名无对应导入器</exception>
+    public AssetBuildKey ResolveKey(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        var normalized = _files.Normalize(path);
+        if (!_index.TryGet(normalized, out var node) || node is null)
+        {
+            throw new InvalidOperationException(
+                $"Asset path '{path}' was normalized to '{normalized}', "
+                + "but it is not present in the VFS index. "
+                + "Complete the startup asset scan before loading assets.");
+        }
+        if (node.NodeType != VirtualNodeType.File)
+            throw new InvalidOperationException($"Asset path '{normalized}' resolves to a directory, not a file.");
+        var extension = Path.GetExtension(normalized);
+        if (!_importers.TryGetAssetType(extension, out var assetType))
+            throw new NotSupportedException($"No importer for extension '{extension}'");
+        var record = _catalog.GetOrAdd(node.Id, assetType);
+        return new AssetBuildKey(record.AssetId, assetType, record.SourceRevision, ImporterRevision: 1, "");
+    }
+
+    /// <summary>查询资产当前源修订（无记录时 0）。</summary>
+    /// <param name="assetId">资产标识</param>
+    /// <returns>当前源修订</returns>
+    public ulong CurrentSourceRevision(AssetId assetId)
+        => _catalog.TryGet(assetId, out var record) ? record.SourceRevision : 0UL;
 
     /// <summary>使指定资产的已缓存结果失效并递增源修订（下次请求重新构建；在途作业完成后按过期校验失败）</summary>
     /// <param name="assetId">资产标识</param>

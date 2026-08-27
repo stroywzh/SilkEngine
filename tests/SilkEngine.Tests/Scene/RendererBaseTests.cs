@@ -1,11 +1,10 @@
 using SilkEngine.Assets;
-using SilkEngine.Assets.Importer;
-using SilkEngine.Assets.VirtualFileSystem;
 using SilkEngine.Core;
 using SilkEngine.Render;
 using SilkEngine.Scene;
 using SilkEngine.Tests.Core;
-using SilkEngine.Tests.Render;
+using SilkEngine.Tests.Core.Assets;
+using TestFixtures = SilkEngine.Tests.Render.Fixtures;
 
 namespace SilkEngine.Tests.Scene;
 
@@ -15,14 +14,14 @@ public class RendererBaseTests : IDisposable
     private readonly AssetManager _am;
 
     public RendererBaseTests() =>
-        _am = new AssetManager(new InMemoryAssetFileSystem("Assets"), new AssetImporterRegistry(), new RecordingScheduler());
+        _am = TestAssetPipeline.CreateManager();
 
     public void Dispose() => Services.Unregister<AssetManager>();
 
     private AssetEntry RegisterManaged(IAsset asset)
     {
         var entry = _am.Cache.GetOrAdd(new AssetId(Guid.NewGuid()));
-        entry.Data = asset;
+        entry.Payload = asset;
         entry.State = AssetState.Ready;
         return entry;
     }
@@ -97,15 +96,15 @@ public class RendererBaseTests : IDisposable
         renderer.Material = material;
 
         Assert.Same(material, renderer.Material);
-        Assert.DoesNotContain(_am.Cache.All(), e => ReferenceEquals(e.Data, material));
+        Assert.DoesNotContain(_am.Cache.All(), e => ReferenceEquals(e.Payload, material));
     }
 
     [Fact]
     public void RenderCollectionUsesBoundMaterialSnapshot()
     {
-        var material = Fixtures.MaterialInstanceWithSource();
-        var binding = Fixtures.ReadyBindingFor(material);
-        var command = Fixtures.CollectSingleDraw(material, binding);
+        var material = TestFixtures.MaterialInstanceWithSource();
+        var binding = TestFixtures.ReadyBindingFor(material);
+        var command = TestFixtures.CollectSingleDraw(material, binding);
 
         Assert.Equal(binding.Resolve(material).Value!.Parameters, command.Material.Parameters);
     }

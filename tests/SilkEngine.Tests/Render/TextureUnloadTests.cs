@@ -4,6 +4,7 @@ using SilkEngine.Assets.Importer;
 using SilkEngine.Assets.VirtualFileSystem;
 using SilkEngine.Render.OpenGL;
 using SilkEngine.Tests.Core;
+using SilkEngine.Tests.Core.Assets;
 
 namespace SilkEngine.Tests.Render;
 
@@ -14,12 +15,13 @@ public class TextureUnloadTests : IDisposable
     /// <summary>测试级清理：注销测试内 ctor 自注册的 AssetManager 实例（Unregister 幂等）</summary>
     public void Dispose() => Services.Unregister<AssetManager>();
 
-    /// <summary>测试辅助：内存文件系统预置红色 PNG，返回可加载的资产管理器</summary>
+    /// <summary>测试辅助：内存文件系统预置红色 PNG（已索引），返回可加载的资产管理器</summary>
     private static AssetManager CreateManager()
     {
         var files = new InMemoryAssetFileSystem("Assets");
         files.Add("T.png", PngFixtures.RedPng);
-        return new AssetManager(files, new AssetImporterRegistry(), new RecordingScheduler());
+        return TestAssetPipeline.CreateManager(files, index =>
+            index.Apply(ScanResult.FromFiles([ScanFile.File("T.png", 1)])));
     }
 
     [Fact]

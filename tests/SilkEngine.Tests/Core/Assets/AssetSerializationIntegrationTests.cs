@@ -4,6 +4,7 @@ using SilkEngine.Assets.Serialization;
 using SilkEngine.Assets.VirtualFileSystem;
 using SilkEngine.Core;
 using SilkEngine.Render;
+using SilkEngine.Threading;
 using SilkEngine.Tests.Core;
 
 namespace SilkEngine.Tests.Core.Assets;
@@ -46,14 +47,16 @@ public class AssetSerializationIntegrationTests : IDisposable
     {
         var files = new InMemoryAssetFileSystem("Assets");
         files.Add("a.png", PngFixtures.RedPng);
-        var assets = Fixtures.AssetManagerWithSerializerRegistry(files);
+        var context = TestAssetPipeline.CreateContext(files, index =>
+            index.Apply(ScanResult.FromFiles([ScanFile.File("a.png", 1)])));
 
-        var tex = assets.Load<TextureAsset>("a.png");
-        var id = Assert.Single(assets.Cache.All()).AssetId;
+        var tex = context.Manager.Load<TextureAsset>("a.png");
+        context.Runtime.Drain(MainThreadPhase.FrameCommit);
+        var id = Assert.Single(context.Manager.Cache.All()).AssetId;
 
-        Assert.Same(tex, assets.Resolver.Resolve(new AssetHandle<TextureAsset>(id)));
-        Assert.Null(assets.Resolver.Resolve(new AssetHandle<TextureAsset>(new AssetId(Guid.NewGuid()))));
-        Assert.Null(assets.Resolver.Resolve(new UntypedAssetHandle(new AssetId(Guid.NewGuid()))));
-        Assert.Null(assets.Resolver.TryGetRecord(new AssetId(Guid.NewGuid())));
+        Assert.Same(tex, context.Manager.Resolver.Resolve(new AssetHandle<TextureAsset>(id)));
+        Assert.Null(context.Manager.Resolver.Resolve(new AssetHandle<TextureAsset>(new AssetId(Guid.NewGuid()))));
+        Assert.Null(context.Manager.Resolver.Resolve(new UntypedAssetHandle(new AssetId(Guid.NewGuid()))));
+        Assert.Null(context.Manager.Resolver.TryGetRecord(new AssetId(Guid.NewGuid())));
     }
 }

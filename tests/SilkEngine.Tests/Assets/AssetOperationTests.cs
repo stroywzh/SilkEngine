@@ -4,6 +4,7 @@ using SilkEngine.Assets.VirtualFileSystem;
 using SilkEngine.Core;
 using SilkEngine.Threading;
 using SilkEngine.Tests.Core;
+using SilkEngine.Tests.Core.Assets;
 
 namespace SilkEngine.Tests.Assets;
 
@@ -23,11 +24,16 @@ public class AssetOperationTests : IDisposable
         var runtime = new ThreadRuntime();
         runtime.RegisterMainThread();
         _ = new AssetManager(
-            new InMemoryAssetFileSystem("Assets"),
-            new AssetImporterRegistry(),
-            new RecordingScheduler(),
-            mainThread: runtime.MainThread,
-            runtime: runtime);
+            new AssetPipeline(
+                new InMemoryAssetFileSystem("Assets"),
+                new InMemoryVirtualFileIndex(),
+                new AssetCatalog(),
+                new AssetImporterRegistry(),
+                new SyncBackgroundScheduler(),
+                runtime.MainThread,
+                runtime),
+            runtime.MainThread,
+            runtime);
         return runtime;
     }
 
