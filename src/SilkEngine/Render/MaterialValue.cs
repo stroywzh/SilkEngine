@@ -176,5 +176,38 @@ public sealed class MaterialParameterSnapshot : IEnumerable<(string Name, Materi
             yield return (pair.Key, pair.Value);
     }
 
+    /// <summary>按参数内容比较快照（名称与值逐项一致，与顺序无关）</summary>
+    /// <param name="obj">待比较对象</param>
+    /// <returns>参数数量与内容完全一致时为 true</returns>
+    public override bool Equals(object? obj)
+    {
+        if (obj is not MaterialParameterSnapshot other)
+            return false;
+        if (ReferenceEquals(this, other))
+            return true;
+        if (_values.Count != other._values.Count)
+            return false;
+
+        foreach (var pair in _values)
+        {
+            if (!other._values.TryGetValue(pair.Key, out var value) || !value.Equals(pair.Value))
+                return false;
+        }
+        return true;
+    }
+
+    /// <summary>基于参数名称与值的哈希码</summary>
+    /// <returns>HashCode 聚合值</returns>
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        foreach (var pair in _values)
+        {
+            hash.Add(pair.Key);
+            hash.Add(pair.Value);
+        }
+        return hash.ToHashCode();
+    }
+
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 }

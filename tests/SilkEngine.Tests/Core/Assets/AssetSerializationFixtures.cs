@@ -1,5 +1,7 @@
 using SilkEngine.Assets;
 using SilkEngine.Assets.Serialization;
+using SilkEngine.Math;
+using SilkEngine.Render;
 
 namespace SilkEngine.Tests.Core.Assets;
 
@@ -50,4 +52,34 @@ public static class Fixtures
             Data = "{}"
         };
     }
+
+    /// <summary>构造带着色器/纹理依赖与三类型默认参数的材质资产（测试夹具）</summary>
+    /// <returns>材质资产</returns>
+    public static MaterialAsset MaterialAssetWithDependencies()
+    {
+        return new MaterialAsset(
+            new AssetId(Guid.NewGuid()),
+            new AssetHandle<ShaderAsset>(new AssetId(Guid.NewGuid())),
+            new AssetHandle<TextureAsset>(new AssetId(Guid.NewGuid())),
+            new MaterialParameterSnapshot([
+                ("Tint", MaterialValue.Vector3(new Vector3(1f, 0f, 0f))),
+                ("Opacity", MaterialValue.Float(0.5f)),
+                ("World", MaterialValue.Matrix4x4(Matrix4x4.CreateScale(new Vector3(2f, 3f, 4f)))),
+            ]),
+            revision: 7);
+    }
+}
+
+/// <summary>空操作引用解析器：不解析任何依赖（测试夹具）</summary>
+public sealed class NoopReferenceResolver : IAssetReferenceResolver
+{
+    /// <summary>始终返回 null（不提供记录）</summary>
+    public AssetSerializationRecord? TryGetRecord(AssetId assetId) => null;
+
+    /// <summary>返回 null（不解析依赖）</summary>
+    public T Resolve<T>(AssetHandle<T> handle)
+        where T : class => null!;
+
+    /// <summary>返回 null（不解析依赖）</summary>
+    public object Resolve(UntypedAssetHandle handle) => null!;
 }
