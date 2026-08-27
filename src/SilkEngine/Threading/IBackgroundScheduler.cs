@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 namespace SilkEngine.Threading;
 
 /// <summary>
-/// Worker 后台调度接口：业务层与 AssetPipeline 经此提交纯 CPU 工作；
+/// Worker 后台调度接口：业务层与后台管线经此提交纯 CPU 工作；
 /// 隐藏 CLR ThreadPool、Worker 数量与停止细节。
 /// </summary>
 public interface IBackgroundScheduler

@@ -21,7 +21,7 @@ internal interface IManagedLoop
 /// <summary>
 /// 线程运行时：线程资源唯一属主。登记 Main 线程、经 AsyncLocal 标识受管 Worker 域、
 /// 提供分阶段主线程派发与 Worker 调度、登记受管循环并负责关闭。
-/// 不理解资产与渲染领域，不引用 AssetPipeline/AssetManager/Rendering 具体类型。
+/// 不理解资产与渲染领域，不引用任何资产管线、资产管理器或渲染具体类型。
 /// </summary>
 [Service(-10000)]
 public sealed class ThreadRuntime : IDisposable, IThreadGuard
