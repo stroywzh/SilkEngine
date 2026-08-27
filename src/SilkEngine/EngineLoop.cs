@@ -10,6 +10,7 @@ using SilkEngine.InputSystem;
 using SilkEngine.Render;
 using SilkEngine.Rendering;
 using SilkEngine.Rendering.Backend;
+using SilkEngine.Rendering.Pipeline;
 using SilkEngine.Scene;
 using SilkEngine.Threading;
 using IRenderBackend = SilkEngine.Rendering.Backend.IRenderBackend;

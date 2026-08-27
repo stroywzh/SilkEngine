@@ -1,8 +1,9 @@
 using System.Collections.Generic;
-using SilkEngine.Render;
+using SilkEngine.Rendering.Abstraction;
+using SilkEngine.Rendering.Pipeline;
 using SilkEngine.Scene;
 
-namespace SilkEngine.Tests.Render;
+namespace SilkEngine.Tests.Rendering;
 
 public class RenderCollectorTests
 {

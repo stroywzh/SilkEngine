@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using SilkEngine.Core;
 using SilkEngine.Render;
 using SilkEngine.Rendering.Backend;
+using SilkEngine.Rendering.Pipeline;
 using SilkEngine.Threading;
 using IRenderBackend = SilkEngine.Rendering.Backend.IRenderBackend;
+using IRenderPipeline = SilkEngine.Rendering.Pipeline.IRenderPipeline;
 
 namespace SilkEngine.Rendering;
 
@@ -16,17 +18,20 @@ public sealed class RenderSystem : IDisposable
 {
     private readonly IRenderBackend _backend;
     private readonly RenderThreadHost _renderThread;
+    private readonly IRenderPipeline _pipeline;
 
     /// <summary>
     /// 创建渲染系统：装配 RenderThreadHost 并登记进 ThreadRuntime 受管循环与 Services。
     /// </summary>
     /// <param name="backend">渲染后端（窗口/上下文/绘制执行）</param>
     /// <param name="runtime">线程运行时（受管循环登记与关闭协议）</param>
-    public RenderSystem(IRenderBackend backend, ThreadRuntime runtime)
+    /// <param name="pipeline">渲染管线（缺省 ForwardPipeline）</param>
+    public RenderSystem(IRenderBackend backend, ThreadRuntime runtime, IRenderPipeline? pipeline = null)
     {
         _backend = backend;
         _renderThread = new RenderThreadHost(runtime, backend);
         runtime.RegisterManagedLoop(_renderThread);
+        _pipeline = pipeline ?? new ForwardPipeline();
         Services.Register(this);
     }
 
@@ -49,18 +54,19 @@ public sealed class RenderSystem : IDisposable
     public bool ShouldClose => Surface?.ShouldClose ?? false;
 
     /// <summary>
-    /// 主线程帧渲染入口：过渡期保留旧管线签名（相机矩阵更新 + 空帧提交驱动 Present）；
-    /// RenderPacket 收集管线迁移后接入。
+    /// 主线程帧渲染入口：更新相机矩阵（View/Projection 随命令上传，不突变材质）
+    /// → 管线构建 RenderPacket 列表 → SubmitFrame 阻塞等渲染线程执行完毕。
     /// </summary>
     /// <param name="aspect">视口宽高比（宽/高）</param>
     /// <param name="camera">当前相机视图（null 时跳过本帧渲染）</param>
-    /// <param name="batches">渲染批次（过渡期参数，收集管线迁移后消费）</param>
+    /// <param name="batches">渲染批次（EngineLoop 经 RenderCollector 组装）</param>
     public void Render(float aspect, ICameraView? camera, IReadOnlyList<RenderBatch> batches)
     {
         if (camera == null)
             return;
         camera.UpdateMatrices(aspect);
-        _renderThread.SubmitFrame([]);
+        var packets = _pipeline.Build(camera, batches);
+        _renderThread.SubmitFrame(packets);
     }
 
     /// <summary>释放渲染线程宿主（幂等；backend 由渲染线程 finally 释放）。</summary>

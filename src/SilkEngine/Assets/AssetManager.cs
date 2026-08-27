@@ -185,8 +185,7 @@ public sealed class AssetManager : IDisposable
                 continue;
             entry.State = AssetState.Unloaded;
             _cache.SetPayload(entry, null);
-            var release = _gpuCache.Evict(entry.AssetId, entry.SourceRevision);
-            if (release.Handle != 0)
+            foreach (var release in _gpuCache.EvictAll(entry.AssetId, entry.SourceRevision))
                 _renderReleases.Enqueue(release);
         }
     }
@@ -198,6 +197,35 @@ public sealed class AssetManager : IDisposable
     {
         var revision = _cache.Find(assetId)?.SourceRevision ?? 0UL;
         _gpuCache.Publish(assetId, revision, handle);
+    }
+
+    /// <summary>登记网格 GPU 句柄（渲染侧创建完成后回填；驱逐时经缓存生成释放请求）</summary>
+    /// <param name="assetId">资产标识</param>
+    /// <param name="handle">渲染侧句柄</param>
+    internal void PublishRenderMesh(AssetId assetId, RenderMeshHandle handle)
+    {
+        var revision = _cache.Find(assetId)?.SourceRevision ?? 0UL;
+        _gpuCache.Publish(assetId, revision, handle);
+    }
+
+    /// <summary>登记着色器 GPU 句柄（渲染侧创建完成后回填；驱逐时经缓存生成释放请求）</summary>
+    /// <param name="assetId">资产标识</param>
+    /// <param name="handle">渲染侧句柄</param>
+    internal void PublishRenderShader(AssetId assetId, RenderShaderHandle handle)
+    {
+        var revision = _cache.Find(assetId)?.SourceRevision ?? 0UL;
+        _gpuCache.Publish(assetId, revision, handle);
+    }
+
+    /// <summary>按资产查询已登记 GPU 句柄（渲染器句柄解析用；未登记返回 false）。</summary>
+    /// <param name="assetId">资产标识</param>
+    /// <param name="kind">资源种类</param>
+    /// <param name="handle">已登记句柄（未登记为 0）</param>
+    /// <returns>查询命中为 true</returns>
+    internal bool TryGetRenderHandle(AssetId assetId, RenderResourceKind kind, out ulong handle)
+    {
+        var revision = _cache.Find(assetId)?.SourceRevision ?? 0UL;
+        return _gpuCache.TryGet(assetId, revision, kind, out handle);
     }
 
     /// <summary>帧末结果应用（Pipeline 经 FrameCommit 投递；Main 域）：更新 AssetEntry.Payload 与状态。</summary>

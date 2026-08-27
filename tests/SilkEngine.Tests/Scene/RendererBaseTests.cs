@@ -1,13 +1,16 @@
 using SilkEngine.Assets;
 using SilkEngine.Core;
-using SilkEngine.Render;
+using SilkEngine.Math;
+using SilkEngine.Rendering.Abstraction;
 using SilkEngine.Scene;
-using SilkEngine.Tests.Core;
 using SilkEngine.Tests.Core.Assets;
-using TestFixtures = SilkEngine.Tests.Render.Fixtures;
 
 namespace SilkEngine.Tests.Scene;
 
+/// <summary>
+/// RendererBase 新契约测试：内部经 AssetSlot 驻留资产（SetMesh/SetShader），
+/// 经资产管理器 GPU 句柄缓存解析已发布 Render Handle；OnDestroy 释放驻留。
+/// </summary>
 [Collection("Assets")]
 public class RendererBaseTests : IDisposable
 {
@@ -18,104 +21,139 @@ public class RendererBaseTests : IDisposable
 
     public void Dispose() => Services.Unregister<AssetManager>();
 
-    private AssetEntry RegisterManaged(IAsset asset)
+    private AssetId RegisterReady(IAssetPayload payload)
     {
-        var entry = _am.Cache.GetOrAdd(new AssetId(Guid.NewGuid()));
-        entry.Payload = asset;
+        var id = new AssetId(Guid.NewGuid());
+        var entry = _am.Cache.GetOrAdd(id);
+        entry.Payload = payload;
         entry.State = AssetState.Ready;
-        return entry;
+        return id;
     }
 
     [Fact]
-    public void Defaults_AllAssetsNull()
+    public void Defaults_AllHandlesDefault()
     {
         var ui = new GameObject().AddComponent<UIRenderer>();
 
-        Assert.Null(ui.Shader);
-        Assert.Null(ui.Mesh);
-        Assert.Null(ui.Material);
+        Assert.Equal(default, ui.MeshHandle);
+        Assert.Equal(default, ui.ShaderHandle);
+        Assert.Equal(default, ui.TextureHandle);
+        Assert.Throws<KeyNotFoundException>(() => ui.MaterialParameters.GetFloat("Roughness"));
     }
 
     [Fact]
-    public void SetAssets_TrackedRefPlusOne()
+    public void SetMesh_CreatesSlot_AddsResidency()
     {
-        var shader = new Shader { Name = "S" };
-        var mesh = new Mesh { Name = "M" };
-        var es = RegisterManaged(shader);
-        var em = RegisterManaged(mesh);
+        var id = RegisterReady(new MeshAsset("M", [0, 0, 0], [3], null));
+        var mr = new GameObject().AddComponent<MeshRenderer>();
+        mr.SetMesh(new AssetHandle<MeshAsset>(id));
+
+        _am.UnloadUnused(); // 驻留持有 → 不驱逐
+
+        Assert.True(_am.TryResolve<MeshAsset>(id) is not null);
+    }
+
+    [Fact]
+    public void SetShader_CreatesSlot_AddsResidency()
+    {
+        var id = RegisterReady(new ShaderAsset("S", "vs", "fs"));
+        var mr = new GameObject().AddComponent<MeshRenderer>();
+        mr.SetShader(new AssetHandle<ShaderAsset>(id));
+
+        _am.UnloadUnused();
+
+        Assert.True(_am.TryResolve<ShaderAsset>(id) is not null);
+    }
+
+    [Fact]
+    public void OnDestroy_DisposesSlots_ReleasesResidency()
+    {
+        var meshId = RegisterReady(new MeshAsset("M", [0, 0, 0], [3], null));
+        var shaderId = RegisterReady(new ShaderAsset("S", "vs", "fs"));
+        var mr = new GameObject().AddComponent<MeshRenderer>();
+        mr.SetMesh(new AssetHandle<MeshAsset>(meshId));
+        mr.SetShader(new AssetHandle<ShaderAsset>(shaderId));
+
+        mr.OnDestroy();
+        _am.UnloadUnused();
+
+        Assert.False(_am.TryResolve<MeshAsset>(meshId) is not null);
+        Assert.False(_am.TryResolve<ShaderAsset>(shaderId) is not null);
+    }
+
+    [Fact]
+    public void SetMesh_ResolvesPublishedHandle()
+    {
+        var id = RegisterReady(new MeshAsset("M", [0, 0, 0], [3], null));
+        _am.PublishRenderMesh(id, new RenderMeshHandle(42));
+        var mr = new GameObject().AddComponent<MeshRenderer>();
+        mr.SetMesh(new AssetHandle<MeshAsset>(id));
+
+        Assert.Equal(42UL, mr.MeshHandle.Value);
+    }
+
+    [Fact]
+    public void SetShader_ResolvesPublishedHandle()
+    {
+        var id = RegisterReady(new ShaderAsset("S", "vs", "fs"));
+        _am.PublishRenderShader(id, new RenderShaderHandle(9));
+        var mr = new GameObject().AddComponent<MeshRenderer>();
+        mr.SetShader(new AssetHandle<ShaderAsset>(id));
+
+        Assert.Equal(9UL, mr.ShaderHandle.Value);
+    }
+
+    [Fact]
+    public void UnpublishedSlot_ResolvesDefault()
+    {
+        var id = RegisterReady(new MeshAsset("M", [0, 0, 0], [3], null));
+        var mr = new GameObject().AddComponent<MeshRenderer>();
+        mr.SetMesh(new AssetHandle<MeshAsset>(id)); // 驻留但未发布 GPU 句柄
+
+        Assert.Equal(default, mr.MeshHandle);
+    }
+
+    [Fact]
+    public void MaterialParameters_AssignmentFlowsThrough()
+    {
+        var mr = new GameObject().AddComponent<UIRenderer>();
+        mr.MaterialParameters = new RenderMaterialParameters(
+            [("Roughness", RenderParameterValue.Float(1f))]);
+
+        Assert.Equal(1f, mr.MaterialParameters.GetFloat("Roughness"));
+    }
+
+    [Fact]
+    public void TextureHandle_AssignmentFlowsThrough()
+    {
         var ui = new GameObject().AddComponent<UIRenderer>();
+        ui.TextureHandle = new RenderTextureHandle(5);
 
-        ui.Shader = shader;
-        ui.Mesh = mesh;
-        ui.Material = new Material(new MaterialReference(new AssetId(Guid.NewGuid())));
-
-        Assert.Equal(1, es.RefCount);
-        Assert.Equal(1, em.RefCount);
-    }
-
-    [Fact]
-    public void ReplaceAsset_OldMinusOne_NewPlusOne()
-    {
-        var old = new Shader { Name = "Old" };
-        var fresh = new Shader { Name = "Fresh" };
-        var eOld = RegisterManaged(old);
-        var eFresh = RegisterManaged(fresh);
-        var ui = new GameObject().AddComponent<UIRenderer>();
-
-        ui.Shader = old;
-        ui.Shader = fresh;
-
-        Assert.Equal(0, eOld.RefCount);
-        Assert.Equal(1, eFresh.RefCount);
-    }
-
-    [Fact]
-    public void OnDestroy_ReleasesAllTrackedAssets()
-    {
-        var shader = new Shader { Name = "S" };
-        var mesh = new Mesh { Name = "M" };
-        var es = RegisterManaged(shader);
-        var em = RegisterManaged(mesh);
-        var ui = new GameObject().AddComponent<UIRenderer>();
-        ui.Shader = shader;
-        ui.Mesh = mesh;
-        ui.Material = new Material(new MaterialReference(new AssetId(Guid.NewGuid())));
-
-        ui.OnDestroy();
-
-        Assert.Equal(0, es.RefCount);
-        Assert.Equal(0, em.RefCount);
-    }
-
-    [Fact]
-    public void RendererBase_MaterialAssignmentDoesNotRegisterBusinessMaterialAsAsset()
-    {
-        var renderer = new GameObject().AddComponent<UIRenderer>();
-        var material = new Material(new MaterialReference(new AssetId(Guid.NewGuid())));
-
-        renderer.Material = material;
-
-        Assert.Same(material, renderer.Material);
-        Assert.DoesNotContain(_am.Cache.All(), e => ReferenceEquals(e.Payload, material));
-    }
-
-    [Fact]
-    public void RenderCollectionUsesBoundMaterialSnapshot()
-    {
-        var material = TestFixtures.MaterialInstanceWithSource();
-        var binding = TestFixtures.ReadyBindingFor(material);
-        var command = TestFixtures.CollectSingleDraw(material, binding);
-
-        Assert.Equal(binding.Resolve(material).Value!.Parameters, command.Material.Parameters);
+        Assert.Equal(5UL, ui.TextureHandle.Value);
     }
 
     [Fact]
     public void WorldMatrix_ComesFromTransform()
     {
         var go = new GameObject("Quad");
-        go.Transform.LocalPosition = new SilkEngine.Math.Vector3(1, 2, 3);
+        go.Transform.LocalPosition = new Vector3(1, 2, 3);
         var ui = go.AddComponent<UIRenderer>();
 
         Assert.Equal(go.Transform.LocalToWorldMatrix, ui.WorldMatrix);
     }
+
+    [Fact]
+    public void MeshRenderer_SatisfiesIRenderableContract()
+    {
+        var mr = new GameObject("MR").AddComponent<MeshRenderer>();
+
+        IRenderable r = mr;
+        Assert.Equal(mr.ShaderHandle, r.ShaderHandle);
+        Assert.Equal(mr.MeshHandle, r.MeshHandle);
+        Assert.Equal(mr.TextureHandle, r.TextureHandle);
+        Assert.Same(mr.MaterialParameters, r.MaterialParameters);
+        Assert.Equal(mr.Enabled, r.Enabled);
+        Assert.Equal(mr.WorldMatrix, r.WorldMatrix);
+    }
 }
+

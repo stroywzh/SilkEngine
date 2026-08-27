@@ -1,6 +1,8 @@
 using System.Collections.Generic;
+using SilkEngine.Render;
+using SilkEngine.Rendering.Abstraction;
 
-namespace SilkEngine.Render;
+namespace SilkEngine.Rendering.Pipeline;
 
 /// <summary>一批渲染对象：当前实现为单批（全部活跃渲染器）。</summary>
 public sealed class RenderBatch

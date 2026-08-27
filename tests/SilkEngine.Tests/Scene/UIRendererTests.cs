@@ -1,5 +1,5 @@
 using SilkEngine.Assets;
-using SilkEngine.Render;
+using SilkEngine.Rendering.Abstraction;
 using SilkEngine.Scene;
 
 namespace SilkEngine.Tests.Scene;
@@ -16,19 +16,18 @@ public class UIRendererTests
     }
 
     [Fact]
-    public void AssembleAssets_AllReadableBack()
+    public void AssembleHandles_AllReadableBack()
     {
-        var shader = new Shader { Name = "PngShader" };
-        var material = new Material(new MaterialReference(new AssetId(Guid.NewGuid())));
         var ui = new GameObject().AddComponent<UIRenderer>();
 
-        ui.Shader = shader;
-        ui.Mesh = MeshFactory.CreateQuad(1f, 1f);
-        ui.Material = material;
+        ui.SetMesh(new AssetHandle<MeshAsset>(new AssetId(Guid.NewGuid())));
+        ui.SetShader(new AssetHandle<ShaderAsset>(new AssetId(Guid.NewGuid())));
+        ui.TextureHandle = new RenderTextureHandle(3);
+        ui.MaterialParameters = new RenderMaterialParameters(
+            [("Roughness", RenderParameterValue.Float(0.5f))]);
 
-        Assert.Same(shader, ui.Shader);
-        Assert.Equal("Quad", ui.Mesh!.Name);
-        Assert.Same(material, ui.Material);
+        Assert.Equal(3UL, ui.TextureHandle.Value);
+        Assert.Equal(0.5f, ui.MaterialParameters.GetFloat("Roughness"));
         Assert.True(ui.Enabled);
     }
 }

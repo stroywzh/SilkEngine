@@ -1,9 +1,10 @@
+using System.Collections.Generic;
 using SilkEngine.Rendering.Abstraction;
 
 namespace SilkEngine.Assets;
 
 /// <summary>
-/// GPU 句柄缓存（Assets 侧）：只保存 (AssetId, Revision) → RenderHandle 的关联，
+/// GPU 句柄缓存（Assets 侧）：只保存 (AssetId, Revision, Kind) → RenderHandle 的关联，
 /// 驱逐时生成无资产语义的 <see cref="RenderResourceReleaseRequest"/>。
 /// Rendering 侧只消费 request/handle，不能从 Handle 反查资产。
 /// </summary>
@@ -16,9 +17,32 @@ public sealed class AssetGpuResourceCache
     /// <param name="revision">源修订（与构建键一致；防止过期句柄误释放）</param>
     /// <param name="handle">渲染侧纹理句柄</param>
     public void Publish(AssetId assetId, ulong revision, RenderTextureHandle handle)
-        => _handles[(assetId, revision, RenderResourceKind.Texture)] = handle.Value;
+        => Publish(assetId, revision, RenderResourceKind.Texture, handle.Value);
 
-    /// <summary>驱逐指定 (AssetId, Revision) 的 GPU 句柄并生成释放请求；未登记返回零句柄 no-op 请求。</summary>
+    /// <summary>登记网格 GPU 句柄（渲染侧创建完成后回填）</summary>
+    /// <param name="assetId">资产标识</param>
+    /// <param name="revision">源修订</param>
+    /// <param name="handle">渲染侧网格句柄</param>
+    public void Publish(AssetId assetId, ulong revision, RenderMeshHandle handle)
+        => Publish(assetId, revision, RenderResourceKind.Mesh, handle.Value);
+
+    /// <summary>登记着色器 GPU 句柄（渲染侧创建完成后回填）</summary>
+    /// <param name="assetId">资产标识</param>
+    /// <param name="revision">源修订</param>
+    /// <param name="handle">渲染侧着色器句柄</param>
+    public void Publish(AssetId assetId, ulong revision, RenderShaderHandle handle)
+        => Publish(assetId, revision, RenderResourceKind.Shader, handle.Value);
+
+    /// <summary>按 (AssetId, Revision, Kind) 查询句柄；未登记返回 false。</summary>
+    /// <param name="assetId">资产标识</param>
+    /// <param name="revision">源修订</param>
+    /// <param name="kind">资源种类</param>
+    /// <param name="handle">已登记的句柄（未登记为 0）</param>
+    /// <returns>查询命中为 true</returns>
+    public bool TryGet(AssetId assetId, ulong revision, RenderResourceKind kind, out ulong handle)
+        => _handles.TryGetValue((assetId, revision, kind), out handle);
+
+    /// <summary>驱逐指定 (AssetId, Revision) 的纹理句柄并生成释放请求；未登记返回零句柄 no-op 请求。</summary>
     /// <param name="assetId">资产标识</param>
     /// <param name="revision">源修订</param>
     /// <returns>释放请求（未登记时 Handle 为 0，消费方跳过）</returns>
@@ -29,4 +53,22 @@ public sealed class AssetGpuResourceCache
             return new RenderResourceReleaseRequest(RenderResourceKind.Texture, 0);
         return new RenderResourceReleaseRequest(RenderResourceKind.Texture, handle);
     }
+
+    /// <summary>驱逐指定 (AssetId, Revision) 全部种类的 GPU 句柄并生成释放请求列表；未登记返回空列表。</summary>
+    /// <param name="assetId">资产标识</param>
+    /// <param name="revision">源修订</param>
+    /// <returns>释放请求列表（无资产语义：种类 + 句柄）</returns>
+    public IReadOnlyList<RenderResourceReleaseRequest> EvictAll(AssetId assetId, ulong revision)
+    {
+        var releases = new List<RenderResourceReleaseRequest>(3);
+        foreach (var kind in new[] { RenderResourceKind.Texture, RenderResourceKind.Shader, RenderResourceKind.Mesh })
+        {
+            if (_handles.Remove((assetId, revision, kind), out var handle))
+                releases.Add(new RenderResourceReleaseRequest(kind, handle));
+        }
+        return releases;
+    }
+
+    private void Publish(AssetId assetId, ulong revision, RenderResourceKind kind, ulong handle)
+        => _handles[(assetId, revision, kind)] = handle;
 }

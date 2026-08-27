@@ -265,24 +265,6 @@ public static class Fixtures
         var asset = MaterialAsset(material.Source.AssetId, defaults: []);
         return new MaterialBinding(new FakeAssetResolver(asset));
     }
-
-    /// <summary>经默认前向管线收集单条绘制命令（含 Ready 材质绑定载荷）</summary>
-    /// <param name="material">材质实例</param>
-    /// <param name="binding">材质绑定（管线注入）</param>
-    /// <returns>收集出的单实例绘制命令</returns>
-    public static SingleDrawCommand CollectSingleDraw(Material material, MaterialBinding binding)
-    {
-        var pipeline = new ForwardPipeline(binding);
-        var mr = new GameObject().AddComponent<MeshRenderer>();
-        mr.Shader = new Shader { Name = "S" };
-        mr.Mesh = new Mesh { Name = "M", Layout = [] };
-        mr.Material = material;
-        var cam = new GameObject().AddComponent<Camera>();
-        var batches = new List<RenderBatch> { new() { Renderers = [mr] } };
-
-        var passes = pipeline.Build(cam, batches);
-        return (SingleDrawCommand)passes[0].Commands[0];
-    }
 }
 
 /// <summary>参数条目工厂：生成 (名称, 值) 元组集合元素</summary>
