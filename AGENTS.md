@@ -17,16 +17,23 @@
 
 ```
 主线程 (Heartbeat, EngineLoop)
-  ├─ RegisterMainThread 登记（ThreadManager 亲和断言；主线程允许自持）
-  ├─ Input.Update → TickFrame(固定步长 FixedTick 累加 + Tick + LateTick) → RenderSystem.Render(SubmitFrame阻塞等GPU)
-  │     → SceneManager.PostRender → CommitFrame(销毁+注册+快照swap+资产完成)
-  │
-  ├─ RenderThreadLoop → ILoopExecutor（DedicatedThreadExecutor：专用线程 + 阻塞握手，经 ThreadManager.Request 申请）
-  └─ ITaskExecutor（ThreadPoolExecutor：CoreCLR ThreadPool，默认 Submit 与 WorkerPool 申请共用单例）
-  Services: [Service] 特性 + ServiceRegistrationGenerator 自动注册
-            （Priority 负值=基础设施最后释放：-10000 ThreadManager；1=Registry/FrameSnapshotManager）
-            + EngineLoop 显式注册 AssetManager/RenderSystem/SceneManager（构造依赖或实例特定）；
-  Dispose → Services.Shutdown 反序释放（渲染线程 → 工作调度 → ThreadManager）
+  ├─ Input.Update → FixedTick/Tick/LateTick
+  ├─ drain PreRender → collect/freeze RenderPacket
+  ├─ RenderThreadHost.Submit(阻塞等待 GPU 完成) → Scene.PostRender
+  └─ CommitFrame(销毁/注册/快照 swap → drain FrameCommit → AssetManager 应用 Pipeline 结果)
+
+ThreadRuntime（线程资源唯一属主）
+  ├─ MainThreadDispatcher（PreRender / FrameCommit 批次）
+  ├─ BackgroundScheduler（Worker Pool）
+  ├─ RenderThreadHost（Rendering 专用线程、GPU 资源与 backend 退出释放）
+  └─ ManagedLoopRegistry（internal；未来扫描/监听/批量循环）
+
+AssetPipeline（Assets 域）
+  ├─ VFS 索引 → AssetCatalog → BuildKey/依赖计划
+  ├─ Worker Read/Decode/Import/Deserialize/Validate
+  └─ Main FrameCommit → AssetManager 状态与 Payload 发布
+
+Assets.AssetRenderBridge → Rendering.Abstraction 请求/Handle → Rendering.Backend → Rendering.OpenGL/Vulkan
 ```
 
 ### 核心子系统
@@ -35,11 +42,11 @@
 - **EngineLoop**: 心跳提供者，计算 dt（钳制 0.1s）→ 驱动 Input/Tick/渲染。内建 FixedStepAccumulator（LogicLoop 合并，替代 LogicLoop.FixedDeltaTime）；`Initialize` 创建 RenderSystem/AssetManager 并 `Services.Register` 全部管理者、`SceneManager.Attach` 注入注册表与快照管理器；`CommitFrame` 私有帧末提交（销毁→注册→快照 swap→资产完成）；公开 `SceneManager`/`AssetManager` 属性；`Dispose → Services.Shutdown` 反序释放。支持 Pause 和 Embedded 模式
 - **FrameSnapshot/ComponentRegistry**: 帧原子性核心。ComponentRegistry 类型索引注册表（持久化 ComponentGroup + MonoBehaviour 基类索引 `_mbIndex` 按具体类型归类），FrameSnapshotManager 双缓冲快照，帧末 CommitPending 统一应用销毁/注册并 swap（零分配）。销毁幂等（`_destroyPending`/`_destroyed` 双标志），LoadScene 场景切换注销旧场景全部组件
 - **Scene System**: Object → GameObject(内置Transform) → Component(活跃状态机: `RecomputeActiveState` 单一真理源, OnEnable/OnDisable/OnDestroy 下沉至 Component, Enabled/IsActive/SetParent 三路幂等重放) → MonoBehaviour(OnAwake/OnStart/OnUpdate/OnFixedUpdate/OnLateUpdate/OnPostRender)。工厂 `InitializeComponent`（挂载→OnAwake→RecomputeActiveState(Enable)→注册），GO 层级活跃门控 `IsActiveInHierarchy` 级联通知，`Started` 标志位 Start 补发，`AddObjectToScene` 运行时增删；SceneManager 为实例（ctor 订阅 Object.DestroyHandler，Dispose 解绑），`Attach(registry, snapshotManager)` 注入（替代 ActiveRegistry），Tick/FixedTick/LateTick/PostRender 经 `Registry.MonoBehaviourGroups` 基类索引直读派发（零 IsSubclassOf 扫描）
-- **Render**: RenderSystem(顶层管理) → RenderCollector(收集) → IRenderPipeline/ForwardPipeline(策略) → RenderPass[] → RenderThreadLoop → IRenderBackend(ExecutePass+Present)。相机矩阵经 `SingleDrawCommand.ViewMatrix/ProjectionMatrix` 携带，后端按 uModel 同款模式上传，不突变 Material；`Material.MainTexture` + `DefaultTextures.White` 占位 + OpenGLTexture 惰性缓存 + uMVP 同款上传
-- **Asset System**: AssetManager 实例类（ctor 构造注入 ITaskExecutor，无线程所有权、不懒建回退池；EngineLoop 创建注册，经公开属性取用）：Load 同步/LoadAsync 异步+LazyAsync/AssetRequest awaitable 主线程帧末恢复、AssetCache（GUID=路径 MD5、引用计数、状态机 Loading/Ready/Failed/Unloaded）、导入层（IImageDecoder 双实现 StbImageSharp/StbiSharp + ImporterFactory）、引用计数自动化闭环（SetTracked 赋值计数、OnDestroy 级联、MaterialDisposed、帧末 Unloaded 迁移、渲染线程帧首 GL 释放）、`TryResolve<T>(Guid)` GUID 直查
-- **Serialization**: 序列化栈已于 2026-08-23 整体移除（生成器 + 运行时基础设施 + .scene 加载）；未来整体重设计后再引入。当前 SilkEngine.SourceGen 仅含 [Service] 自动注册生成器（ServiceRegistrationGenerator）
+- **Rendering**: `Rendering` 负责 RenderSystem、RenderCollector、ForwardPipeline、RenderPacket/RenderFrame 和 RenderThreadHost；`Rendering.Abstraction` 定义无资产语义的数据/Handle，`Rendering.Backend` 定义后端能力契约，`Rendering.OpenGL`/`Rendering.Vulkan` 提供具体实现。整个 Rendering 域不引用或解析 AssetId、AssetHandle、AssetPipeline、AssetManager、AssetEntry 或 AssetPayload；Assets 侧通过 AssetRenderBridge 完成资产到渲染契约的转换
+- **Asset System**: AssetPipeline 负责 VFS 索引后的 Identity/Plan、BuildKey 去重、依赖、Read/Decode/Import/Deserialize/Validate 与不可变 Payload 结果；AssetManager 是 Main 域运行时门面，负责 Payload 缓存、AssetOperation 发布、驻留和卸载。静态 `Asset.Load<T>(path)` 通过 Services 转发；未索引路径直接抛详细 `InvalidOperationException`，不自动补录
+- **Serialization**: AssetSerializationRecord、Serializer Registry/Store 和 AssetSerializationService 属于 AssetPipeline 的 Worker/缓存阶段；Serializer 只处理 `IAssetPayload`，不创建 GPU 或 Scene 对象。当前 SilkEngine.SourceGen 仅含 [Service] 自动注册生成器（ServiceRegistrationGenerator）
 - **Input**: Input门面 → KeyboardState/MouseState(双缓冲) → IInputProvider → SilkInputProvider
-- **Threading**: 统一线程调度 ThreadManager（[Service] 自动注册）——主线程登记/亲和断言；Request<T>(ThreadRequest) 决策层（Dedicated→专用线程执行者 ILoopExecutor；WorkerPool→ThreadPoolExecutor 单例）；IJobHandle/IJobComposer.Combine 依赖聚合（ECS 预留）；RenderThreadLoop 只保留渲染职责（后端/帧同步/Passes），线程控制权归执行者
+- **Threading**: ThreadRuntime 统一登记 Main/Worker/Render 域、拥有 BackgroundScheduler/MainThreadDispatcher/RenderThreadHost 生命周期并负责关闭。业务层只接触 `IBackgroundScheduler`、`IMainThreadDispatcher` 和 `IJobHandle`；AssetPipeline 第一阶段使用 Worker Pool，未来持续扫描/监听才使用 internal ManagedLoopRegistry。旧 ThreadManager/Request/Executor API 迁移后删除
 - **Math**: 自研 Mathf/Vector2/Vector3/Quaternion/Matrix4x4 (左手系, 行主序约定; GL 上传 UniformMatrix4 transpose=true)
 - **Log**: Log.Info/Warn/Error/Debug + StackTree + ILogWriter 可扩展
 
@@ -47,15 +54,15 @@
 
 ```
 PumpEvents → GetDeltaTime → Input.Update → TickFrame(FixedStepAccumulator 固定步长累加 → FixedTick → Tick(活跃且未 Started 组件补发 OnStart, 仅一次) → LateTick)
-→ RenderSystem.Render(Collector→Pipeline→SubmitFrame阻塞等GPU) → SceneManager.PostRender
-→ CommitFrame(FrameSnapshotManager.CommitPending 销毁+注册+快照swap → AssetManager.ProcessCompleted 帧末完成队列拾取+Unloaded 迁移)
+→ RenderSystem.Render(Collector→Pipeline→RenderPacket→Submit 阻塞等GPU) → SceneManager.PostRender
+→ CommitFrame(FrameSnapshotManager.CommitPending 销毁+注册+快照swap → drain FrameCommit → AssetManager 应用 AssetPipeline 结果 → AssetResidency/GPU release)
 ```
 
 ### 项目结构
 
 ```
 src/SilkEngine/              # 引擎类库 (92 .cs)
-  Core/ (含 Assets/ + Assets/Importer/)  Scene/  Render/ (含 OpenGL/ Vulkan/ Pipeline/ Abstraction/)
+  Core/ (含 Assets/ + Assets/Importer/)  Scene/  Rendering/ (含 Abstraction/ Backend/ OpenGL/ Vulkan/ Pipeline/)
   Threading/  Input/  Math/
 src/SilkEngine.SourceGen/    # [Service] 自动注册生成器 (netstandard2.0 Roslyn 增量生成器)
 src/Sandbox/                 # 演示程序 (Program.cs 逐个启用 + Demos/ 9 文件共享 ShaderSources + Gameplay.cs; Resources/test.png)
