@@ -8,8 +8,11 @@ using SilkEngine.Assets.Serialization;
 using SilkEngine.Assets.VirtualFileSystem;
 using SilkEngine.InputSystem;
 using SilkEngine.Render;
+using SilkEngine.Rendering;
+using SilkEngine.Rendering.Backend;
 using SilkEngine.Scene;
 using SilkEngine.Threading;
+using IRenderBackend = SilkEngine.Rendering.Backend.IRenderBackend;
 
 namespace SilkEngine.Core;
 
@@ -71,7 +74,7 @@ public class EngineLoop : IDisposable
         _threadRuntime = Services.Get<ThreadRuntime>();
         _registry = Services.Get<ComponentRegistry>();
         _snapshotManager = Services.Get<FrameSnapshotManager>();
-        _renderSystem = new RenderSystem(_backend, _threadManager);
+        _renderSystem = new RenderSystem(_backend, _threadRuntime);
         var files = new DiskAssetFileSystem("Assets");
         var pipeline = new AssetPipeline(
             files,
@@ -83,6 +86,8 @@ public class EngineLoop : IDisposable
             _threadRuntime);
         pipeline.ApplyScan(files.Scan());
         _assetManager = new AssetManager(pipeline, _threadRuntime.MainThread, _threadRuntime, new AssetSerializerRegistry());
+        // release-request 队列承接：渲染线程帧首排空 → backend.Release（Rendering 域零 Assets 引用，主线程接线）
+        _renderSystem.RenderHost.DrainUnloadQueue = _assetManager.ProcessUnloadQueue;
         _sceneManager = new SceneManager();
     }
 
@@ -91,7 +96,7 @@ public class EngineLoop : IDisposable
         _sceneManager.Attach(_registry, _snapshotManager);
         _threadRuntime.RegisterMainThread();
         _renderSystem.Initialize();
-        if (_renderSystem.Backend.NativeWindow is { } win)
+        if (_renderSystem.Surface?.NativeWindow is { } win)
         {
             var inputProvider = new SilkInputProvider();
             inputProvider.Initialize(win);
@@ -114,10 +119,10 @@ public class EngineLoop : IDisposable
         }
         if (LogConfig.EngineLoop)
         {
-            Log.Info($"[EngineLoop]: EngineLoop Started. \nManaged threads: \nMain(heartbeat):PID{Pid}\nWorkers:ThreadPool\nRenderThread:PID{_renderSystem.RenderThreadContext.NativeThreadId}.");
+            Log.Info($"[EngineLoop]: EngineLoop Started. \nManaged threads: \nMain(heartbeat):PID{Pid}\nWorkers:ThreadPool\nRenderThread:PID{_renderSystem.RenderHost.Thread?.ManagedThreadId ?? -1}.");
             Log.Info("[EngineLoop] Run started");
         }
-        while (!_renderSystem!.ShouldClose && !_stopRequested)
+        while (!_renderSystem.ShouldClose && !_stopRequested)
         {
             if (!Embedded)
                 _renderSystem.PumpEvents();
@@ -151,7 +156,8 @@ public class EngineLoop : IDisposable
             cameras.Add(GetDefaultCamera());
         var renderables = snapshot.GetComponents<MeshRenderer>().Where(r => r.Enabled && r.GameObject.IsActiveInHierarchy).ToList();
         _collector.Gather(cameras, renderables, out var camera, out var batches);
-        _renderSystem!.Render((float)_renderSystem.Backend.Width / _renderSystem.Backend.Height, camera, batches);
+        var surface = _renderSystem.Surface;
+        _renderSystem.Render(surface is null ? 1f : (float)surface.Width / surface.Height, camera, batches);
     }
 
     private Camera GetDefaultCamera() =>

@@ -82,8 +82,17 @@ public sealed class ThreadRuntime : IDisposable, IThreadGuard
     /// <summary>进入 Render 域（Render 线程入口协议）。</summary>
     internal IDisposable EnterRender() => Enter(ThreadDomain.Render);
 
-    /// <summary>登记受管循环；关闭时统一 RequestStop + Join。</summary>
-    internal void RegisterManagedLoop(IManagedLoop loop) => _loops.Add(loop);
+    /// <summary>登记受管循环；关闭后或重复登记同一实例抛 <see cref="InvalidOperationException"/>。</summary>
+    /// <param name="loop">受管循环（持续扫描/监听/批量循环或渲染线程宿主）</param>
+    /// <exception cref="InvalidOperationException">运行时已关闭或实例已登记</exception>
+    internal void RegisterManagedLoop(IManagedLoop loop)
+    {
+        if (IsDisposed)
+            throw new InvalidOperationException("ThreadRuntime 已关闭，拒绝登记受管循环。");
+        if (_loops.Contains(loop))
+            throw new InvalidOperationException("受管循环已登记，禁止重复登记。");
+        _loops.Add(loop);
+    }
 
     /// <summary>排空主线程指定阶段（仅 Main 域调用）。</summary>
     internal void Drain(MainThreadPhase phase) => ((MainThreadDispatcher)MainThread).Drain(phase);

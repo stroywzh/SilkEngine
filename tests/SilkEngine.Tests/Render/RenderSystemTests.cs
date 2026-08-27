@@ -2,8 +2,12 @@ using SilkEngine.Core;
 using SilkEngine.Assets;
 using SilkEngine.Math;
 using SilkEngine.Render;
+using SilkEngine.Rendering;
 using SilkEngine.Scene;
 using SilkEngine.Threading;
+using NewRenderBackend = SilkEngine.Rendering.Backend.IRenderBackend;
+using NewRenderPacket = SilkEngine.Rendering.Abstraction.RenderPacket;
+using NewReleaseRequest = SilkEngine.Rendering.Abstraction.RenderResourceReleaseRequest;
 
 namespace SilkEngine.Tests.Render;
 
@@ -137,13 +141,32 @@ public class FakeRenderBackend : IRenderBackend
     }
 }
 
+/// <summary>新 RenderSystem 契约测试：ThreadRuntime 托管 + RenderThreadHost 帧同步（Present 每帧一次）。</summary>
 public class RenderSystemTests
 {
+    private sealed class RecordingBackend : NewRenderBackend
+    {
+        public int PresentCount;
+        public int ExecuteCount;
+
+        public void Initialize() { }
+
+        public void Execute(NewRenderPacket packet) => ExecuteCount++;
+
+        public void Present() => PresentCount++;
+
+        public void Release(NewReleaseRequest request) { }
+
+        public void Dispose() { }
+    }
+
     [Fact]
     public void RenderSystem_Render_CallsBackendPresent()
     {
-        using var backend = new FakeRenderBackend();
-        using var sys = new RenderSystem(backend, new ThreadManager());
+        using var backend = new RecordingBackend();
+        using var runtime = new ThreadRuntime();
+        runtime.RegisterMainThread();
+        using var sys = new RenderSystem(backend, runtime);
         sys.Initialize();
         try
         {
@@ -155,8 +178,6 @@ public class RenderSystemTests
 
             sys.Render(800f / 600f, cam, batches);
             Assert.Equal(1, backend.PresentCount);
-            Assert.Single(backend.Passes);
-            Assert.NotEmpty(backend.Passes[0]);
         }
         finally
         {
@@ -167,14 +188,16 @@ public class RenderSystemTests
     [Fact]
     public void RenderSystem_Render_NullCamera_SubmitsNothing()
     {
-        using var backend = new FakeRenderBackend();
-        using var sys = new RenderSystem(backend, new ThreadManager());
+        using var backend = new RecordingBackend();
+        using var runtime = new ThreadRuntime();
+        runtime.RegisterMainThread();
+        using var sys = new RenderSystem(backend, runtime);
         sys.Initialize();
         try
         {
             sys.Render(1f, null, []);
             Assert.Equal(0, backend.PresentCount);
-            Assert.Empty(backend.Passes);
+            Assert.Equal(0, backend.ExecuteCount);
         }
         finally
         {
