@@ -12,7 +12,16 @@ public sealed class AssetImporterRegistry
 
     /// <summary>创建注册表并注册内置默认导入器（.png/.jpg → 纹理导入器）</summary>
     public AssetImporterRegistry()
+        : this(registerDefaults: true)
     {
+    }
+
+    /// <summary>创建注册表；registerDefaults 为 false 时为空注册表（测试夹具用）</summary>
+    /// <param name="registerDefaults">是否注册内置默认导入器</param>
+    internal AssetImporterRegistry(bool registerDefaults)
+    {
+        if (!registerDefaults)
+            return;
         Register(TextureAssetTypeId, ".png", settings => new TextureImporter(Decoders.Default, settings));
         Register(TextureAssetTypeId, ".jpg", settings => new TextureImporter(Decoders.Default, settings));
     }

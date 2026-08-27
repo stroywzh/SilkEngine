@@ -26,10 +26,10 @@ public class AssetManagerPipelineTests : IDisposable
         var scheduler = new RecordingScheduler();
         using var assets = new AssetManager(files, CreateRegistry(), scheduler);
 
-        var first = assets.LoadAsync<Texture2D>("Textures/a.png");
+        var first = assets.LoadAsync<TextureAsset>("Textures/a.png");
         files.Replace("Textures/a.png", [2]);
         assets.Invalidate("Textures/a.png");
-        var second = assets.LoadAsync<Texture2D>("Textures/a.png");
+        var second = assets.LoadAsync<TextureAsset>("Textures/a.png");
 
         Assert.Equal(1, scheduler.ScheduleCalls);
         Assert.NotSame(first, second);
@@ -42,8 +42,8 @@ public class AssetManagerPipelineTests : IDisposable
         files.Add("Textures/a.png", [1]);
         using var assets = new AssetManager(files, CreateRegistry(), new RecordingScheduler());
 
-        var first = assets.LoadAsync<Texture2D>("Textures/a.png");
-        var second = assets.LoadAsync<Texture2D>("Textures/a.png");
+        var first = assets.LoadAsync<TextureAsset>("Textures/a.png");
+        var second = assets.LoadAsync<TextureAsset>("Textures/a.png");
 
         var entry = Assert.Single(assets.Cache.All());
         Assert.NotSame(first, second);
@@ -59,13 +59,13 @@ public class AssetManagerPipelineTests : IDisposable
         var scheduler = new DeferredTaskScheduler();
         using var assets = new AssetManager(files, CreateRegistry(), scheduler);
 
-        var first = assets.LoadAsync<Texture2D>("Textures/a.png");
+        var first = assets.LoadAsync<TextureAsset>("Textures/a.png");
         Assert.Equal(1, scheduler.SubmissionCount);
         var entry = Assert.Single(assets.Cache.All());
 
         files.Replace("Textures/a.png", PngFixtures.RedPng);
         assets.Invalidate("Textures/a.png");
-        var second = assets.LoadAsync<Texture2D>("Textures/a.png");
+        var second = assets.LoadAsync<TextureAsset>("Textures/a.png");
         Assert.Equal(1, scheduler.SubmissionCount);
         Assert.Same(entry, Assert.Single(assets.Cache.All()));
 
@@ -84,7 +84,7 @@ public class AssetManagerPipelineTests : IDisposable
         Assert.True(second.IsDone);
         Assert.Null(first.Error);
         Assert.Same(first.Asset, second.Asset);
-        Assert.Same(first.Asset, assets.TryResolve<Texture2D>(entry.AssetId));
+        Assert.Same(first.Asset, assets.TryResolve<TextureAsset>(entry.AssetId));
     }
 
     [Fact]
@@ -95,17 +95,17 @@ public class AssetManagerPipelineTests : IDisposable
         var scheduler = new RecordingScheduler();
         using var assets = new AssetManager(files, CreateRegistry(), scheduler);
 
-        var first = assets.LoadAsync<Texture2D>("a.png");
+        var first = assets.LoadAsync<TextureAsset>("a.png");
         assets.ProcessCompleted();
         Assert.Equal(1, scheduler.ScheduleCalls);
 
-        var hit = assets.LoadAsync<Texture2D>("a.png"); // 同修订 → 缓存命中
+        var hit = assets.LoadAsync<TextureAsset>("a.png"); // 同修订 → 缓存命中
         Assert.Equal(1, scheduler.ScheduleCalls);
         Assert.True(hit.IsDone);
         Assert.Same(first.Asset, hit.Asset);
 
         assets.Invalidate("a.png");                     // 源变更 → 修订递增 → 旧数据失效
-        var stale = assets.LoadAsync<Texture2D>("a.png");
+        var stale = assets.LoadAsync<TextureAsset>("a.png");
         Assert.Equal(2, scheduler.ScheduleCalls);
         Assert.False(stale.IsDone);
 
@@ -122,7 +122,7 @@ public class AssetManagerPipelineTests : IDisposable
         files.Add("broken.png", PngFixtures.CorruptPng);
         using var assets = new AssetManager(files, CreateRegistry(), new RecordingScheduler());
 
-        var failed = assets.LoadAsync<Texture2D>("broken.png");
+        var failed = assets.LoadAsync<TextureAsset>("broken.png");
         assets.ProcessCompleted();
         Assert.True(failed.IsDone);
         Assert.NotNull(failed.Error);
@@ -130,7 +130,7 @@ public class AssetManagerPipelineTests : IDisposable
         Assert.Equal(AssetState.Failed, entry.State);
 
         files.Replace("broken.png", PngFixtures.RedPng);
-        var retry = assets.LoadAsync<Texture2D>("broken.png"); // Failed 条目再次加载 = 重试
+        var retry = assets.LoadAsync<TextureAsset>("broken.png"); // Failed 条目再次加载 = 重试
         Assert.NotSame(failed, retry);
         Assert.False(retry.IsDone);
 
@@ -147,14 +147,14 @@ public class AssetManagerPipelineTests : IDisposable
         files.Add("Textures/a.png", PngFixtures.RedPng);
         using var assets = new AssetManager(files, CreateRegistry(), new RecordingScheduler());
 
-        var tex = assets.Load<Texture2D>("Textures/a.png");
+        var tex = assets.Load<TextureAsset>("Textures/a.png");
 
         Assert.NotNull(tex);
         Assert.Equal("a", tex.Name);
         var entry = Assert.Single(assets.Cache.All());
         Assert.Equal(AssetState.Ready, entry.State);
         Assert.Same(tex, entry.Data);
-        Assert.Same(tex, assets.TryResolve<Texture2D>(entry.AssetId));
+        Assert.Same(tex, assets.TryResolve<TextureAsset>(entry.AssetId));
     }
 
     [Fact]
@@ -164,17 +164,17 @@ public class AssetManagerPipelineTests : IDisposable
         files.Add("a.png", PngFixtures.RedPng);
         using var assets = new AssetManager(files, CreateRegistry(), new RecordingScheduler());
 
-        var req = assets.LoadAsync<Texture2D>("a.png");
+        var req = assets.LoadAsync<TextureAsset>("a.png");
         assets.ProcessCompleted();
         var entry = Assert.Single(assets.Cache.All());
-        Assert.NotNull(assets.TryResolve<Texture2D>(entry.AssetId));
+        Assert.NotNull(assets.TryResolve<TextureAsset>(entry.AssetId));
 
         assets.Invalidate("a.png"); // 源变更 → 旧修订数据不再可解析
-        Assert.Null(assets.TryResolve<Texture2D>(entry.AssetId));
+        Assert.Null(assets.TryResolve<TextureAsset>(entry.AssetId));
 
-        var reload = assets.LoadAsync<Texture2D>("a.png");
+        var reload = assets.LoadAsync<TextureAsset>("a.png");
         assets.ProcessCompleted();
-        Assert.NotNull(assets.TryResolve<Texture2D>(entry.AssetId));
+        Assert.NotNull(assets.TryResolve<TextureAsset>(entry.AssetId));
     }
 
     [Fact]
@@ -184,7 +184,7 @@ public class AssetManagerPipelineTests : IDisposable
         files.Add("a.bin", [1]);
         using var assets = new AssetManager(files, CreateRegistry(), new RecordingScheduler());
 
-        Assert.Throws<NotSupportedException>(() => assets.LoadAsync<Texture2D>("a.bin"));
+        Assert.Throws<NotSupportedException>(() => assets.LoadAsync<TextureAsset>("a.bin"));
     }
 }
 

@@ -48,11 +48,11 @@ public class AssetSerializationIntegrationTests : IDisposable
         files.Add("a.png", PngFixtures.RedPng);
         var assets = Fixtures.AssetManagerWithSerializerRegistry(files);
 
-        var tex = assets.Load<Texture2D>("a.png");
+        var tex = assets.Load<TextureAsset>("a.png");
         var id = Assert.Single(assets.Cache.All()).AssetId;
 
-        Assert.Same(tex, assets.Resolver.Resolve(new AssetHandle<Texture2D>(id)));
-        Assert.Null(assets.Resolver.Resolve(new AssetHandle<Texture2D>(new AssetId(Guid.NewGuid()))));
+        Assert.Same(tex, assets.Resolver.Resolve(new AssetHandle<TextureAsset>(id)));
+        Assert.Null(assets.Resolver.Resolve(new AssetHandle<TextureAsset>(new AssetId(Guid.NewGuid()))));
         Assert.Null(assets.Resolver.Resolve(new UntypedAssetHandle(new AssetId(Guid.NewGuid()))));
         Assert.Null(assets.Resolver.TryGetRecord(new AssetId(Guid.NewGuid())));
     }

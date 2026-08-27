@@ -35,6 +35,31 @@ public sealed class AssetCatalog
     /// <returns>是否命中</returns>
     public bool TryGet(AssetId assetId, out AssetRecord? record) => _byId.TryGetValue(assetId, out record);
 
+    /// <summary>
+    /// 按指定 AssetId 登记记录（目录恢复/测试种子路径；已存在的 (源节点, 类型) 组合返回既有记录）。
+    /// </summary>
+    /// <param name="sourceNodeId">源虚拟文件系统节点</param>
+    /// <param name="assetTypeId">资产类型</param>
+    /// <param name="assetId">指定资产 ID</param>
+    /// <returns>该 (源节点, 类型) 组合对应的资产记录</returns>
+    internal AssetRecord Seed(VirtualNodeId sourceNodeId, AssetTypeId assetTypeId, AssetId assetId)
+    {
+        var key = (Source: sourceNodeId, Type: assetTypeId);
+        if (_bySourceAndType.TryGetValue(key, out var existing))
+        {
+            return existing;
+        }
+        var record = new AssetRecord
+        {
+            AssetId = assetId,
+            SourceNodeId = sourceNodeId,
+            AssetTypeId = assetTypeId,
+        };
+        _bySourceAndType[key] = record;
+        _byId[record.AssetId] = record;
+        return record;
+    }
+
     /// <summary>已登记记录数量（测试断言用）</summary>
     internal int Count => _byId.Count;
 

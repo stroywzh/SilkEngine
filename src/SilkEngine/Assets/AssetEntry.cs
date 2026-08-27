@@ -54,13 +54,13 @@ internal readonly record struct AssetLoadResult
         AssetId assetId,
         ulong sourceRevision,
         ulong operationToken,
-        IAsset? asset,
+        IAssetPayload? payload,
         Exception? error)
     {
         AssetId = assetId;
         SourceRevision = sourceRevision;
         OperationToken = operationToken;
-        Asset = asset;
+        Payload = payload;
         Error = error;
     }
 
@@ -73,8 +73,8 @@ internal readonly record struct AssetLoadResult
     /// <summary>本次后台操作的令牌</summary>
     public ulong OperationToken { get; init; }
 
-    /// <summary>已加载资产；失败为 null</summary>
-    public IAsset? Asset { get; init; }
+    /// <summary>已加载载荷；失败为 null</summary>
+    public IAssetPayload? Payload { get; init; }
 
     /// <summary>加载异常；成功为 null</summary>
     public Exception? Error { get; init; }

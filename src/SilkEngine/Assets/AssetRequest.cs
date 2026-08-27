@@ -9,7 +9,7 @@ namespace SilkEngine.Assets;
 internal interface IAssetRequest
 {
     /// <summary>由主线程帧末调用，填值并唤醒续延</summary>
-    void Complete(IAsset? asset, Exception? error);
+    void Complete(object? asset, Exception? error);
 }
 
 /// <summary>
@@ -81,7 +81,7 @@ public sealed class AssetRequest<T> : INotifyCompletion, IAssetRequest
         }
     }
 
-    void IAssetRequest.Complete(IAsset? asset, Exception? error)
+    void IAssetRequest.Complete(object? asset, Exception? error)
     {
         if (error is null && asset is not T)
             error = new InvalidOperationException(

@@ -1,6 +1,6 @@
 namespace SilkEngine.Assets.Importer;
 
-/// <summary>纹理导入器：委托 IImageDecoder 解码</summary>
+/// <summary>纹理导入器：委托 IImageDecoder 解码为 <see cref="TextureAsset"/>（不返回 Texture2D）</summary>
 public sealed class TextureImporter : IAssetImporter
 {
     private readonly IImageDecoder _decoder;
@@ -13,16 +13,16 @@ public sealed class TextureImporter : IAssetImporter
         _decoder = decoder;
     }
 
-    /// <summary>导入：解码为 Texture2D（Name 取自 settings.Path 的文件名；无路径时回退 "Texture"）。</summary>
-    /// <param name="raw">原始文件字节</param>
-    /// <param name="settings">导入设置（Path 用于派生资产名）</param>
-    /// <returns>解码完成的 Texture2D 资产</returns>
-    public IAsset Import(byte[] raw, ImportSettings? settings = null)
+    /// <summary>导入：解码为 TextureAsset（Name 取自 context.Path 的文件名；无路径时回退 "Texture"）。</summary>
+    /// <param name="source">原始文件字节</param>
+    /// <param name="context">导入上下文（Path 用于派生资产名）</param>
+    /// <returns>解码完成的纹理导入结果</returns>
+    public AssetImportResult Import(ReadOnlyMemory<byte> source, AssetImportContext context)
     {
-        var data = _decoder.Decode(raw);
-        var name = settings?.Path is { Length: > 0 } path
+        var data = _decoder.Decode(source.ToArray());
+        var name = context.Path is { Length: > 0 } path
             ? Path.GetFileNameWithoutExtension(path)
             : "Texture";
-        return new Texture2D { Name = name, Data = data };
+        return new AssetImportResult(new TextureAsset(name, data), [], ImporterRevision: 1);
     }
 }

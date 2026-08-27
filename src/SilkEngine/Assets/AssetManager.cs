@@ -161,10 +161,10 @@ public sealed class AssetManager : IDisposable
             new ImportSettings { Path = normalized }
         );
         var raw = _files.ReadAsync(normalized).AsTask().GetAwaiter().GetResult();
-        var asset = importer.Import(raw.ToArray(), new ImportSettings { Path = normalized });
-        if (asset is not T typed)
+        var payload = importer.Import(raw, new AssetImportContext(normalized, new ImportSettings { Path = normalized })).Payload;
+        if (payload is not T typed)
             throw new InvalidOperationException(
-                $"资产 {path} 类型为 {asset.GetType().Name}，不是 {typeof(T).Name}"
+                $"资产 {path} 类型为 {payload.GetType().Name}，不是 {typeof(T).Name}"
             );
         entry ??= _cache.GetOrAdd(record.AssetId);
         _cache.SetData(entry, typed);
@@ -261,8 +261,8 @@ public sealed class AssetManager : IDisposable
             {
                 entry.State = AssetState.Ready;
                 entry.SourceRevision = result.SourceRevision;
-                _cache.SetData(entry, result.Asset);
-                CompleteAwaiters(entry, result.Asset, null);
+                _cache.SetData(entry, result.Payload);
+                CompleteAwaiters(entry, result.Payload, null);
                 if (LogConfig.Assets)
                     Log.Info($"[Assets] Load completed '{entry.AssetId}'");
             }
@@ -403,10 +403,10 @@ public sealed class AssetManager : IDisposable
         where T : class
         => TryResolveUntyped(assetId) as T;
 
-    /// <summary>AssetId → 已就绪缓存资产（目录修订一致才返回）；未命中或源已失效返回 null。类型化查询与序列化层 resolver 视图共用。</summary>
+    /// <summary>AssetId → 已就绪缓存数据（目录修订一致才返回）；未命中或源已失效返回 null。类型化查询与序列化层 resolver 视图共用。</summary>
     /// <param name="assetId">资产 ID</param>
-    /// <returns>已就绪资产；未命中/失效为 null</returns>
-    internal IAsset? TryResolveUntyped(AssetId assetId)
+    /// <returns>已就绪资产数据；未命中/失效为 null</returns>
+    internal object? TryResolveUntyped(AssetId assetId)
     {
         var entry = _cache.Find(assetId);
         if (entry is not { State: AssetState.Ready, Data: { } data })
@@ -414,7 +414,7 @@ public sealed class AssetManager : IDisposable
         // 缓存命中只接受当前修订：目录记录存在且修订不一致说明源已失效
         if (_catalog.TryGet(assetId, out var record) && entry.SourceRevision != record.SourceRevision)
             return null;
-        return data as IAsset;
+        return data;
     }
 
     private AssetRecord ResolveRecord(string normalizedPath, out AssetTypeId assetTypeId)
@@ -472,7 +472,7 @@ public sealed class AssetManager : IDisposable
                     record.AssetId,
                     sourceRevision,
                     operationToken,
-                    importer.Import(raw.ToArray(), new ImportSettings { Path = path }),
+                    importer.Import(raw, new AssetImportContext(path, new ImportSettings { Path = path })).Payload,
                     null
                 );
             }
@@ -484,7 +484,7 @@ public sealed class AssetManager : IDisposable
         });
     }
 
-    private void CompleteAwaiters(AssetEntry entry, IAsset? asset, Exception? error)
+    private void CompleteAwaiters(AssetEntry entry, object? asset, Exception? error)
     {
         entry.Pending?.Complete(asset, error);
         entry.Pending = null;

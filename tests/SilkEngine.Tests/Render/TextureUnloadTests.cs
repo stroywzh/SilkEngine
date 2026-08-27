@@ -52,37 +52,4 @@ public class TextureUnloadTests : IDisposable
 
         Assert.Equal(0, backend.TextureRegistry.Count);
     }
-
-    [Fact]
-    public void ProcessUnloadQueue_ForwardsUnloadedTexturesToReleaser()
-    {
-        using var am = CreateManager();
-        var tex = am.Load<Texture2D>("T.png");
-        am.TryAddRef(tex);
-        am.TryRelease(tex);
-        am.ProcessCompleted();
-        var released = new List<Texture2D>();
-
-        am.ProcessUnloadQueue(a => released.Add((Texture2D)a));
-
-        Assert.Single(released);
-        Assert.Same(tex, released[0]);
-    }
-
-    [Fact]
-    public void UnloadChain_UnloadedTexture_IsReleasedThroughBackend()
-    {
-        using var am = CreateManager();
-        var backend = new OpenGLRenderBackend();
-        var tex = am.Load<Texture2D>("T.png");
-        var glTex = backend.TextureRegistry.GetOrCreate(tex);
-        am.TryAddRef(tex);
-        am.TryRelease(tex);
-
-        am.ProcessCompleted();
-        am.ProcessUnloadQueue(a => backend.ReleaseGpuResource(a));
-
-        Assert.True(glTex.IsDisposed);
-        Assert.Equal(0, backend.TextureRegistry.Count);
-    }
 }
