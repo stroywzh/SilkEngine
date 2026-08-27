@@ -68,6 +68,143 @@ public static class Fixtures
             ]),
             revision: 7);
     }
+
+    /// <summary>缺失依赖测试用材质资产 ID（记录存在于 MissingReferenceResolver，依赖记录不存在）</summary>
+    public static AssetId MaterialAssetId { get; } = new(Guid.NewGuid());
+
+    /// <summary>循环依赖测试的入口资产 ID（A 依赖 B，B 依赖 A）</summary>
+    public static AssetId CyclicAssetId { get; } = new(Guid.NewGuid());
+
+    /// <summary>循环依赖测试的第二个资产 ID</summary>
+    public static AssetId CyclicDependencyId { get; } = new(Guid.NewGuid());
+
+    /// <summary>构造材质-着色器-纹理依赖图记录（数据由真实序列化器编码，材质依赖顺序：着色器在前、纹理在后）</summary>
+    /// <returns>依赖图记录</returns>
+    public static AssetGraphRecords MaterialGraphRecords()
+    {
+        var shaderId = new AssetId(Guid.NewGuid());
+        var textureId = new AssetId(Guid.NewGuid());
+        var materialId = new AssetId(Guid.NewGuid());
+
+        var shader = new ShaderAssetSerializer().Serialize(
+            new ShaderAsset("lit", "#version 330 core", "void main(){}")) with
+        {
+            AssetId = shaderId,
+        };
+        var texture = new TextureAssetSerializer().Serialize(
+            new TextureAsset("white", new ImageData(1, 1, [255, 255, 255, 255]))) with
+        {
+            AssetId = textureId,
+        };
+        var material = new MaterialAssetSerializer().Serialize(new MaterialAsset(
+            materialId,
+            new AssetHandle<ShaderAsset>(shaderId),
+            new AssetHandle<TextureAsset>(textureId),
+            new MaterialParameterSnapshot([("Opacity", MaterialValue.Float(1f))])));
+
+        return new AssetGraphRecords(material, shader, texture);
+    }
+
+    /// <summary>构造互相依赖的两个着色器记录（A 依赖 B，B 依赖 A）</summary>
+    /// <returns>循环图记录数组</returns>
+    public static AssetSerializationRecord[] CyclicGraphRecords()
+    {
+        var a = Fixtures.SerializationRecord(type: "shader", assetId: CyclicAssetId) with
+        {
+            Dependencies = [new UntypedAssetHandle(CyclicDependencyId, new AssetTypeId("shader"))],
+        };
+        var b = Fixtures.SerializationRecord(type: "shader", assetId: CyclicDependencyId) with
+        {
+            Dependencies = [new UntypedAssetHandle(CyclicAssetId, new AssetTypeId("shader"))],
+        };
+        return [a, b];
+    }
+
+    /// <summary>构造预注册内置序列化器的反序列化服务（测试夹具）</summary>
+    /// <param name="resolver">引用解析器</param>
+    /// <returns>反序列化服务</returns>
+    public static AssetSerializationService SerializationService(IAssetReferenceResolver resolver)
+    {
+        var registry = new AssetSerializerRegistry();
+        registry.Register(new TextureAssetSerializer());
+        registry.Register(new ShaderAssetSerializer());
+        registry.Register(new MeshAssetSerializer());
+        registry.Register(new MaterialAssetSerializer());
+        return new AssetSerializationService(registry, resolver);
+    }
+}
+
+/// <summary>材质依赖图记录容器（测试夹具）</summary>
+/// <param name="Material">材质记录（依赖着色器与纹理）</param>
+/// <param name="Shader">着色器记录（无依赖）</param>
+/// <param name="Texture">纹理记录（无依赖）</param>
+public sealed record AssetGraphRecords(
+    AssetSerializationRecord Material,
+    AssetSerializationRecord Shader,
+    AssetSerializationRecord Texture);
+
+/// <summary>记录型引用解析器：按记录目录提供查询，记录每次句柄解析调用（测试夹具）</summary>
+public sealed class RecordingReferenceResolver : IAssetReferenceResolver
+{
+    private readonly Dictionary<AssetId, AssetSerializationRecord> _records;
+
+    /// <summary>按解析顺序记录的全部依赖 ID</summary>
+    public List<AssetId> ResolvedIds { get; } = [];
+
+    /// <summary>以记录集合创建解析器</summary>
+    /// <param name="records">记录集合</param>
+    public RecordingReferenceResolver(params AssetSerializationRecord[] records)
+    {
+        _records = records.ToDictionary(r => r.AssetId);
+    }
+
+    /// <summary>按资产 ID 查询记录；未命中返回 null</summary>
+    public AssetSerializationRecord? TryGetRecord(AssetId assetId)
+        => _records.TryGetValue(assetId, out var record) ? record : null;
+
+    /// <summary>记录强类型句柄解析（返回 null，测试不消费解析结果）</summary>
+    public T Resolve<T>(AssetHandle<T> handle)
+        where T : class
+    {
+        ResolvedIds.Add(handle.Id);
+        return null!;
+    }
+
+    /// <summary>记录非泛型句柄解析（返回 null，测试不消费解析结果）</summary>
+    public object Resolve(UntypedAssetHandle handle)
+    {
+        ResolvedIds.Add(handle.Id);
+        return null!;
+    }
+}
+
+/// <summary>缺失依赖解析器：提供材质记录但缺失其着色器依赖（测试夹具）</summary>
+public sealed class MissingReferenceResolver : IAssetReferenceResolver
+{
+    private readonly AssetSerializationRecord _material = new()
+    {
+        SchemaVersion = 1,
+        TypeId = new AssetTypeId("material"),
+        AssetId = Fixtures.MaterialAssetId,
+        Dependencies =
+        [
+            new UntypedAssetHandle(new AssetId(Guid.NewGuid()), new AssetTypeId("shader")),
+        ],
+        Data = "{}",
+    };
+
+    /// <summary>仅返回材质记录；依赖记录一律未命中</summary>
+    public AssetSerializationRecord? TryGetRecord(AssetId assetId)
+        => assetId == _material.AssetId ? _material : null;
+
+    /// <summary>抛 <see cref="KeyNotFoundException"/>（依赖不存在）</summary>
+    public T Resolve<T>(AssetHandle<T> handle)
+        where T : class
+        => throw new KeyNotFoundException($"依赖 {handle.Id} 不存在");
+
+    /// <summary>抛 <see cref="KeyNotFoundException"/>（依赖不存在）</summary>
+    public object Resolve(UntypedAssetHandle handle)
+        => throw new KeyNotFoundException($"依赖 {handle.Id} 不存在");
 }
 
 /// <summary>空操作引用解析器：不解析任何依赖（测试夹具）</summary>
