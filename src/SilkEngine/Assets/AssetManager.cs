@@ -20,6 +20,7 @@ namespace SilkEngine.Assets;
 public sealed class AssetManager : IDisposable
 {
     private readonly IAssetFileSystem _files;
+    private readonly IVirtualFileIndex? _index;
     private readonly AssetImporterRegistry _registry;
     private readonly ITaskScheduler _scheduler;
     private readonly AssetSerializerRegistry _serializerRegistry;
@@ -63,6 +64,36 @@ public sealed class AssetManager : IDisposable
         Services.Register(this);
     }
 
+    /// <summary>
+    /// 严格索引构造：路径加载必须先经 <see cref="IVirtualFileIndex"/> 索引（启动扫描 Apply 后）；
+    /// 未索引路径抛详细 InvalidOperationException，目录路径拒绝加载。旧四参构造保持宽松兼容（路径 MD5 身份），
+    /// 由任务 5 统一删除。
+    /// </summary>
+    /// <param name="files">资产文件服务（逻辑路径只读访问）</param>
+    /// <param name="index">虚拟文件索引（启动扫描结果；路径解析前置条件）</param>
+    /// <param name="registry">导入器注册表（扩展名 → 资产类型/导入器解析）</param>
+    /// <param name="scheduler">后台加载任务调度器</param>
+    /// <param name="serializerRegistry">序列化器注册表；null 时新建空注册表实例（实例级互不共享）</param>
+    public AssetManager(
+        IAssetFileSystem files,
+        IVirtualFileIndex index,
+        AssetImporterRegistry registry,
+        ITaskScheduler scheduler,
+        AssetSerializerRegistry? serializerRegistry = null)
+        : this(files, registry, scheduler, serializerRegistry)
+    {
+        _index = index ?? throw new ArgumentNullException(nameof(index));
+    }
+
+    /// <summary>启动扫描入口：将一次扫描结果应用到虚拟文件索引（不预加载任何 Payload）。</summary>
+    /// <param name="scan">启动扫描结果</param>
+    public void ApplyScan(ScanResult scan)
+    {
+        if (_index is null)
+            throw new InvalidOperationException("此资产管理器未配置虚拟文件索引（宽松兼容模式）。");
+        _index.Apply(scan);
+    }
+
     /// <summary>注册序列化器（直通注册表；同类型重复注册抛 <see cref="InvalidOperationException"/>）</summary>
     /// <param name="serializer">待注册序列化器</param>
     public void RegisterSerializer(IAssetSerializer serializer) => _serializerRegistry.Register(serializer);
@@ -87,7 +118,7 @@ public sealed class AssetManager : IDisposable
     /// <exception cref="NotSupportedException">扩展名无对应导入器</exception>
     /// <exception cref="InvalidOperationException">资产正在异步加载中（同步 Load 不可用）；或缓存条目类型与 T 不符</exception>
     public T Load<T>(string path)
-        where T : IAsset
+        where T : class
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         var normalized = _files.Normalize(path);
@@ -132,7 +163,7 @@ public sealed class AssetManager : IDisposable
     /// <exception cref="NotSupportedException">扩展名无对应导入器</exception>
     /// <exception cref="InvalidOperationException">缓存条目已就绪且修订一致但类型与 T 不符</exception>
     public AssetRequest<T> LoadAsync<T>(string path, AsyncLoadMode mode = AsyncLoadMode.NormalAsync)
-        where T : IAsset
+        where T : class
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         var normalized = _files.Normalize(path);
@@ -173,7 +204,14 @@ public sealed class AssetManager : IDisposable
     public void Invalidate(string path)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        _catalog.InvalidateSource(NodeIdFromPath(_files.Normalize(path)));
+        var normalized = _files.Normalize(path);
+        if (_index is not null)
+        {
+            if (_index.TryGet(normalized, out var node) && node is not null)
+                _catalog.InvalidateSource(node.Id);
+            return;
+        }
+        _catalog.InvalidateSource(NodeIdFromPath(normalized));
     }
 
     /// <summary>
@@ -241,7 +279,8 @@ public sealed class AssetManager : IDisposable
             if (entry is null || entry.RefCount != 0 || entry.State != AssetState.Ready)
                 continue;
             entry.State = AssetState.Unloaded;
-            AssetUnloaded?.Invoke(entry.Data!);
+            if (entry.Data is IAsset unloaded)
+                AssetUnloaded?.Invoke(unloaded);
             _unloadQueue.Enqueue(unloadAssetId);
         }
     }
@@ -265,7 +304,7 @@ public sealed class AssetManager : IDisposable
             }
             if (release is not null)
             {
-                if (entry.Data is { } data)
+                if (entry.Data is IAsset data)
                     release(data);
                 _cache.SetData(entry, null);
                 if (LogConfig.Assets)
@@ -365,7 +404,7 @@ public sealed class AssetManager : IDisposable
     /// <param name="assetId">资产 ID</param>
     /// <returns>已就绪资产；未命中/类型不符/失效为 null</returns>
     public T? TryResolve<T>(AssetId assetId)
-        where T : class, IAsset
+        where T : class
         => TryResolveUntyped(assetId) as T;
 
     /// <summary>AssetId → 已就绪缓存资产（目录修订一致才返回）；未命中或源已失效返回 null。类型化查询与序列化层 resolver 视图共用。</summary>
@@ -379,16 +418,39 @@ public sealed class AssetManager : IDisposable
         // 缓存命中只接受当前修订：目录记录存在且修订不一致说明源已失效
         if (_catalog.TryGet(assetId, out var record) && entry.SourceRevision != record.SourceRevision)
             return null;
-        return data;
+        return data as IAsset;
     }
 
     private AssetRecord ResolveRecord(string normalizedPath, out AssetTypeId assetTypeId)
     {
+        if (_index is not null)
+            return ResolveIndexed(normalizedPath, out assetTypeId);
         var extension = Path.GetExtension(normalizedPath);
         if (!_registry.TryGetAssetType(extension, out assetTypeId))
             throw new NotSupportedException($"No importer for extension '{extension}'");
         return _catalog.GetOrAdd(NodeIdFromPath(normalizedPath), assetTypeId);
     }
+
+    /// <summary>严格索引解析：未命中抛详细 InvalidOperationException（不建节点/记录/不启动导入）；目录路径拒绝加载。</summary>
+    private AssetRecord ResolveIndexed(string normalizedPath, out AssetTypeId assetTypeId)
+    {
+        if (!_index!.TryGet(normalizedPath, out var node) || node is null)
+        {
+            throw new InvalidOperationException(
+                $"Asset path '{normalizedPath}' was normalized to '{normalizedPath}', "
+                + "but it is not present in the VFS index. "
+                + "Complete the startup asset scan before loading assets.");
+        }
+        if (node.NodeType != VirtualNodeType.File)
+            throw new InvalidOperationException($"Asset path '{normalizedPath}' resolves to a directory, not a file.");
+        var extension = Path.GetExtension(normalizedPath);
+        if (!_registry.TryGetAssetType(extension, out assetTypeId))
+            throw new NotSupportedException($"No importer for extension '{extension}'");
+        return _catalog.GetOrAdd(node.Id, assetTypeId);
+    }
+
+    /// <summary>已登记目录记录数量（测试断言用）</summary>
+    internal int CatalogCountForTests => _catalog.Count;
 
     private void ScheduleLoad(AssetEntry entry, AssetRecord record, string path)
     {

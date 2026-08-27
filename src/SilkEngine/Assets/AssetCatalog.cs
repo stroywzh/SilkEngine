@@ -35,6 +35,9 @@ public sealed class AssetCatalog
     /// <returns>是否命中</returns>
     public bool TryGet(AssetId assetId, out AssetRecord? record) => _byId.TryGetValue(assetId, out record);
 
+    /// <summary>已登记记录数量（测试断言用）</summary>
+    internal int Count => _byId.Count;
+
     /// <summary>源节点变更：将该源节点的全部资产记录 SourceRevision 递增（缓存失效信号，由 AssetManager.Invalidate 调用）</summary>
     /// <param name="sourceNodeId">源虚拟文件系统节点</param>
     public void InvalidateSource(VirtualNodeId sourceNodeId)

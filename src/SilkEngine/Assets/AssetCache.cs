@@ -56,7 +56,7 @@ public sealed class AssetCache
     {
         if (!_entries.TryRemove(assetId, out var entry))
             return false;
-        if (entry.Data is { } data)
+        if (entry.Data is IAsset data)
             _byAsset.TryRemove(data, out _);
         return true;
     }
@@ -67,15 +67,15 @@ public sealed class AssetCache
     /// <summary>赋值 Data 并同步反向索引（旧值移除、新值写入）；引擎内 Data 写入唯一入口</summary>
     /// <param name="entry">目标条目</param>
     /// <param name="data">新资产实例；null 表示清空</param>
-    internal void SetData(AssetEntry entry, IAsset? data)
+    internal void SetData(AssetEntry entry, object? data)
     {
         var old = entry.Data;
         if (ReferenceEquals(old, data))
             return;
         entry.Data = data;
-        if (old is not null)
-            _byAsset.TryRemove(old, out _);
-        if (data is not null)
-            _byAsset[data] = entry;
+        if (old is IAsset oldAsset)
+            _byAsset.TryRemove(oldAsset, out _);
+        if (data is IAsset newAsset)
+            _byAsset[newAsset] = entry;
     }
 }

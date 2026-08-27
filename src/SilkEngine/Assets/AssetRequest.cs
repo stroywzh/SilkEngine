@@ -23,7 +23,7 @@ internal interface IAssetRequest
 /// <summary>可 await 的资产加载请求（Unity 式自定义 awaitable）</summary>
 /// <typeparam name="T">资产类型</typeparam>
 public sealed class AssetRequest<T> : INotifyCompletion, IAssetRequest
-    where T : IAsset
+    where T : class
 {
     private Action? _continuation;
     private T? _asset;

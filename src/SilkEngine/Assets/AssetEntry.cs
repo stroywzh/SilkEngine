@@ -22,8 +22,8 @@ public sealed class AssetEntry
     /// <summary>资产标识（目录稳定分配）</summary>
     public required AssetId AssetId { get; init; }
 
-    /// <summary>已加载资产数据；未完成/失败时为 null</summary>
-    public IAsset? Data { get; set; }
+    /// <summary>已加载资产数据（IAssetPayload 或过渡期 IAsset 兼容实例）；未完成/失败时为 null</summary>
+    public object? Data { get; set; }
 
     /// <summary>引用计数（+1/-1 仅经 AssetManager 闭环修改，外部不可绕过）</summary>
     public int RefCount { get; internal set; }

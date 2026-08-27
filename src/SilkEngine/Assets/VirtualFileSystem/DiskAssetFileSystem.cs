@@ -90,6 +90,39 @@ public sealed class DiskAssetFileSystem : IAssetFileSystem
             new FileMetadata(info.Length, unchecked((ulong)info.LastWriteTimeUtc.Ticks), info.LastWriteTimeUtc));
     }
 
+    /// <summary>
+    /// 启动扫描：递归枚举根目录下全部文件与目录，生成扫描结果（逻辑路径相对根目录，分隔符统一 '/'）。
+    /// 根目录不存在时返回空扫描结果。
+    /// </summary>
+    /// <returns>本次扫描观察到的全部条目</returns>
+    public ScanResult Scan()
+    {
+        var files = new List<ScanFile>();
+        if (Directory.Exists(_root))
+            ScanDirectory(_root, files);
+        return ScanResult.FromFiles(files);
+    }
+
+    private void ScanDirectory(string physicalDir, List<ScanFile> files)
+    {
+        foreach (var dir in Directory.GetDirectories(physicalDir))
+        {
+            files.Add(ScanFile.Directory(ToLogical(dir)));
+            ScanDirectory(dir, files);
+        }
+        foreach (var file in Directory.GetFiles(physicalDir))
+        {
+            var info = new FileInfo(file);
+            files.Add(ScanFile.File(ToLogical(file), unchecked((ulong)info.LastWriteTimeUtc.Ticks)));
+        }
+    }
+
+    private string ToLogical(string physical)
+    {
+        var relative = Path.GetRelativePath(_root, physical);
+        return relative == "." ? string.Empty : relative.Replace(Path.DirectorySeparatorChar, Separator);
+    }
+
     private string ToPhysical(string normalized) =>
         Path.Combine(_root, normalized.Replace(Separator, Path.DirectorySeparatorChar));
 }
