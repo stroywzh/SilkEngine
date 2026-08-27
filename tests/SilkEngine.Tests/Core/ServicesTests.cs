@@ -38,6 +38,17 @@ public class ServicesTests
         public void Dispose() => _order.Add(_name);
     }
 
+    // 线程运行时关闭契约：运行时先注册（基础设施最晚释放），依赖服务后注册（最先释放）
+    private sealed class RuntimeTracker(List<string> order) : IDisposable
+    {
+        public void Dispose() => order.Add("ThreadRuntime");
+    }
+
+    private sealed class RenderTracker(List<string> order) : IDisposable
+    {
+        public void Dispose() => order.Add("RenderSystem");
+    }
+
     [Fact]
     public void Register_Get_ReturnsSameInstance()
     {
@@ -82,6 +93,16 @@ public class ServicesTests
         Services.Register(new TrackerB("B", order));
         Services.Shutdown();
         Assert.Equal(["B", "A"], order);
+    }
+
+    [Fact]
+    public void Shutdown_StopsThreadRuntimeAfterDependentServices()
+    {
+        var order = new List<string>();
+        Services.Register(new RuntimeTracker(order));
+        Services.Register(new RenderTracker(order));
+        Services.Shutdown();
+        Assert.Equal(["RenderSystem", "ThreadRuntime"], order);
     }
 
     [Fact]
