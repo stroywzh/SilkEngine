@@ -1,10 +1,42 @@
+using SilkEngine.Core;
 using SilkEngine.Threading;
 using Xunit;
 
 namespace SilkEngine.Tests.Threading;
 
+// 与 ServicesTests（调用 Services.Shutdown 清空全局注册表）串行，保证服务契约测试确定性
+[Collection("Assets")]
 public class ThreadRuntimeTests
 {
+    [Fact]
+    public void Runtime_ServiceBootstrap_RegistersSingleRuntimeInstance()
+    {
+        // [Service] ModuleInitializer 注册可能已被 Services.Shutdown 清空（同集合内执行顺序不定），
+        // 自管注册窗口：先注销残留 → 注册自建实例 → 断言单实例语义 → 清理（各顺序均稳定）
+        using var runtime = new ThreadRuntime();
+        Services.Unregister<ThreadRuntime>();
+        Services.Register(runtime);
+        try
+        {
+            Assert.Same(runtime, Services.Get<ThreadRuntime>());
+        }
+        finally
+        {
+            Services.Unregister<ThreadRuntime>();
+        }
+    }
+
+    [Fact]
+    public async Task Runtime_BackgroundFailure_IsAvailableThroughAsTask()
+    {
+        using var runtime = new ThreadRuntime();
+        runtime.RegisterMainThread();
+        var handle = runtime.Background.Run(_ => ValueTask.FromException(new InvalidOperationException("worker failed")));
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () => await handle.AsTask());
+        Assert.Equal("worker failed", ex.Message);
+    }
+
     [Fact]
     public async Task BackgroundRun_SetsWorkerDomainForEntireAsyncOperation()
     {

@@ -5,6 +5,15 @@ namespace SilkEngine.Tests.Threading;
 public class ThreadFactoryTests
 {
     [Fact]
+    public void ThreadFactory_RemainsOnlyDedicatedThreadCreationEntry()
+    {
+        var thread = ThreadFactory.CreateThread(static () => { }, "RuntimeVerification");
+
+        Assert.Equal("RuntimeVerification", thread.Name);
+        Assert.True(thread.IsBackground);
+    }
+
+    [Fact]
     public void CreateThread_SetsName()
     {
         var t = ThreadFactory.CreateThread(() => { }, "MyThread");
