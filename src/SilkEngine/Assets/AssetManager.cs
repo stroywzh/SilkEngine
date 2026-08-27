@@ -25,7 +25,7 @@ public sealed class AssetManager : IDisposable
     private readonly AssetCache _cache = new();
     private readonly ConcurrentQueue<RenderResourceReleaseRequest> _renderReleases = new();
     private readonly Dictionary<AssetId, int> _residency = new();
-    private readonly Dictionary<AssetId, RenderTextureHandle> _textureHandles = new();
+    private readonly AssetGpuResourceCache _gpuCache = new();
 
     /// <summary>
     /// 受控引用解析器视图：按 AssetId 从本管理器缓存解析已加载载荷（序列化层唯一资产访问边界，无全局服务定位）。
@@ -185,18 +185,20 @@ public sealed class AssetManager : IDisposable
                 continue;
             entry.State = AssetState.Unloaded;
             _cache.SetPayload(entry, null);
-            if (_textureHandles.TryGetValue(entry.AssetId, out var handle))
-            {
-                _renderReleases.Enqueue(new RenderResourceReleaseRequest(RenderResourceKind.Texture, handle.Value));
-                _textureHandles.Remove(entry.AssetId);
-            }
+            var release = _gpuCache.Evict(entry.AssetId, entry.SourceRevision);
+            if (release.Handle != 0)
+                _renderReleases.Enqueue(release);
         }
     }
 
-    /// <summary>登记纹理 GPU 句柄（渲染侧创建完成后回填；驱逐时据此生成释放请求）</summary>
+    /// <summary>登记纹理 GPU 句柄（渲染侧创建完成后回填；驱逐时经缓存生成释放请求）</summary>
     /// <param name="assetId">资产标识</param>
     /// <param name="handle">渲染侧句柄</param>
-    internal void PublishRenderTexture(AssetId assetId, RenderTextureHandle handle) => _textureHandles[assetId] = handle;
+    internal void PublishRenderTexture(AssetId assetId, RenderTextureHandle handle)
+    {
+        var revision = _cache.Find(assetId)?.SourceRevision ?? 0UL;
+        _gpuCache.Publish(assetId, revision, handle);
+    }
 
     /// <summary>帧末结果应用（Pipeline 经 FrameCommit 投递；Main 域）：更新 AssetEntry.Payload 与状态。</summary>
     /// <param name="result">管线结果</param>
