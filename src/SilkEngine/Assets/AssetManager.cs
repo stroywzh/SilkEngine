@@ -24,6 +24,8 @@ public sealed class AssetManager : IDisposable
     private readonly AssetSerializerRegistry _serializerRegistry;
     private readonly AssetCache _cache = new();
     private readonly ConcurrentQueue<RenderResourceReleaseRequest> _renderReleases = new();
+    private readonly Dictionary<AssetId, int> _residency = new();
+    private readonly Dictionary<AssetId, RenderTextureHandle> _textureHandles = new();
 
     /// <summary>
     /// 受控引用解析器视图：按 AssetId 从本管理器缓存解析已加载载荷（序列化层唯一资产访问边界，无全局服务定位）。
@@ -128,6 +130,74 @@ public sealed class AssetManager : IDisposable
         _keyResolver.Invalidate(_keyResolver.ResolveKey(path).AssetId);
     }
 
+    /// <summary>创建并绑定资产驻留槽（Slot 持有期间 Payload 不被 <see cref="UnloadUnused"/> 驱逐）</summary>
+    /// <typeparam name="T">资产载荷类型</typeparam>
+    /// <param name="handle">资产句柄</param>
+    /// <returns>已绑定的驻留槽</returns>
+    public AssetSlot<T> CreateSlot<T>(AssetHandle<T> handle)
+        where T : class, IAssetPayload
+    {
+        var slot = new AssetSlot<T>(this);
+        slot.Bind(handle);
+        return slot;
+    }
+
+    /// <summary>创建并绑定资产租赁（Pin/Lease 持有期间 Payload 不被 <see cref="UnloadUnused"/> 驱逐）</summary>
+    /// <typeparam name="T">资产载荷类型</typeparam>
+    /// <param name="handle">资产句柄</param>
+    /// <returns>已绑定的资产租赁</returns>
+    public AssetLease<T> Pin<T>(AssetHandle<T> handle)
+        where T : class, IAssetPayload
+    {
+        var lease = new AssetLease<T>(this);
+        lease.Bind(handle);
+        return lease;
+    }
+
+    /// <summary>登记驻留持有（Slot/Lease 经 Bind 调用）</summary>
+    /// <param name="assetId">资产标识</param>
+    internal void AddResidency(AssetId assetId) => _residency[assetId] = _residency.GetValueOrDefault(assetId) + 1;
+
+    /// <summary>释放驻留持有（幂等；下限 0）</summary>
+    /// <param name="assetId">资产标识</param>
+    internal void ReleaseResidency(AssetId assetId)
+    {
+        if (_residency.TryGetValue(assetId, out var count) && count > 0)
+        {
+            if (count == 1)
+                _residency.Remove(assetId);
+            else
+                _residency[assetId] = count - 1;
+        }
+    }
+
+    /// <summary>
+    /// 帧末驱逐（Main 域）：移除无 Slot/Lease/Pin 且无遗留引用计数的 Ready Payload；
+    /// 已发布 GPU 句柄的条目经 <see cref="RenderResourceReleaseRequest"/> 入队（渲染线程帧首消费）。
+    /// </summary>
+    public void UnloadUnused()
+    {
+        foreach (var entry in _cache.All().ToArray())
+        {
+            if (entry.State != AssetState.Ready || entry.Payload is not IAssetPayload)
+                continue;
+            if (_residency.GetValueOrDefault(entry.AssetId) > 0 || entry.RefCount > 0)
+                continue;
+            entry.State = AssetState.Unloaded;
+            _cache.SetPayload(entry, null);
+            if (_textureHandles.TryGetValue(entry.AssetId, out var handle))
+            {
+                _renderReleases.Enqueue(new RenderResourceReleaseRequest(RenderResourceKind.Texture, handle.Value));
+                _textureHandles.Remove(entry.AssetId);
+            }
+        }
+    }
+
+    /// <summary>登记纹理 GPU 句柄（渲染侧创建完成后回填；驱逐时据此生成释放请求）</summary>
+    /// <param name="assetId">资产标识</param>
+    /// <param name="handle">渲染侧句柄</param>
+    internal void PublishRenderTexture(AssetId assetId, RenderTextureHandle handle) => _textureHandles[assetId] = handle;
+
     /// <summary>帧末结果应用（Pipeline 经 FrameCommit 投递；Main 域）：更新 AssetEntry.Payload 与状态。</summary>
     /// <param name="result">管线结果</param>
     internal void ApplyPipelineResult(AssetPipelineResult result)
@@ -231,6 +301,18 @@ public sealed class AssetManager : IDisposable
     public T? TryResolve<T>(AssetId assetId)
         where T : class
         => TryResolveUntyped(assetId) as T;
+
+    /// <summary>按句柄解析载荷；未命中/类型不符/失效返回 false。</summary>
+    /// <typeparam name="T">资产载荷类型</typeparam>
+    /// <param name="handle">资产句柄</param>
+    /// <param name="payload">已就绪载荷（未命中为 null）</param>
+    /// <returns>解析成功为 true</returns>
+    public bool TryResolve<T>(AssetHandle<T> handle, out T? payload)
+        where T : class, IAssetPayload
+    {
+        payload = TryResolve<T>(handle.Id);
+        return payload is not null;
+    }
 
     /// <summary>AssetId → 已就绪缓存数据（目录修订一致才返回）；未命中或源已失效返回 null。类型化查询与序列化层 resolver 视图共用。</summary>
     /// <param name="assetId">资产 ID</param>
