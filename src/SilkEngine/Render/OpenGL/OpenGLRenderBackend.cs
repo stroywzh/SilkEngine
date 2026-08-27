@@ -35,11 +35,19 @@ public class OpenGLRenderBackend : RenderBackendBase
 
     private readonly GpuResourceRegistry _registry = new();
     private readonly OpenGLTextureRegistry _textureRegistry = new(t => new OpenGLTexture(t));
+    private readonly Func<AssetHandle<TextureAsset>, Texture2D?>? _materialTextureResolver;
 
     private float _clearR = 0.1f,
         _clearG = 0.1f,
         _clearB = 0.1f,
         _clearA = 1.0f;
+
+    /// <summary>
+    /// 创建 OpenGL 渲染后端
+    /// </summary>
+    /// <param name="materialTextureResolver">材质主纹理句柄 → Texture2D 解析委托（缺省 null → 白色占位回落；TextureAsset→GL 通道属后续资产管线）</param>
+    public OpenGLRenderBackend(Func<AssetHandle<TextureAsset>, Texture2D?>? materialTextureResolver = null) =>
+        _materialTextureResolver = materialTextureResolver;
 
     /// <summary>OpenGL API 实例</summary>
     internal GL GL => _gl!;
@@ -182,7 +190,7 @@ public class OpenGLRenderBackend : RenderBackendBase
                 if (cmd.Material != null)
                 {
                     glMaterial = _registry.GetOrCreate(
-                        cmd.Material, mat => new OpenGLMaterial(_gl, mat, glShader, _textureRegistry)
+                        cmd.Material, mat => new OpenGLMaterial(_gl, mat, glShader, _textureRegistry, _materialTextureResolver)
                     );
                 }
 

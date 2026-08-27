@@ -14,8 +14,8 @@ public interface IRenderable
     /// <summary>渲染网格；null 时管线跳过该对象。</summary>
     Mesh? Mesh { get; }
 
-    /// <summary>渲染材质（uniform 参数容器）。</summary>
-    MaterialLegacy? Material { get; }
+    /// <summary>渲染材质（运行时实例；管线经绑定解析为只读 bound 载荷写入命令）。</summary>
+    Material? Material { get; }
 
     /// <summary>对象自身启用状态（批次收集已按此过滤，命令构建时保留语义）。</summary>
     bool Enabled { get; }

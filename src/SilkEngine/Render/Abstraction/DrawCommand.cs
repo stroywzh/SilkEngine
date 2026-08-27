@@ -17,9 +17,9 @@ public abstract class DrawCommand
     public Mesh? Mesh { get; init; }
 
     /// <summary>
-    /// 材质参数(uniform 值)
+    /// 已解析的材质绑定载荷（只读参数快照 + 依赖句柄；null 表示无材质或绑定未就绪）
     /// </summary>
-    public MaterialLegacy? Material { get; init; }
+    public BoundMaterialValue? Material { get; init; }
 
     /// <summary>
     /// 此绘制命令是否启用

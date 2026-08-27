@@ -1,3 +1,4 @@
+using SilkEngine.Assets;
 using SilkEngine.Core;
 using SilkEngine.Math;
 using SilkEngine.Render;
@@ -19,7 +20,7 @@ public static class TestCameraOrtho
             FragmentSource = ShaderSources.CamUvFragment,
         };
 
-        var mat = new MaterialLegacy { Name = "Mat" };
+        var mat = new Material(new MaterialReference(new AssetId(Guid.NewGuid())));
         var quad = new GameObject("Quad");
         quad.Transform.LocalScale = new Vector3(4, 3, 1);
         var mr = quad.AddComponent<MeshRenderer>();

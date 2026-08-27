@@ -1,3 +1,4 @@
+using SilkEngine.Assets;
 using SilkEngine.Render;
 using SilkEngine.Scene;
 
@@ -18,15 +19,16 @@ public class UIRendererTests
     public void AssembleAssets_AllReadableBack()
     {
         var shader = new Shader { Name = "PngShader" };
+        var material = new Material(new MaterialReference(new AssetId(Guid.NewGuid())));
         var ui = new GameObject().AddComponent<UIRenderer>();
 
         ui.Shader = shader;
         ui.Mesh = MeshFactory.CreateQuad(1f, 1f);
-        ui.Material = new MaterialLegacy { Name = "PngMat" };
+        ui.Material = material;
 
         Assert.Same(shader, ui.Shader);
         Assert.Equal("Quad", ui.Mesh!.Name);
-        Assert.Equal("PngMat", ui.Material!.Name);
+        Assert.Same(material, ui.Material);
         Assert.True(ui.Enabled);
     }
 }

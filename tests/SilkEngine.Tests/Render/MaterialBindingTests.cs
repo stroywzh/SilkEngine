@@ -1,5 +1,10 @@
 using SilkEngine.Assets;
+using SilkEngine.Assets.Importer;
+using SilkEngine.Assets.VirtualFileSystem;
+using SilkEngine.Core;
 using SilkEngine.Render;
+using SilkEngine.Scene;
+using SilkEngine.Tests.Core;
 
 namespace SilkEngine.Tests.Render;
 
@@ -245,6 +250,38 @@ public static class Fixtures
     {
         var shaderHandle = shader ?? new AssetHandle<ShaderAsset>(new AssetId(Guid.NewGuid()));
         return new MaterialAsset(id, shaderHandle, mainTexture, new MaterialParameterSnapshot(defaults), revision);
+    }
+
+    /// <summary>创建带随机来源的材质运行时实例（渲染层收集测试复用）</summary>
+    /// <returns>材质实例</returns>
+    public static Material MaterialInstanceWithSource() =>
+        new(new MaterialReference(new AssetId(Guid.NewGuid())));
+
+    /// <summary>创建可解析为 Ready 的材质绑定（材质资产与依赖自动登记）</summary>
+    /// <param name="material">材质实例</param>
+    /// <returns>绑定实例</returns>
+    public static MaterialBinding ReadyBindingFor(Material material)
+    {
+        var asset = MaterialAsset(material.Source.AssetId, defaults: []);
+        return new MaterialBinding(new FakeAssetResolver(asset));
+    }
+
+    /// <summary>经默认前向管线收集单条绘制命令（含 Ready 材质绑定载荷）</summary>
+    /// <param name="material">材质实例</param>
+    /// <param name="binding">材质绑定（管线注入）</param>
+    /// <returns>收集出的单实例绘制命令</returns>
+    public static SingleDrawCommand CollectSingleDraw(Material material, MaterialBinding binding)
+    {
+        var pipeline = new ForwardPipeline(binding);
+        var mr = new GameObject().AddComponent<MeshRenderer>();
+        mr.Shader = new Shader { Name = "S" };
+        mr.Mesh = new Mesh { Name = "M", Layout = [] };
+        mr.Material = material;
+        var cam = new GameObject().AddComponent<Camera>();
+        var batches = new List<RenderBatch> { new() { Renderers = [mr] } };
+
+        var passes = pipeline.Build(cam, batches);
+        return (SingleDrawCommand)passes[0].Commands[0];
     }
 }
 

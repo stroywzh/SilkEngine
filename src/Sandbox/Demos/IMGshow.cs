@@ -24,8 +24,7 @@ public static class IMGShow
         string path = Path.Combine(AppContext.BaseDirectory, "Resources", PictureName);
         var tex = engine.AssetManager.Load<Texture2D>(path);
 
-        var mat = new MaterialLegacy { Name = "PngMat" };
-        mat.MainTexture = tex;
+        var mat = new Material(new MaterialReference(new AssetId(Guid.NewGuid())));
 
         var quad = new GameObject("UIRenderQuad");
         var ui = quad.AddComponent<UIRenderer>();
@@ -36,7 +35,7 @@ public static class IMGShow
 
         Log.Info(
             $"[IMGShow] UIRenderer assembled: Shader='{ui.Shader?.Name}' " +
-            $"Mesh='{ui.Mesh?.Name}' Material='{ui.Material?.Name}' Texture={tex.Data.Width}x{tex.Data.Height}"
+            $"Mesh='{ui.Mesh?.Name}' Texture={tex.Data.Width}x{tex.Data.Height}"
         );
     }
 }

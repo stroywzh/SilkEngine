@@ -1,3 +1,4 @@
+using SilkEngine.Assets;
 using SilkEngine.Core;
 using SilkEngine.Math;
 using SilkEngine.Render;
@@ -19,7 +20,7 @@ public static class TestCameraPerspective
             FragmentSource = ShaderSources.LitFragment,
         };
 
-        var mat = new MaterialLegacy { Name = "Mat" };
+        var mat = new Material(new MaterialReference(new AssetId(Guid.NewGuid())));
         var cube = new GameObject("Cube");
         cube.Transform.LocalPosition = new Vector3(0, 0, 3);
         var mr = cube.AddComponent<MeshRenderer>();

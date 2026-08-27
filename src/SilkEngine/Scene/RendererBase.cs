@@ -4,12 +4,12 @@ using SilkEngine.Render;
 
 namespace SilkEngine.Scene;
 
-/// <summary>资产承载渲染组件基类：Mesh + Material + Shader 三资产 + 引用计数闭环 + IRenderable 实现。</summary>
+/// <summary>资产承载渲染组件基类：Mesh + Shader 两资产（引用计数闭环）+ 运行时材质实例 + IRenderable 实现。</summary>
 public abstract class RendererBase : Component, IRenderable
 {
     private Shader _shader;
     private Mesh _mesh;
-    private MaterialLegacy _material;
+    private Material? _material;
 
     /// <summary>渲染着色器；setter 经 AssetManager.SetTrackedAmbient 维持引用计数闭环。</summary>
     public Shader Shader
@@ -25,21 +25,20 @@ public abstract class RendererBase : Component, IRenderable
         set => AssetManager.SetTrackedAmbient<Mesh>(ref _mesh, value);
     }
 
-    /// <summary>渲染材质；setter 经 AssetManager.SetTrackedAmbient 维持引用计数闭环。</summary>
-    public MaterialLegacy Material
+    /// <summary>渲染材质（运行时实例，非资产）：普通赋值，不参与资产引用计数；绑定解析由渲染管线完成。</summary>
+    public Material? Material
     {
         get => _material;
-        set => AssetManager.SetTrackedAmbient<MaterialLegacy>(ref _material, value);
+        set => _material = value;
     }
 
     /// <summary>世界矩阵（对象世界变换，组合父级；IRenderable 契约适配）。</summary>
     public Matrix4x4 WorldMatrix => Transform.LocalToWorldMatrix;
 
-    /// <summary>组件销毁：归还全部资产引用（引用归零的托管资产由帧末卸载）。</summary>
+    /// <summary>组件销毁：归还 Mesh/Shader 资产引用（引用归零的托管资产由帧末卸载）。</summary>
     public override void OnDestroy()
     {
         AssetManager.SetTrackedAmbient(ref _shader, null);
         AssetManager.SetTrackedAmbient(ref _mesh, null);
-        AssetManager.SetTrackedAmbient(ref _material, null);
     }
 }

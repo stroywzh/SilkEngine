@@ -5,6 +5,7 @@ using SilkEngine.Core;
 using SilkEngine.Render;
 using SilkEngine.Scene;
 using SilkEngine.Tests.Core;
+using SilkEngine.Tests.Render;
 
 namespace SilkEngine.Tests.Scene;
 
@@ -41,32 +42,29 @@ public class RendererBaseTests : IDisposable
     {
         var shader = new Shader { Name = "S" };
         var mesh = new Mesh { Name = "M" };
-        var mat = new MaterialLegacy { Name = "Mat" };
         var es = RegisterManaged(shader);
         var em = RegisterManaged(mesh);
-        var emat = RegisterManaged(mat);
         var ui = new GameObject().AddComponent<UIRenderer>();
 
         ui.Shader = shader;
         ui.Mesh = mesh;
-        ui.Material = mat;
+        ui.Material = new Material(new MaterialReference(new AssetId(Guid.NewGuid())));
 
         Assert.Equal(1, es.RefCount);
         Assert.Equal(1, em.RefCount);
-        Assert.Equal(1, emat.RefCount);
     }
 
     [Fact]
     public void ReplaceAsset_OldMinusOne_NewPlusOne()
     {
-        var old = new MaterialLegacy { Name = "Old" };
-        var fresh = new MaterialLegacy { Name = "Fresh" };
+        var old = new Shader { Name = "Old" };
+        var fresh = new Shader { Name = "Fresh" };
         var eOld = RegisterManaged(old);
         var eFresh = RegisterManaged(fresh);
         var ui = new GameObject().AddComponent<UIRenderer>();
 
-        ui.Material = old;
-        ui.Material = fresh;
+        ui.Shader = old;
+        ui.Shader = fresh;
 
         Assert.Equal(0, eOld.RefCount);
         Assert.Equal(1, eFresh.RefCount);
@@ -77,20 +75,39 @@ public class RendererBaseTests : IDisposable
     {
         var shader = new Shader { Name = "S" };
         var mesh = new Mesh { Name = "M" };
-        var mat = new MaterialLegacy { Name = "Mat" };
         var es = RegisterManaged(shader);
         var em = RegisterManaged(mesh);
-        var emat = RegisterManaged(mat);
         var ui = new GameObject().AddComponent<UIRenderer>();
         ui.Shader = shader;
         ui.Mesh = mesh;
-        ui.Material = mat;
+        ui.Material = new Material(new MaterialReference(new AssetId(Guid.NewGuid())));
 
         ui.OnDestroy();
 
         Assert.Equal(0, es.RefCount);
         Assert.Equal(0, em.RefCount);
-        Assert.Equal(0, emat.RefCount);
+    }
+
+    [Fact]
+    public void RendererBase_MaterialAssignmentDoesNotRegisterBusinessMaterialAsAsset()
+    {
+        var renderer = new GameObject().AddComponent<UIRenderer>();
+        var material = new Material(new MaterialReference(new AssetId(Guid.NewGuid())));
+
+        renderer.Material = material;
+
+        Assert.Same(material, renderer.Material);
+        Assert.DoesNotContain(_am.Cache.All(), e => ReferenceEquals(e.Data, material));
+    }
+
+    [Fact]
+    public void RenderCollectionUsesBoundMaterialSnapshot()
+    {
+        var material = Fixtures.MaterialInstanceWithSource();
+        var binding = Fixtures.ReadyBindingFor(material);
+        var command = Fixtures.CollectSingleDraw(material, binding);
+
+        Assert.Equal(binding.Resolve(material).Value!.Parameters, command.Material.Parameters);
     }
 
     [Fact]

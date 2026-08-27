@@ -15,7 +15,8 @@ public class RenderInterfaceContractTests
         var mr = new GameObject("MR").AddComponent<MeshRenderer>();
         mr.Shader = new Shader { Name = "S" };
         mr.Mesh = new Mesh { Name = "M", Layout = [] };
-        mr.Material = new MaterialLegacy { Name = "Mat" };
+        var material = new Material(new MaterialReference(new AssetId(Guid.NewGuid())));
+        mr.Material = material;
 
         IRenderable r = mr;
         Assert.Same(mr.Shader, r.Shader);
@@ -54,7 +55,7 @@ public class ForwardPipelineTests
         var mr = new GameObject().AddComponent<MeshRenderer>();
         mr.Mesh = new Mesh { Name = "Test", Layout = [] };
         mr.Shader = new Shader { Name = "S" };
-        mr.Material = new MaterialLegacy();
+        mr.Material = new Material(new MaterialReference(new AssetId(Guid.NewGuid())));
         var batches = new List<RenderBatch> { new() { Renderers = [mr] } };
 
         var passes = pipeline.Build(cam, batches);
@@ -87,7 +88,7 @@ public class ForwardPipelineTests
     }
 
     [Fact]
-    public void ForwardPipeline_Build_DoesNotMutateMaterial()
+    public void ForwardPipeline_Build_UnresolvableMaterial_CommandMaterialIsNull()
     {
         var pipeline = new ForwardPipeline();
         var camGo = new GameObject();
@@ -98,11 +99,12 @@ public class ForwardPipelineTests
         var mr = new GameObject().AddComponent<MeshRenderer>();
         mr.Mesh = new Mesh { Name = "Test", Layout = [] };
         mr.Shader = new Shader { Name = "S" };
-        mr.Material = new MaterialLegacy { Name = "M" };
+        mr.Material = new Material(new MaterialReference(new AssetId(Guid.NewGuid())));
         var batches = new List<RenderBatch> { new() { Renderers = [mr] } };
 
-        pipeline.Build(cam, batches);
-        Assert.Empty(mr.Material.Matrices);
+        var passes = pipeline.Build(cam, batches);
+        var cmd = Assert.IsType<SingleDrawCommand>(passes[0].Commands[0]);
+        Assert.Null(cmd.Material);   // 默认绑定无资产解析器 → Loading → 命令不带材质载荷
     }
 }
 

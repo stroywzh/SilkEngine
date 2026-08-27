@@ -47,13 +47,15 @@ public class MeshRendererAssetTests : IDisposable
     }
 
     [Fact]
-    public void Set_Material_Managed_RefPlusOne()
+    public void Set_Material_NotTrackedAsAsset()
     {
-        var mat = new MaterialLegacy { Name = "Mat" };
-        var entry = RegisterManaged(mat);
+        var mat = new Material(new MaterialReference(new AssetId(Guid.NewGuid())));
         var mr = new GameObject().AddComponent<MeshRenderer>();
+
         mr.Material = mat;
-        Assert.Equal(1, entry.RefCount);
+
+        Assert.Same(mat, mr.Material);
+        Assert.DoesNotContain(_am.Cache.All(), e => ReferenceEquals(e.Data, mat));
     }
 
     [Fact]
@@ -62,34 +64,35 @@ public class MeshRendererAssetTests : IDisposable
         var mr = new GameObject().AddComponent<MeshRenderer>();
         mr.Shader = new Shader { Name = "S" };      // 未注册 → no-op
         mr.Mesh = new Mesh { Name = "M" };
-        mr.Material = new MaterialLegacy { Name = "Mat" };
+        var mat = new Material(new MaterialReference(new AssetId(Guid.NewGuid())));
+        mr.Material = mat;
         Assert.Equal("S", mr.Shader!.Name);
         Assert.Equal("M", mr.Mesh!.Name);
-        Assert.Equal("Mat", mr.Material!.Name);
+        Assert.Same(mat, mr.Material);
     }
 
     [Fact]
-    public void Replace_ManagedMaterial_OldMinusOne_NewPlusOne()
+    public void Replace_ManagedMesh_OldMinusOne_NewPlusOne()
     {
-        var old = new MaterialLegacy { Name = "Old" };
-        var fresh = new MaterialLegacy { Name = "Fresh" };
+        var old = new Mesh { Name = "Old" };
+        var fresh = new Mesh { Name = "Fresh" };
         var eOld = RegisterManaged(old);
         var eFresh = RegisterManaged(fresh);
         var mr = new GameObject().AddComponent<MeshRenderer>();
-        mr.Material = old;
-        mr.Material = fresh;
+        mr.Mesh = old;
+        mr.Mesh = fresh;
         Assert.Equal(0, eOld.RefCount);
         Assert.Equal(1, eFresh.RefCount);
     }
 
     [Fact]
-    public void Set_SameMaterialTwice_NoDoubleCount()
+    public void Set_SameMeshTwice_NoDoubleCount()
     {
-        var mat = new MaterialLegacy { Name = "M" };
-        var entry = RegisterManaged(mat);
+        var mesh = new Mesh { Name = "M" };
+        var entry = RegisterManaged(mesh);
         var mr = new GameObject().AddComponent<MeshRenderer>();
-        mr.Material = mat;
-        mr.Material = mat;
+        mr.Mesh = mesh;
+        mr.Mesh = mesh;
         Assert.Equal(1, entry.RefCount);
     }
 
@@ -98,54 +101,36 @@ public class MeshRendererAssetTests : IDisposable
     {
         var shader = new Shader { Name = "S" };
         var mesh = new Mesh { Name = "M" };
-        var mat = new MaterialLegacy { Name = "Mat" };
         var es = RegisterManaged(shader);
         var em = RegisterManaged(mesh);
-        var emat = RegisterManaged(mat);
         var go = new GameObject();
         var mr = go.AddComponent<MeshRenderer>();
         mr.Shader = shader;
         mr.Mesh = mesh;
-        mr.Material = mat;
+        mr.Material = new Material(new MaterialReference(new AssetId(Guid.NewGuid())));
 
         mr.OnDestroy();
 
         Assert.Equal(0, es.RefCount);
         Assert.Equal(0, em.RefCount);
-        Assert.Equal(0, emat.RefCount);
     }
 
     [Fact]
-    public void OnDestroy_ZeroMaterialRef_FiresMaterialDisposed()
+    public void SharedMesh_OneRendererDestroyed_OthersKeepRef()
     {
-        var mat = new MaterialLegacy { Name = "M" };
-        RegisterManaged(mat);
-        var go = new GameObject();
-        var mr = go.AddComponent<MeshRenderer>();
-        mr.Material = mat; // RefCount 0 → 1
-
-        var fired = 0;
-        mat.MaterialDisposed += _ => fired++;
-        mr.OnDestroy();    // SetTracked(ref _material, null) → Release → 归零
-        Assert.Equal(1, fired);
-    }
-
-    [Fact]
-    public void SharedMaterial_OneRendererDestroyed_OthersKeepRef()
-    {
-        var mat = new MaterialLegacy { Name = "M" };
-        var entry = RegisterManaged(mat);
+        var mesh = new Mesh { Name = "M" };
+        var entry = RegisterManaged(mesh);
         var go1 = new GameObject();
         var go2 = new GameObject();
         var mr1 = go1.AddComponent<MeshRenderer>();
         var mr2 = go2.AddComponent<MeshRenderer>();
-        mr1.Material = mat;
-        mr2.Material = mat;
+        mr1.Mesh = mesh;
+        mr2.Mesh = mesh;
         Assert.Equal(2, entry.RefCount);
 
         mr1.OnDestroy();
 
         Assert.Equal(1, entry.RefCount);
-        Assert.Same(mat, mr2.Material);
+        Assert.Same(mesh, mr2.Mesh);
     }
 }
