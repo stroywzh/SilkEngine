@@ -26,11 +26,8 @@ public class EngineLoop : IDisposable
     private readonly FrameCommitter _frameCommitter = new();
     private ComponentRegistry _registry = null!; // Initialize 从 Services 取（[Service] 自动注册）
 
-    // 我还是不太能理解为什么MainLoop需要直接持有这么多Manager的引用,
-    // 按道理来讲，ThreadManager可以有但是AssetManager/RenderSystem不该有，因为设计上它们应该是主线程创建接口通讯（草拟的AI完全没写接口）
     private FrameSnapshotManager _snapshotManager = null!;
     private readonly SceneManager _sceneManager;
-    private ThreadManager _threadManager = null!;
     private ThreadRuntime _threadRuntime = null!;
     private AssetManager? _assetManager;
     private RenderSystem _renderSystem = null!;
@@ -39,9 +36,6 @@ public class EngineLoop : IDisposable
     private Camera? _defaultCamera; // 实际无用逻辑
     private volatile bool _stopRequested, _paused, _disposed, _canStart;
 
-    /// <summary>线程管理器实例（[Service] 自动注册，ctor 已赋值，恒非空）</summary>
-    public ThreadManager Threads =>
-        _threadManager ?? throw new InvalidOperationException("EngineLoop.Initialize 尚未执行");
     public bool Embedded { get; set; } = false;
     /// <summary>固定步长（秒）；与 Time.FixedDeltaTime 双向同步（FrameScheduler 持有）。</summary>
     public float FixedDeltaTime
@@ -70,8 +64,6 @@ public class EngineLoop : IDisposable
     public EngineLoop(IRenderBackend backend)
     {
         _backend = backend;
-        _threadManager = Services.Get<ThreadManager>();
-        _threadManager.RegisterMainThread();
         _threadRuntime = Services.Get<ThreadRuntime>();
         _registry = Services.Get<ComponentRegistry>();
         _snapshotManager = Services.Get<FrameSnapshotManager>();
@@ -170,7 +162,7 @@ public class EngineLoop : IDisposable
             return;
         _disposed = true;
         _stopRequested = true;
-        // 反序：RenderSystem(渲染线程先停) → SnapshotManager/Registry → AssetManager → SceneManager(解绑) → ThreadManager(最后停)
+        // 反序：RenderSystem(渲染线程先停) → SnapshotManager/Registry → AssetManager → SceneManager(解绑) → ThreadRuntime(最后停)
         Services.Shutdown();
     }
 }

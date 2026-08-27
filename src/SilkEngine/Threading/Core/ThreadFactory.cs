@@ -4,7 +4,8 @@ using SilkEngine.Core;
 
 namespace SilkEngine.Threading;
 
-/// <summary>线程创建工厂：线程统一创建入口（禁止直接 new Thread()），命名/后台/优先级一次配置。</summary>
+/// <summary>线程创建工厂：专用引擎线程唯一创建入口（禁止直接 new Thread()），命名/后台/优先级一次配置。
+/// ThreadRuntime 与 RenderThreadHost 必须经此工厂创建专用线程。</summary>
 public static class ThreadFactory
 {
     /// <summary>创建并配置线程（未启动；DEBUG 下记录创建日志）。</summary>
