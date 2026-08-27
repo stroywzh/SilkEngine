@@ -15,8 +15,8 @@ public interface IJobHandle
     bool IsCompleted { get; }
 
     /// <summary>
-    /// 进行等待
-    /// <br/>线程阻塞等待
+    /// 阻塞等待完成
+    /// <br/>传播原始异常（不包装为 AggregateException）；取消以 OperationCanceledException 结束
     /// </summary>
     void Wait();
 

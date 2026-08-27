@@ -1,4 +1,3 @@
-using SilkEngine.Core;
 using SilkEngine.Threading;
 using Xunit;
 
@@ -38,23 +37,12 @@ public class ThreadPoolExecutorTests
     }
 
     [Fact]
-    public void Submit_FailingWork_LogsError_AndWaitDoesNotThrow()
+    public void Submit_FailingWork_WaitPropagatesOriginalException()
     {
-        var messages = new System.Collections.Concurrent.ConcurrentQueue<string>();
-        var writer = new RecordingLogWriter(messages);
-        Log.AddWriter(writer);
-        try
-        {
-            using var exec = new ThreadPoolExecutor();
-            var job = exec.Submit(_ => throw new InvalidOperationException("task-boom"));
-            job.Wait();
-            Log.Flush();
-            Assert.Contains(messages, m => m.Contains("task-boom"));
-        }
-        finally
-        {
-            Log.RemoveWriter(writer);
-        }
+        using var exec = new ThreadPoolExecutor();
+        var job = exec.Submit(_ => throw new InvalidOperationException("task-boom"));
+        var ex = Assert.Throws<InvalidOperationException>(() => job.Wait());
+        Assert.Equal("task-boom", ex.Message);
     }
 
     [Fact]
@@ -68,12 +56,5 @@ public class ThreadPoolExecutorTests
         exec.Dispose();
         Assert.Null(exec.Context);
         Assert.Equal("ThreadPool", exec.Name);
-    }
-
-    private sealed class RecordingLogWriter : ILogWriter
-    {
-        private readonly System.Collections.Concurrent.ConcurrentQueue<string> _messages;
-        public RecordingLogWriter(System.Collections.Concurrent.ConcurrentQueue<string> messages) => _messages = messages;
-        public void Write(string msg) => _messages.Enqueue(msg);
     }
 }
