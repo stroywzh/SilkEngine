@@ -4,6 +4,7 @@ using System.Linq;
 using SilkEngine.Core;
 using SilkEngine.Assets;
 using SilkEngine.Assets.Importer;
+using SilkEngine.Assets.Serialization;
 using SilkEngine.Assets.VirtualFileSystem;
 using SilkEngine.InputSystem;
 using SilkEngine.Render;
@@ -72,7 +73,8 @@ public class EngineLoop : IDisposable
         _assetManager = new AssetManager(
             new DiskAssetFileSystem("Assets"),
             new AssetImporterRegistry(),
-            (SilkEngine.Core.ITaskScheduler)_threadManager.Request<ITaskExecutor>(new ThreadRequest("Workers", ThreadKind.WorkerPool)));
+            (SilkEngine.Core.ITaskScheduler)_threadManager.Request<ITaskExecutor>(new ThreadRequest("Workers", ThreadKind.WorkerPool)),
+            new AssetSerializerRegistry());
         _sceneManager = new SceneManager();
     }
 

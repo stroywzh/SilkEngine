@@ -1,5 +1,8 @@
 using SilkEngine.Assets;
+using SilkEngine.Assets.Importer;
 using SilkEngine.Assets.Serialization;
+using SilkEngine.Assets.VirtualFileSystem;
+using SilkEngine.Core;
 using SilkEngine.Math;
 using SilkEngine.Render;
 
@@ -131,6 +134,42 @@ public static class Fixtures
         registry.Register(new MeshAssetSerializer());
         registry.Register(new MaterialAssetSerializer());
         return new AssetSerializationService(registry, resolver);
+    }
+
+    /// <summary>构造自足 AssetManager（注入空序列化器注册表，实例间互不影响）并注销其 ctor 自注册（消除 ambient 依赖）</summary>
+    /// <param name="files">资产文件服务（默认内存文件系统）</param>
+    /// <returns>可独立使用的 AssetManager 实例</returns>
+    public static AssetManager AssetManagerWithSerializerRegistry(IAssetFileSystem? files = null)
+    {
+        var manager = new AssetManager(
+            files ?? new InMemoryAssetFileSystem("Assets"),
+            new AssetImporterRegistry(),
+            new RecordingScheduler());
+        Services.Unregister<AssetManager>();
+        return manager;
+    }
+
+    /// <summary>构造带实例覆盖参数的材质实例（覆盖 "Opacity"；源引用指向独立资产 ID）</summary>
+    /// <returns>材质运行时实例</returns>
+    public static Material MaterialInstanceWithOverride()
+    {
+        var material = new Material(new MaterialReference(new AssetId(Guid.NewGuid())));
+        material.SetFloat("Opacity", 0.9f);
+        return material;
+    }
+
+    /// <summary>按源材质引用构造其资产序列化记录（夹具重建源资产载荷；记录绝不携带实例覆盖）</summary>
+    /// <param name="source">源材质资产引用</param>
+    /// <returns>材质资产记录</returns>
+    public static AssetSerializationRecord SerializeMaterialAsset(MaterialReference source)
+    {
+        var asset = new MaterialAsset(
+            source.AssetId,
+            new AssetHandle<ShaderAsset>(new AssetId(Guid.NewGuid())),
+            new AssetHandle<TextureAsset>(new AssetId(Guid.NewGuid())),
+            new MaterialParameterSnapshot([("Opacity", MaterialValue.Float(1f))]),
+            revision: 1);
+        return new MaterialAssetSerializer().Serialize(asset);
     }
 }
 

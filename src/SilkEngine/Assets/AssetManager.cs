@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using SilkEngine.Assets.Importer;
+using SilkEngine.Assets.Serialization;
 using SilkEngine.Assets.VirtualFileSystem;
 using SilkEngine.Core;
 
@@ -14,12 +15,14 @@ namespace SilkEngine.Assets;
 /// GPU 删除由消费方在渲染线程执行。
 /// 加载键为 AssetId + SourceRevision：后台结果携带调度时捕获的修订号，帧末与目录当前记录比较，
 /// 过期结果丢弃并按当前修订重新调度；缓存命中只接受当前修订（Invalidate 使旧数据失效）。
+/// 序列化器注册表经构造注入（实例级互不共享，无全局状态）；序列化层经 <see cref="Resolver"/> 视图解析已加载资产。
 /// </summary>
 public sealed class AssetManager : IDisposable
 {
     private readonly IAssetFileSystem _files;
     private readonly AssetImporterRegistry _registry;
     private readonly ITaskScheduler _scheduler;
+    private readonly AssetSerializerRegistry _serializerRegistry;
     private readonly AssetCatalog _catalog = new();
     private readonly AssetCache _cache = new();
     private readonly ConcurrentQueue<AssetLoadResult> _completed = new();
@@ -33,22 +36,43 @@ public sealed class AssetManager : IDisposable
     internal event Action<IAsset>? AssetUnloaded;
 
     /// <summary>
-    /// 构造注入文件服务、导入器注册表与任务调度器（引擎运行时经 ThreadManager 申请的 WorkerPool 执行者转型；
+    /// 受控引用解析器视图：按 AssetId 从本管理器缓存解析已加载资产（序列化层唯一资产访问边界，无全局服务定位）。
+    /// 本管理器不持有序列化记录，<see cref="IAssetReferenceResolver.TryGetRecord"/> 恒返回 null。
+    /// </summary>
+    public IAssetReferenceResolver Resolver { get; }
+
+    /// <summary>
+    /// 构造注入文件服务、导入器注册表、任务调度器与序列化器注册表（引擎运行时经 ThreadManager 申请的 WorkerPool 执行者转型；
     /// 执行者生命周期归 ThreadManager）。构造即自注册进 Services。
     /// </summary>
     /// <param name="files">资产文件服务（逻辑路径只读访问）</param>
     /// <param name="registry">导入器注册表（扩展名 → 资产类型/导入器解析）</param>
     /// <param name="scheduler">后台加载任务调度器</param>
+    /// <param name="serializerRegistry">序列化器注册表；null 时新建空注册表实例（实例级互不共享）</param>
     public AssetManager(
         IAssetFileSystem files,
         AssetImporterRegistry registry,
-        ITaskScheduler scheduler)
+        ITaskScheduler scheduler,
+        AssetSerializerRegistry? serializerRegistry = null)
     {
         _files = files ?? throw new ArgumentNullException(nameof(files));
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         _scheduler = scheduler ?? throw new ArgumentNullException(nameof(scheduler));
+        _serializerRegistry = serializerRegistry ?? new AssetSerializerRegistry();
+        Resolver = new CatalogReferenceResolver(this);
         Services.Register(this);
     }
+
+    /// <summary>注册序列化器（直通注册表；同类型重复注册抛 <see cref="InvalidOperationException"/>）</summary>
+    /// <param name="serializer">待注册序列化器</param>
+    public void RegisterSerializer(IAssetSerializer serializer) => _serializerRegistry.Register(serializer);
+
+    /// <summary>按类型与 schema 版本解析序列化器（直通注册表；未知类型或版本不支持抛 <see cref="NotSupportedException"/>）</summary>
+    /// <param name="typeId">资产类型标识</param>
+    /// <param name="schemaVersion">记录 schema 版本</param>
+    /// <returns>匹配的序列化器</returns>
+    public IAssetSerializer ResolveSerializer(AssetTypeId typeId, int schemaVersion)
+        => _serializerRegistry.Resolve(typeId, schemaVersion);
 
     /// <summary>释放：注销服务定位器中的自注册（幂等；框架生命周期仍由 Services.Shutdown 反序管理）</summary>
     public void Dispose() => Services.Unregister<AssetManager>();
@@ -342,14 +366,20 @@ public sealed class AssetManager : IDisposable
     /// <returns>已就绪资产；未命中/类型不符/失效为 null</returns>
     public T? TryResolve<T>(AssetId assetId)
         where T : class, IAsset
+        => TryResolveUntyped(assetId) as T;
+
+    /// <summary>AssetId → 已就绪缓存资产（目录修订一致才返回）；未命中或源已失效返回 null。类型化查询与序列化层 resolver 视图共用。</summary>
+    /// <param name="assetId">资产 ID</param>
+    /// <returns>已就绪资产；未命中/失效为 null</returns>
+    internal IAsset? TryResolveUntyped(AssetId assetId)
     {
         var entry = _cache.Find(assetId);
-        if (entry is not { Data: T asset })
+        if (entry is not { State: AssetState.Ready, Data: { } data })
             return null;
         // 缓存命中只接受当前修订：目录记录存在且修订不一致说明源已失效
         if (_catalog.TryGet(assetId, out var record) && entry.SourceRevision != record.SourceRevision)
             return null;
-        return asset;
+        return data;
     }
 
     private AssetRecord ResolveRecord(string normalizedPath, out AssetTypeId assetTypeId)
@@ -412,5 +442,23 @@ public sealed class AssetManager : IDisposable
     {
         var hash = MD5.HashData(Encoding.UTF8.GetBytes(normalizedPath));
         return new VirtualNodeId(new Guid(hash));
+    }
+
+    /// <summary>
+    /// 受控引用解析器视图：按 AssetId 从本管理器缓存解析已加载资产（未加载/未命中返回 null，调用方据此区分加载中）。
+    /// 本管理器不持有序列化记录，TryGetRecord 恒返回 null；无任何全局服务定位或静态状态。
+    /// </summary>
+    private sealed class CatalogReferenceResolver(AssetManager manager) : IAssetReferenceResolver
+    {
+        /// <summary>本管理器不持有序列化记录，恒返回 null</summary>
+        public AssetSerializationRecord? TryGetRecord(AssetId assetId) => null;
+
+        /// <summary>按强类型句柄从缓存解析已加载资产；未加载/未命中返回 null</summary>
+        public T Resolve<T>(AssetHandle<T> handle)
+            where T : class
+            => manager.TryResolveUntyped(handle.Id) as T ?? null!;
+
+        /// <summary>按非泛型句柄从缓存解析已加载资产；未加载/未命中返回 null</summary>
+        public object Resolve(UntypedAssetHandle handle) => manager.TryResolveUntyped(handle.Id) ?? null!;
     }
 }
