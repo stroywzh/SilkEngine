@@ -2,7 +2,6 @@ using SilkEngine.Core;
 using SilkEngine.Assets;
 using SilkEngine.Assets.Importer;
 using SilkEngine.Assets.VirtualFileSystem;
-using SilkEngine.Render;
 using SilkEngine.Scene;
 using SilkEngine.Threading;
 using SilkEngine.Tests.Core.Assets;
@@ -60,42 +59,6 @@ public class CommitFrameAssetOrderTests : IDisposable
             Object.DestroyHandler -= OnDestroy;
             Runtime.Dispose();
         }
-    }
-
-    private class ReleaseOnDestroy : MonoBehaviour
-    {
-        public Shader? Target;
-        public AssetManager? Manager;
-        public override void OnDestroy() => Manager!.TryRelease(Target!);
-    }
-
-    [Fact]
-    public void CommitFrame_AssetReleasedInOnDestroy_ThenPipelineResultApplied()
-    {
-        using var fx = new Fixture();
-        _fx = fx;
-        var scene = new Scene("T");
-        var go = new GameObject();
-        var releaser = go.AddComponent<ReleaseOnDestroy>(fx.Reg);
-        var shader = new Shader { Name = "S" };
-        var entry = fx.Am.Cache.GetOrAdd(new AssetId(Guid.NewGuid()));
-        entry.Payload = shader;
-        entry.State = AssetState.Ready;
-        fx.Am.TryAddRef(shader);           // RefCount 0 → 1
-        releaser.Target = shader;
-        releaser.Manager = fx.Am;
-        scene.AddRootObject(go);
-        fx.Reg.ApplyPending();
-        fx.Mgr.CommitPending(fx.Reg, fx.DestroyQueue, scene, 0f);
-
-        Object.Destroy(go);
-        var payload = fx.Am.LoadAsync<TextureAsset>("a.png").AsTask().GetAwaiter().GetResult();
-        Assert.DoesNotContain(fx.Am.Cache.All(), e => ReferenceEquals(e.Payload, payload));
-
-        CommitFrameForTests(fx.Runtime);   // 完整帧提交：快照 swap → 排空 FrameCommit → 资产结果应用
-
-        Assert.Equal(0, entry.RefCount);                                             // OnDestroy 释放已执行
-        Assert.Contains(fx.Am.Cache.All(), e => ReferenceEquals(e.Payload, payload)); // 资产结果随帧提交应用
     }
 
     [Fact]

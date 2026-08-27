@@ -14,7 +14,7 @@ public static class TestCameraPerspective
         engine.SceneManager.LoadScene(scene);
 
         var shader = new ShaderAsset("Persp", ShaderSources.LitVertex, ShaderSources.LitFragment);
-        var mesh = DemoAssets.MeshFrom(MeshFactory.CreateCube(1f));
+        var mesh = MeshFactory.CreateCube(1f);
 
         var cube = new GameObject("Cube");
         cube.Transform.LocalPosition = new Vector3(0, 0, 3);

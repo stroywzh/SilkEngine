@@ -16,17 +16,14 @@ public enum AssetState
     Unloaded,
 }
 
-/// <summary>资产缓存条目：AssetId 键 + Payload + 引用计数 + 状态 + 源修订</summary>
+/// <summary>资产缓存条目：AssetId 键 + Payload + 状态 + 源修订</summary>
 public sealed class AssetEntry
 {
     /// <summary>资产标识（目录稳定分配）</summary>
     public required AssetId AssetId { get; init; }
 
-    /// <summary>已加载载荷（IAssetPayload 或过渡期 IAsset 兼容实例）；未完成/失败时为 null</summary>
-    public object? Payload { get; set; }
-
-    /// <summary>引用计数（+1/-1 仅经 AssetManager 闭环修改，外部不可绕过；过渡期遗留 API）</summary>
-    public int RefCount { get; internal set; }
+    /// <summary>已加载载荷；未完成/失败时为 null</summary>
+    public IAssetPayload? Payload { get; set; }
 
     /// <summary>当前状态</summary>
     public AssetState State { get; set; } = AssetState.Loading;

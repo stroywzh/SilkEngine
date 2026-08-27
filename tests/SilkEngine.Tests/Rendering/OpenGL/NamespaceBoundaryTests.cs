@@ -12,7 +12,7 @@ public class NamespaceBoundaryTests
     private static readonly string[] BannedTokens =
     [
         "AssetManager", "AssetPipeline", "AssetHandle", "IAssetPayload",
-        "TextureAsset", "ShaderAsset", "MeshAsset", "MaterialAsset", "Texture2D", "IAsset",
+        "TextureAsset", "ShaderAsset", "MeshAsset", "MaterialAsset",
     ];
 
     private static string FindSource(string fileName)

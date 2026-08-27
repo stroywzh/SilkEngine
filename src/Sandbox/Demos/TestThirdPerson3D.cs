@@ -15,7 +15,7 @@ public static class TestThirdPerson3D
         engine.SceneManager.LoadScene(scene);
 
         var shader = new ShaderAsset("Lit", ShaderSources.LitVertex, ShaderSources.LitFragment);
-        var cubeMesh = DemoAssets.MeshFrom(MeshFactory.CreateCube(1f));
+        var cubeMesh = MeshFactory.CreateCube(1f);
 
         var ground = new GameObject("Ground");
         ground.Transform.LocalScale = new Vector3(20, 1, 20);

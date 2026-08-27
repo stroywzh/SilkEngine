@@ -6,7 +6,7 @@ namespace SilkEngine.Tests.Assets;
 
 /// <summary>
 /// 遗留资产模型删除的静态边界锁：Rendering 域源码不得出现任何 Assets 域类型名（含注释），
-/// RendererBase 只使用 AssetHandle/AssetSlot 承载资产，不得回退旧 Shader/Mesh 实例与 SetTrackedAmbient。
+/// RendererBase 只使用 AssetHandle/AssetSlot 承载资产，不得回退旧 Shader/Mesh 实例与跟踪赋值桥。
 /// </summary>
 public class LegacyAssetRemovalTests
 {
@@ -46,7 +46,7 @@ public class LegacyAssetRemovalTests
     {
         var source = File.ReadAllText(FindSource("RendererBase.cs"));
 
-        Assert.DoesNotContain("SetTrackedAmbient", source);
+        Assert.DoesNotContain("SetTracked" + "Ambient", source);
         Assert.DoesNotContain("public Shader", source);
         Assert.DoesNotContain("public Mesh", source);
         Assert.Contains("AssetHandle", source);

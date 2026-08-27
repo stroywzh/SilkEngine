@@ -14,7 +14,7 @@ public static class TestPNGQuad
         engine.SceneManager.LoadScene(scene);
 
         var shader = new ShaderAsset("PNG", ShaderSources.PngVertex, ShaderSources.PngFragment);
-        var mesh = DemoAssets.MeshFrom(MeshFactory.CreateQuad(1, 1));
+        var mesh = MeshFactory.CreateQuad(1, 1);
 
         var quad = new GameObject("PNGQuad");
         quad.Transform.LocalScale = new Vector3(4, 3, 1);

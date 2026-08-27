@@ -13,7 +13,6 @@ namespace SilkEngine.Assets;
 /// 构造即自注册进 Services。
 /// 本类不持有 Importer、不创建线程、不调度 Worker；结果经 Pipeline 的 FrameCommit 投递由
 /// <see cref="ApplyPipelineResult"/> 应用到缓存。
-/// 过渡期保留旧 IAsset 引用计数 API（TryAddRef/TryRelease/SetTracked*），由资产遗留清理计划统一删除。
 /// </summary>
 public sealed class AssetManager : IDisposable
 {
@@ -172,16 +171,16 @@ public sealed class AssetManager : IDisposable
     }
 
     /// <summary>
-    /// 帧末驱逐（Main 域）：移除无 Slot/Lease/Pin 且无遗留引用计数的 Ready Payload；
+    /// 帧末驱逐（Main 域）：移除无 Slot/Lease/Pin 持有的 Ready Payload；
     /// 已发布 GPU 句柄的条目经 <see cref="RenderResourceReleaseRequest"/> 入队（渲染线程帧首消费）。
     /// </summary>
     public void UnloadUnused()
     {
         foreach (var entry in _cache.All().ToArray())
         {
-            if (entry.State != AssetState.Ready || entry.Payload is not IAssetPayload)
+            if (entry.State != AssetState.Ready || entry.Payload is null)
                 continue;
-            if (_residency.GetValueOrDefault(entry.AssetId) > 0 || entry.RefCount > 0)
+            if (_residency.GetValueOrDefault(entry.AssetId) > 0)
                 continue;
             entry.State = AssetState.Unloaded;
             _cache.SetPayload(entry, null);
@@ -248,79 +247,6 @@ public sealed class AssetManager : IDisposable
         }
     }
 
-    /// <summary>托管资产引用 +1；非托管实例（缓存中无条目）no-op 返回 false。过渡期遗留 API。</summary>
-    /// <param name="asset">资产实例（按引用查找条目；Shader/Material 重写 Equals 禁止 == 比较）</param>
-    /// <returns>引用计数递增成功为 true</returns>
-    public bool TryAddRef(IAsset asset)
-    {
-        var entry = FindEntry(asset);
-        if (entry is null || entry.Payload is null)
-            return false;
-        entry.RefCount++;
-        return true;
-    }
-
-    /// <summary>托管资产引用 −1（下限 0）；归零时触发 IReleaseAwareAsset 级联回调。过渡期遗留 API。</summary>
-    /// <param name="asset">资产实例</param>
-    /// <returns>引用递减成功为 true；非托管实例或已归零返回 false</returns>
-    public bool TryRelease(IAsset asset)
-    {
-        var entry = FindEntry(asset);
-        if (entry is null || entry.RefCount <= 0)
-            return false;
-        entry.RefCount--;
-        if (entry.RefCount == 0 && asset is IReleaseAwareAsset aware)
-            aware.OnAssetReleased(this);
-        return true;
-    }
-
-    /// <summary>用户 API：无主资产显式归还（过渡期遗留 API，驱逐语义见 UnloadUnused）。</summary>
-    /// <param name="asset">资产实例</param>
-    public void Release(IAsset asset) => TryRelease(asset);
-
-    /// <summary>赋值点自动计数：新值 +1、旧值 −1；同一实例赋值短路。过渡期遗留 API。</summary>
-    /// <typeparam name="T">字段类型</typeparam>
-    /// <param name="field">被赋值字段（ref）</param>
-    /// <param name="value">新值</param>
-    public void SetTracked<T>(ref T field, T value)
-        where T : class
-    {
-        if (ReferenceEquals(field, value))
-            return;
-        var old = field;
-        field = value;
-        if (old is IAsset oldAsset)
-            TryRelease(oldAsset);
-        if (value is IAsset newAsset)
-            TryAddRef(newAsset);
-    }
-
-    /// <summary>
-    /// 引擎内部引用计数赋值桥：管理器已注册（引擎运行时）→ 计数闭环；
-    /// 未注册（引擎初始化前/纯数据场景）→ 仅字段赋值，保持"非托管资产 no-op"等价语义。过渡期遗留 API。
-    /// </summary>
-    internal static void SetTrackedAmbient<T>(ref T field, T value)
-        where T : class
-    {
-        if (Services.TryGet<AssetManager>(out var manager))
-            manager.SetTracked(ref field, value);
-        else
-            field = value;
-    }
-
-    /// <summary>按实例引用查询缓存条目资产 ID；非托管资产（缓存无条目）返回 false。过渡期遗留 API。</summary>
-    internal bool TryGetAssetId(IAsset asset, out AssetId assetId)
-    {
-        var entry = FindEntry(asset);
-        if (entry is not null)
-        {
-            assetId = entry.AssetId;
-            return true;
-        }
-        assetId = default;
-        return false;
-    }
-
     /// <summary>测试断言用：当前缓存</summary>
     internal AssetCache Cache => _cache;
 
@@ -347,7 +273,7 @@ public sealed class AssetManager : IDisposable
     /// <summary>AssetId → 已就绪缓存数据（目录修订一致才返回）；未命中或源已失效返回 null。类型化查询与序列化层 resolver 视图共用。</summary>
     /// <param name="assetId">资产 ID</param>
     /// <returns>已就绪资产数据；未命中/失效为 null</returns>
-    internal object? TryResolveUntyped(AssetId assetId)
+    internal IAssetPayload? TryResolveUntyped(AssetId assetId)
     {
         var entry = _cache.Find(assetId);
         if (entry is not { State: AssetState.Ready, Payload: { } data })
@@ -376,8 +302,6 @@ public sealed class AssetManager : IDisposable
                 Log.Info($"[Assets] Render release pending: {request.Kind} #{request.Handle}");
         }
     }
-
-    private AssetEntry? FindEntry(IAsset asset) => _cache.FindByAsset(asset);
 
     /// <summary>
     /// 受控引用解析器视图：按 AssetId 从本管理器缓存解析已加载载荷（未加载/未命中返回 null，调用方据此区分加载中）。

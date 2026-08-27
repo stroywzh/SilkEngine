@@ -14,7 +14,7 @@ public static class TestSingleCube
         engine.SceneManager.LoadScene(scene);
 
         var shader = new ShaderAsset("PerspCheck", ShaderSources.LitVertex, ShaderSources.LitFragment);
-        var mesh = DemoAssets.MeshFrom(MeshFactory.CreateCube(1f));
+        var mesh = MeshFactory.CreateCube(1f);
 
         var cube = new GameObject("Cube");
         var mr = cube.AddComponent<MeshRenderer>();

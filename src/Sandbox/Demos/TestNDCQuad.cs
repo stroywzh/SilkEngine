@@ -13,7 +13,7 @@ public static class TestNDCQuad
         engine.SceneManager.LoadScene(scene);
 
         var shader = new ShaderAsset("NDC_Quad", ShaderSources.NdcUvVertex, ShaderSources.NdcUvFragment);
-        var mesh = DemoAssets.MeshFrom(MeshFactory.CreateQuad(1.6f, 1.2f));
+        var mesh = MeshFactory.CreateQuad(1.6f, 1.2f);
 
         var go = new GameObject("QuadObj");
         var mr = go.AddComponent<MeshRenderer>();

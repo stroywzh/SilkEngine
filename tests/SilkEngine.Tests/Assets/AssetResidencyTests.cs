@@ -56,19 +56,6 @@ public class AssetResidencyTests : IDisposable
         Assert.False(assets.TryResolve(handle, out TextureAsset? _));
     }
 
-    [Fact]
-    public void UnloadUnused_DoesNotEvictLegacyRefCountedPayload()
-    {
-        var assets = CreateManagerWithReadyTexture(out var handle, out var texture);
-        var entry = Assert.Single(assets.Cache.All());
-        entry.RefCount = 1;
-
-        assets.UnloadUnused();
-
-        Assert.True(assets.TryResolve(handle, out TextureAsset? resolved));
-        Assert.Same(texture, resolved);
-    }
-
     /// <summary>测试辅助：已索引纹理 + Ready 缓存 + 已发布 GPU 句柄的管理器</summary>
     private static AssetManager CreateManagerWithReadyTexture(
         out AssetHandle<TextureAsset> handle,

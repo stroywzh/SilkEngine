@@ -15,7 +15,7 @@ public static class IMGShow
         engine.SceneManager.LoadScene(scene);
 
         var shader = new ShaderAsset("PngShader", ShaderSources.PngVertex, ShaderSources.PngFragment);
-        var mesh = DemoAssets.MeshFrom(MeshFactory.CreateQuad(1f, 1f));
+        var mesh = MeshFactory.CreateQuad(1f, 1f);
 
         string path = Path.Combine(AppContext.BaseDirectory, "Resources", PictureName);
         var tex = engine.AssetManager.Load<TextureAsset>(path);

@@ -14,7 +14,7 @@ public static class TestCameraOrtho
         engine.SceneManager.LoadScene(scene);
 
         var shader = new ShaderAsset("Cam", ShaderSources.CamUvVertex, ShaderSources.CamUvFragment);
-        var mesh = DemoAssets.MeshFrom(MeshFactory.CreateQuad(1, 1));
+        var mesh = MeshFactory.CreateQuad(1, 1);
 
         var quad = new GameObject("Quad");
         quad.Transform.LocalScale = new Vector3(4, 3, 1);
