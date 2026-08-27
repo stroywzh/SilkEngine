@@ -1,6 +1,7 @@
 using SilkEngine;
 using SilkEngine.Core;
 using SilkEngine.Scene;
+using SilkEngine.Threading;
 
 namespace SilkEngine.Tests.Core;
 
@@ -46,6 +47,32 @@ public class EngineLoopTickOrchestrationTests : IDisposable
             sm.FixedTick(snap, acc.FixedDeltaTime);
         sm.Tick(snap, dt);
         sm.LateTick(snap);
+    }
+
+    // EngineLoop.Run 扩展序列：Tick/LateTick 之后、Render 收集之前排空 PreRender 阶段
+    private static void TickFrameWithPreRenderDrain(
+        FixedStepAccumulator acc, SceneManager sm, FrameSnapshot snap, float dt, ThreadRuntime runtime)
+    {
+        int steps = acc.Advance(dt);
+        for (int i = 0; i < steps; i++)
+            sm.FixedTick(snap, acc.FixedDeltaTime);
+        sm.Tick(snap, dt);
+        sm.LateTick(snap);
+        runtime.Drain(MainThreadPhase.PreRender);
+    }
+
+    [Fact]
+    public void TickFrame_DrainsPreRenderAfterLateTick()
+    {
+        using var runtime = new ThreadRuntime();
+        runtime.RegisterMainThread();
+        var (acc, c, sm, mgr) = Setup();
+        var lateCountAtDrain = -1;
+        runtime.MainThread.Post(MainThreadPhase.PreRender, () => lateCountAtDrain = c.Late);
+
+        TickFrameWithPreRenderDrain(acc, sm, mgr.Current, 0.016f, runtime);
+
+        Assert.Equal(1, lateCountAtDrain); // 排空发生在 LateTick 之后（Render 收集前）
     }
 
     [Fact]

@@ -27,6 +27,7 @@ public class EngineLoop : IDisposable
     private FrameSnapshotManager _snapshotManager = null!;
     private readonly SceneManager _sceneManager;
     private ThreadManager _threadManager = null!;
+    private ThreadRuntime _threadRuntime = null!;
     private AssetManager? _assetManager;
     private RenderSystem _renderSystem = null!;
     // RenderCollector不应有主线程持有
@@ -67,6 +68,7 @@ public class EngineLoop : IDisposable
         _backend = backend;
         _threadManager = Services.Get<ThreadManager>();
         _threadManager.RegisterMainThread();
+        _threadRuntime = Services.Get<ThreadRuntime>();
         _registry = Services.Get<ComponentRegistry>();
         _snapshotManager = Services.Get<FrameSnapshotManager>();
         _renderSystem = new RenderSystem(_backend, _threadManager);
@@ -81,6 +83,7 @@ public class EngineLoop : IDisposable
     public EngineLoop Initialize()
     {
         _sceneManager.Attach(_registry, _snapshotManager);
+        _threadRuntime.RegisterMainThread();
         _renderSystem.Initialize();
         if (_renderSystem.Backend.NativeWindow is { } win)
         {
@@ -89,7 +92,7 @@ public class EngineLoop : IDisposable
             Input.SetProvider(inputProvider);
         }
         _sceneManager.RegisterScene();
-        _frameCommitter.Commit(_snapshotManager, _registry, _sceneManager, AssetManager);
+        _frameCommitter.Commit(_snapshotManager, _registry, _sceneManager, AssetManager, _threadRuntime);
         _stopRequested = false;
         _clock.Reset();
         _canStart = true;
@@ -121,9 +124,10 @@ public class EngineLoop : IDisposable
             _clock.Tick();
             Input.Update();
             _frameScheduler.Tick(Time.DeltaTime, fdt => _sceneManager.FixedTick(_snapshotManager.Current, fdt), d => _sceneManager.Tick(_snapshotManager.Current, d), () => _sceneManager.LateTick(_snapshotManager.Current));
+            _threadRuntime.Drain(MainThreadPhase.PreRender);
             OnRender();
             _sceneManager.PostRender(_snapshotManager.Current);
-            _frameCommitter.Commit(_snapshotManager, _registry, _sceneManager, AssetManager);
+            _frameCommitter.Commit(_snapshotManager, _registry, _sceneManager, AssetManager, _threadRuntime);
         }
         if (LogConfig.EngineLoop)
             Log.Info("[EngineLoop] Run finished");
