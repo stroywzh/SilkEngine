@@ -1,7 +1,6 @@
 using SilkEngine.Core;
 using SilkEngine.Assets;
 using SilkEngine.Assets.VirtualFileSystem;
-using SilkEngine.Render.OpenGL;
 using SilkEngine.Rendering.Abstraction;
 using SilkEngine.Threading;
 using SilkEngine.Tests.Core;
@@ -23,31 +22,6 @@ public class TextureUnloadTests : IDisposable
         files.Add("T.png", PngFixtures.RedPng);
         return TestAssetPipeline.CreateContext(files, index =>
             index.Apply(ScanResult.FromFiles([ScanFile.File("T.png", 1)])));
-    }
-
-    [Fact]
-    public void ReleaseTexture_RemovesFromCache_AndDisposes()
-    {
-        var context = CreateManagerContext();
-        var backend = new OpenGLRenderBackend();
-        var tex = new TextureAsset("T", new ImageData(1, 1, [255, 255, 255, 255]));
-        var glTex = backend.TextureRegistry.GetOrCreate(tex);
-
-        backend.ReleaseTexture(tex);
-
-        Assert.True(glTex.IsDisposed);
-        Assert.Equal(0, backend.TextureRegistry.Count);
-    }
-
-    [Fact]
-    public void ReleaseTexture_UnknownTexture_IsNoOp()
-    {
-        var context = CreateManagerContext();
-        var backend = new OpenGLRenderBackend();
-
-        backend.ReleaseTexture(new TextureAsset("T", new ImageData(1, 1, [1, 1, 1, 1])));
-
-        Assert.Equal(0, backend.TextureRegistry.Count);
     }
 
     [Fact]

@@ -14,28 +14,21 @@ public static class IMGShow
         var scene = new Scene("IMGShow_DEBUG");
         engine.SceneManager.LoadScene(scene);
 
-        var shader = new Shader
-        {
-            Name = "PngShader",
-            VertexSource = ShaderSources.PngVertex,
-            FragmentSource = ShaderSources.PngFragment,
-        };
+        var shader = new ShaderAsset("PngShader", ShaderSources.PngVertex, ShaderSources.PngFragment);
+        var mesh = DemoAssets.MeshFrom(MeshFactory.CreateQuad(1f, 1f));
 
         string path = Path.Combine(AppContext.BaseDirectory, "Resources", PictureName);
         var tex = engine.AssetManager.Load<TextureAsset>(path);
 
-        var mat = new Material(new MaterialReference(new AssetId(Guid.NewGuid())));
-
         var quad = new GameObject("UIRenderQuad");
         var ui = quad.AddComponent<UIRenderer>();
-        ui.Shader = shader;
-        ui.Mesh = MeshFactory.CreateQuad(1f, 1f);
-        ui.Material = mat;
+        ui.SetShader(new AssetHandle<ShaderAsset>(DemoAssets.NewId()));
+        ui.SetMesh(new AssetHandle<MeshAsset>(DemoAssets.NewId()));
         scene.AddRootObject(quad);
 
         Log.Info(
-            $"[IMGShow] UIRenderer assembled: Shader='{ui.Shader?.Name}' " +
-            $"Mesh='{ui.Mesh?.Name}' Texture={tex.Data.Width}x{tex.Data.Height}"
+            $"[IMGShow] UIRenderer assembled: Shader='{shader.Name}' Mesh='{mesh.Name}' " +
+            $"Texture={tex.Data.Width}x{tex.Data.Height}（GPU 句柄待创建请求接线后发布）"
         );
     }
 }

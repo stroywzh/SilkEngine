@@ -13,21 +13,17 @@ public static class TestPNGQuad
         var scene = new Scene("PNG_Quad");
         engine.SceneManager.LoadScene(scene);
 
-        var shader = new Shader
-        {
-            Name = "PNG",
-            VertexSource = ShaderSources.PngVertex,
-            FragmentSource = ShaderSources.PngFragment,
-        };
+        var shader = new ShaderAsset("PNG", ShaderSources.PngVertex, ShaderSources.PngFragment);
+        var mesh = DemoAssets.MeshFrom(MeshFactory.CreateQuad(1, 1));
 
-        var mat = new Material(new MaterialReference(new AssetId(Guid.NewGuid())));
         var quad = new GameObject("PNGQuad");
         quad.Transform.LocalScale = new Vector3(4, 3, 1);
         var mr = quad.AddComponent<MeshRenderer>();
-        mr.Shader = shader;
-        mr.Mesh = MeshFactory.CreateQuad(1, 1);
-        mr.Material = mat;
+        mr.SetShader(new AssetHandle<ShaderAsset>(DemoAssets.NewId()));
+        mr.SetMesh(new AssetHandle<MeshAsset>(DemoAssets.NewId()));
         scene.AddRootObject(quad);
+
+        Log.Info($"[TestPNGQuad] {shader.Name} + {mesh.Name} 已装配（GPU 句柄待创建请求接线后发布）");
 
         var camObj = new GameObject("Cam");
         camObj.Transform.LocalPosition = new Vector3(0, 0, -1);

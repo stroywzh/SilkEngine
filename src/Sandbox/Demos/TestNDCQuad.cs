@@ -1,5 +1,5 @@
+using SilkEngine.Assets;
 using SilkEngine.Core;
-using SilkEngine.Math;
 using SilkEngine.Render;
 using SilkEngine.Scene;
 
@@ -12,18 +12,15 @@ public static class TestNDCQuad
         var scene = new Scene("NDC_Quad");
         engine.SceneManager.LoadScene(scene);
 
-        var shader = new Shader
-        {
-            Name = "NDC_Quad",
-            VertexSource = ShaderSources.NdcUvVertex,
-            FragmentSource = ShaderSources.NdcUvFragment,
-        };
+        var shader = new ShaderAsset("NDC_Quad", ShaderSources.NdcUvVertex, ShaderSources.NdcUvFragment);
+        var mesh = DemoAssets.MeshFrom(MeshFactory.CreateQuad(1.6f, 1.2f));
 
-        var mesh = MeshFactory.CreateQuad(1.6f, 1.2f);
         var go = new GameObject("QuadObj");
         var mr = go.AddComponent<MeshRenderer>();
-        mr.Shader = shader;
-        mr.Mesh = mesh;
+        mr.SetShader(new AssetHandle<ShaderAsset>(DemoAssets.NewId()));
+        mr.SetMesh(new AssetHandle<MeshAsset>(DemoAssets.NewId()));
         scene.AddRootObject(go);
+
+        Log.Info($"[TestNDCQuad] {shader.Name} + {mesh.Name} 已装配（GPU 句柄待创建请求接线后发布）");
     }
 }

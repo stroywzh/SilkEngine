@@ -1,13 +1,13 @@
 using System;
 using Silk.NET.OpenGL;
+using SilkEngine.Rendering.Abstraction;
 
-namespace SilkEngine.Render.OpenGL;
+namespace SilkEngine.Rendering.OpenGL;
 
 /// <summary>
-/// IShader 的 OpenGL 实现
-/// <br/>在渲染线程将 Shader 数据编译为 GLSL 顶点+片段着色器。
+/// OpenGL 着色器资源：渲染线程从无资产语义的创建请求编译 GLSL 程序。
 /// </summary>
-public class OpenGLShader : IShader
+public sealed class OpenGLShader : IDisposable
 {
     private readonly GL _gl;
     private readonly uint _program;
@@ -17,14 +17,17 @@ public class OpenGLShader : IShader
     public bool IsCompiled { get; private set; }
 
     /// <summary>
-    /// 从 Shader 数据编译 GLSL 程序
-    /// <br/>链接失败抛 InvalidOperationException，且 finally 确保已创建的 program/shader 句柄被释放（防泄漏）
+    /// 从着色器创建请求编译 GLSL 程序（顶点 + 片元）；链接失败抛 <see cref="InvalidOperationException"/>，
+    /// 且 finally 确保已创建的 program/shader 句柄被释放（防泄漏）。
     /// </summary>
-    public OpenGLShader(GL gl, Shader data)
+    /// <param name="gl">OpenGL API 实例</param>
+    /// <param name="request">无资产语义的着色器创建请求</param>
+    public OpenGLShader(GL gl, RenderShaderCreateRequest request)
     {
         _gl = gl;
-        uint vs = CompileStage(gl, data.VertexSource, ShaderType.VertexShader);
-        uint fs = CompileStage(gl, data.FragmentSource, ShaderType.FragmentShader);
+        var descriptor = request.Descriptor;
+        uint vs = CompileStage(gl, descriptor.VertexSource, ShaderType.VertexShader);
+        uint fs = CompileStage(gl, descriptor.FragmentSource, ShaderType.FragmentShader);
         _program = gl.CreateProgram();
         try
         {
@@ -49,9 +52,7 @@ public class OpenGLShader : IShader
         }
     }
 
-    /// <summary>
-    /// 编译单个着色器阶段（顶点或片段）
-    /// </summary>
+    /// <summary>编译单个着色器阶段（顶点或片元）。</summary>
     private static uint CompileStage(GL gl, string source, ShaderType type)
     {
         uint handle = gl.CreateShader(type);
@@ -67,16 +68,13 @@ public class OpenGLShader : IShader
         return handle;
     }
 
-    /// <inheritdoc />
+    /// <summary>绑定程序。</summary>
     public void Use() => _gl.UseProgram(_program);
 
-    /// <summary>
-    /// 获取 OpenGL 程序句柄
-    /// </summary>
+    /// <summary>OpenGL 程序句柄。</summary>
     internal uint GetProgram() => _program;
 
-    /// <inheritdoc />
-    /// <summary>释放 GL 程序句柄（幂等）</summary>
+    /// <summary>释放 GL 程序句柄（幂等）。</summary>
     public void Dispose()
     {
         if (!_disposed)

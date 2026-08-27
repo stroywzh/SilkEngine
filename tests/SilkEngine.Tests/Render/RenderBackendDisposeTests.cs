@@ -1,13 +1,13 @@
-using SilkEngine.Render.OpenGL;
+using SilkEngine.Rendering.OpenGL;
 
 namespace SilkEngine.Tests.Render;
 
 public class RenderBackendDisposeTests
 {
     [Fact]
-    public void Dispose_WithoutWindow_DoesNotThrow()
+    public void Dispose_WithoutInitialize_DoesNotThrow()
     {
-        var backend = new OpenGLRenderBackend(); // 未 InitWindow：_window/_gl 为 null
+        var backend = new OpenGLRenderBackend(); // 未 Initialize：_window/_gl 为 null
         var ex = Record.Exception(backend.Dispose);
         Assert.Null(ex);
     }

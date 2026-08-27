@@ -1,13 +1,14 @@
 using System;
 using System.Linq;
 using Silk.NET.OpenGL;
+using SilkEngine.Rendering.Abstraction;
 
-namespace SilkEngine.Render.OpenGL;
+namespace SilkEngine.Rendering.OpenGL;
 
 /// <summary>
-/// IMesh 的 OpenGL 实现：在渲染线程从 Mesh 数据创建 VAO/VBO/EBO，支持索引与非索引绘制
+/// OpenGL 网格资源：渲染线程从无资产语义的创建请求创建 VAO/VBO/EBO，支持索引与非索引绘制。
 /// </summary>
-public class OpenGLMesh : IMesh
+public sealed class OpenGLMesh : IDisposable
 {
     private readonly GL _gl;
     private readonly uint _vao,
@@ -16,30 +17,30 @@ public class OpenGLMesh : IMesh
     private readonly bool _hasIndices;
     private bool _disposed;
 
-    /// <summary>顶点数（DrawArrays 用）</summary>
+    /// <summary>顶点数（DrawArrays 用）。</summary>
     public int VertexCount { get; }
 
-    /// <summary>索引数（非索引绘制时为 0）</summary>
+    /// <summary>索引数（非索引绘制时为 0）。</summary>
     public int IndexCount { get; }
 
-    /// <summary>是否支持 GPU 实例化（当前恒为 true）</summary>
+    /// <summary>是否支持 GPU 实例化（当前恒为 true）。</summary>
     public bool SupportsInstancing => true;
 
     /// <summary>
-    /// 从 Mesh 数据创建 VAO/VBO（+ 可选 EBO），按 Layout 配置顶点属性；渲染线程上下文内调用
+    /// 从网格创建请求创建 VAO/VBO（+ 可选 EBO），按 Layout 配置顶点属性；渲染线程上下文内调用。
     /// </summary>
     /// <param name="gl">OpenGL API 实例</param>
-    /// <param name="data">网格数据</param>
-    public unsafe OpenGLMesh(GL gl, Mesh data)
+    /// <param name="request">无资产语义的网格创建请求</param>
+    public unsafe OpenGLMesh(GL gl, RenderMeshCreateRequest request)
     {
         _gl = gl;
         _vao = gl.GenVertexArray();
         _vbo = gl.GenBuffer();
         gl.BindVertexArray(_vao);
 
-        var vertices = data.Vertices;
-        var layout = data.Layout;
+        var layout = request.Descriptor.Layout;
         var stride = layout.Sum();
+        var vertices = request.Vertices.Span;
 
         gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbo);
         fixed (float* v = vertices)
@@ -65,12 +66,12 @@ public class OpenGLMesh : IMesh
             offset += layout[i];
         }
 
-        _hasIndices = data.Indices != null && data.Indices.Length > 0;
+        var indices = request.Indices.Span;
+        _hasIndices = indices.Length > 0;
         if (_hasIndices)
         {
             _ebo = gl.GenBuffer();
             gl.BindBuffer(BufferTargetARB.ElementArrayBuffer, _ebo);
-            var indices = data.Indices!;
             fixed (int* idx = indices)
                 gl.BufferData(
                     BufferTargetARB.ElementArrayBuffer,
@@ -92,7 +93,7 @@ public class OpenGLMesh : IMesh
         VertexCount = vertices.Length / stride;
     }
 
-    /// <summary>绑定 VAO 执行绘制（有索引走 DrawElements，否则 DrawArrays）</summary>
+    /// <summary>绑定 VAO 执行绘制（有索引走 DrawElements，否则 DrawArrays）。</summary>
     public unsafe void Draw()
     {
         _gl.BindVertexArray(_vao);
@@ -110,7 +111,7 @@ public class OpenGLMesh : IMesh
         _gl.BindVertexArray(0);
     }
 
-    /// <summary>一次 GPU 调用绘制 instanceCount 个实例</summary>
+    /// <summary>一次 GPU 调用绘制 instanceCount 个实例。</summary>
     /// <param name="instanceCount">实例数量</param>
     public unsafe void DrawInstanced(int instanceCount)
     {
@@ -133,7 +134,7 @@ public class OpenGLMesh : IMesh
         _gl.BindVertexArray(0);
     }
 
-    /// <summary>释放 VAO/VBO/EBO（幂等）</summary>
+    /// <summary>释放 VAO/VBO/EBO（幂等）。</summary>
     public void Dispose()
     {
         if (_disposed)

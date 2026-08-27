@@ -16,6 +16,13 @@ public sealed class RenderMaterialParameters(IEnumerable<(string Name, RenderPar
 
     /// <summary>读取 float 参数值；未定义的参数名抛 <see cref="KeyNotFoundException"/>。</summary>
     public float GetFloat(string name) => _values[name].FloatValue;
+
+    /// <summary>枚举全部参数（名称 + 值；渲染后端上传用，惰性投影零分配）。</summary>
+    public IEnumerable<(string Name, RenderParameterValue Value)> Enumerate()
+    {
+        foreach (var (name, value) in _values)
+            yield return (name, value);
+    }
 }
 
 /// <summary>单次渲染提交的不可变数据：仅引用 GPU 句柄、材质参数与模型矩阵，无任何资产身份。</summary>

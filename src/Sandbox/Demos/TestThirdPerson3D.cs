@@ -1,3 +1,4 @@
+using SilkEngine.Assets;
 using SilkEngine.Core;
 using SilkEngine.InputSystem;
 using SilkEngine.Math;
@@ -13,18 +14,14 @@ public static class TestThirdPerson3D
         var scene = new Scene("ThirdPerson3D");
         engine.SceneManager.LoadScene(scene);
 
-        var shader = new Shader
-        {
-            Name = "Lit",
-            VertexSource = ShaderSources.LitVertex,
-            FragmentSource = ShaderSources.LitFragment,
-        };
+        var shader = new ShaderAsset("Lit", ShaderSources.LitVertex, ShaderSources.LitFragment);
+        var cubeMesh = DemoAssets.MeshFrom(MeshFactory.CreateCube(1f));
 
         var ground = new GameObject("Ground");
         ground.Transform.LocalScale = new Vector3(20, 1, 20);
         var groundMr = ground.AddComponent<MeshRenderer>();
-        groundMr.Shader = shader;
-        groundMr.Mesh = MeshFactory.CreateCube(1f);
+        groundMr.SetShader(new AssetHandle<ShaderAsset>(DemoAssets.NewId()));
+        groundMr.SetMesh(new AssetHandle<MeshAsset>(DemoAssets.NewId()));
         scene.AddRootObject(ground);
 
         for (int i = 0; i < 5; i++)
@@ -33,18 +30,20 @@ public static class TestThirdPerson3D
             var cube = new GameObject($"Cube_{i}_{j}");
             cube.Transform.LocalPosition = new Vector3(i * 3 - 6, 1, j * 3 - 6);
             var mr = cube.AddComponent<MeshRenderer>();
-            mr.Shader = shader;
-            mr.Mesh = MeshFactory.CreateCube(1f);
+            mr.SetShader(new AssetHandle<ShaderAsset>(DemoAssets.NewId()));
+            mr.SetMesh(new AssetHandle<MeshAsset>(DemoAssets.NewId()));
             scene.AddRootObject(cube);
         }
 
         var player = new GameObject("Player");
         player.Transform.LocalPosition = new Vector3(0, 0.5f, 0);
         var playerMr = player.AddComponent<MeshRenderer>();
-        playerMr.Shader = shader;
-        playerMr.Mesh = MeshFactory.CreateCube(1f);
+        playerMr.SetShader(new AssetHandle<ShaderAsset>(DemoAssets.NewId()));
+        playerMr.SetMesh(new AssetHandle<MeshAsset>(DemoAssets.NewId()));
         var controller = player.AddComponent<PlayerController>();
         scene.AddRootObject(player);
+
+        Log.Info($"[TestThirdPerson3D] {shader.Name} + {cubeMesh.Name} 已装配（GPU 句柄待创建请求接线后发布）");
 
         var camObj = new GameObject("FollowCam");
         var cam = camObj.AddComponent<Camera>();

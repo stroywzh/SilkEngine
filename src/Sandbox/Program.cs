@@ -1,6 +1,6 @@
 using SilkEngine.Core;
 using SilkEngine.InputSystem;
-using SilkEngine.Render.OpenGL;
+using SilkEngine.Rendering.OpenGL;
 
 namespace SandBox;
 

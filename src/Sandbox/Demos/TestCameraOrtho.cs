@@ -13,21 +13,17 @@ public static class TestCameraOrtho
         var scene = new Scene("Camera_Ortho");
         engine.SceneManager.LoadScene(scene);
 
-        var shader = new Shader
-        {
-            Name = "Cam",
-            VertexSource = ShaderSources.CamUvVertex,
-            FragmentSource = ShaderSources.CamUvFragment,
-        };
+        var shader = new ShaderAsset("Cam", ShaderSources.CamUvVertex, ShaderSources.CamUvFragment);
+        var mesh = DemoAssets.MeshFrom(MeshFactory.CreateQuad(1, 1));
 
-        var mat = new Material(new MaterialReference(new AssetId(Guid.NewGuid())));
         var quad = new GameObject("Quad");
         quad.Transform.LocalScale = new Vector3(4, 3, 1);
         var mr = quad.AddComponent<MeshRenderer>();
-        mr.Shader = shader;
-        mr.Mesh = MeshFactory.CreateQuad(1, 1);
-        mr.Material = mat;
+        mr.SetShader(new AssetHandle<ShaderAsset>(DemoAssets.NewId()));
+        mr.SetMesh(new AssetHandle<MeshAsset>(DemoAssets.NewId()));
         scene.AddRootObject(quad);
+
+        Log.Info($"[TestCameraOrtho] {shader.Name} + {mesh.Name} 已装配（GPU 句柄待创建请求接线后发布）");
 
         var camObj = new GameObject("Cam");
         camObj.Transform.LocalPosition = new Vector3(0, 0, -1);

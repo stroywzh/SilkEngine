@@ -1,8 +1,10 @@
 using System;
+using SilkEngine.Render;
 
-namespace SilkEngine.Render.OpenGL;
+namespace SilkEngine.Rendering.OpenGL;
 
-/// <summary>OpenGL 缓冲句柄；删除回调构造注入（GL 上下文操作由后端提供，测试免真实 GL）。</summary>
+/// <summary>OpenGL 缓冲句柄；删除回调构造注入（GL 上下文操作由后端提供，测试免真实 GL）。
+/// 兼容文件：实现旧 <see cref="IRenderBuffer"/> 契约，待最终删除。</summary>
 public sealed class OpenGLBuffer : IRenderBuffer
 {
     private readonly Action _delete;
@@ -42,3 +44,4 @@ public sealed class OpenGLBuffer : IRenderBuffer
         _delete();
     }
 }
+

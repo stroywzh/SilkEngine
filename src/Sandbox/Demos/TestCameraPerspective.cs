@@ -13,21 +13,17 @@ public static class TestCameraPerspective
         var scene = new Scene("Camera_Persp");
         engine.SceneManager.LoadScene(scene);
 
-        var shader = new Shader
-        {
-            Name = "Persp",
-            VertexSource = ShaderSources.LitVertex,
-            FragmentSource = ShaderSources.LitFragment,
-        };
+        var shader = new ShaderAsset("Persp", ShaderSources.LitVertex, ShaderSources.LitFragment);
+        var mesh = DemoAssets.MeshFrom(MeshFactory.CreateCube(1f));
 
-        var mat = new Material(new MaterialReference(new AssetId(Guid.NewGuid())));
         var cube = new GameObject("Cube");
         cube.Transform.LocalPosition = new Vector3(0, 0, 3);
         var mr = cube.AddComponent<MeshRenderer>();
-        mr.Shader = shader;
-        mr.Mesh = MeshFactory.CreateCube(1f);
-        mr.Material = mat;
+        mr.SetShader(new AssetHandle<ShaderAsset>(DemoAssets.NewId()));
+        mr.SetMesh(new AssetHandle<MeshAsset>(DemoAssets.NewId()));
         scene.AddRootObject(cube);
+
+        Log.Info($"[TestCameraPerspective] {shader.Name} + {mesh.Name} 已装配（GPU 句柄待创建请求接线后发布）");
 
         var camObj = new GameObject("Cam");
         camObj.Transform.LocalPosition = new Vector3(0, 0, -2);

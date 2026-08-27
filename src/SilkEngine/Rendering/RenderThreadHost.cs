@@ -26,7 +26,7 @@ internal sealed class RenderThreadHost : IManagedLoop, IDisposable
     private int _disposed;
 
     /// <summary>
-    /// 帧首释放请求排空器（Assets 侧主线程接线：AssetManager.ProcessUnloadQueue 形态）；
+    /// 帧首释放请求排空器（Assets 侧主线程接线：资产管理器 ProcessUnloadQueue 形态）；
     /// 渲染线程每帧帧首调用，把排空的 release-request 队列逐条交给 backend.Release，不得丢弃。
     /// </summary>
     internal Action<Action<RenderResourceReleaseRequest>>? DrainUnloadQueue { get; set; }
