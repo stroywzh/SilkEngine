@@ -29,3 +29,25 @@ public sealed class TestSerializer(AssetTypeId typeId, int minVersion, int maxVe
     /// <summary>原样返回记录（测试夹具不做解码）</summary>
     public object Deserialize(AssetSerializationRecord record, IAssetReferenceResolver resolver) => record;
 }
+
+/// <summary>资产序列化测试夹具：构造序列化记录与资产图（测试夹具）</summary>
+public static class Fixtures
+{
+    /// <summary>构造最小序列化记录；type/version/assetId 可覆盖</summary>
+    /// <param name="type">资产类型标识（默认 material）</param>
+    /// <param name="version">schema 版本（默认 1）</param>
+    /// <param name="assetId">资产 ID（默认随机）</param>
+    /// <returns>序列化记录</returns>
+    public static AssetSerializationRecord SerializationRecord(string? type = null, int version = 1, AssetId? assetId = null)
+    {
+        return new AssetSerializationRecord
+        {
+            SchemaVersion = version,
+            TypeId = new AssetTypeId(type ?? "material"),
+            AssetId = assetId ?? new AssetId(Guid.NewGuid()),
+            SourceNodeId = new VirtualNodeId(Guid.NewGuid()),
+            Dependencies = [],
+            Data = "{}"
+        };
+    }
+}
