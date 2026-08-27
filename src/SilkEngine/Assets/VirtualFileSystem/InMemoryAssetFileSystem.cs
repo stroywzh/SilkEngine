@@ -1,11 +1,14 @@
 namespace SilkEngine.Assets.VirtualFileSystem;
 
-/// <summary>内存虚拟文件系统：基于逻辑路径的纯内存实现；当前仅提供路径规范化与校验，存储与 IO 由后续任务扩展</summary>
-public sealed class InMemoryAssetFileSystem
+/// <summary>内存虚拟文件系统：基于逻辑路径的纯内存实现，提供路径规范化、文件快照写入与只读访问</summary>
+public sealed class InMemoryAssetFileSystem : IAssetFileSystem
 {
     private const char Separator = '/';
 
     private readonly string[] _rootSegments;
+    private readonly Dictionary<string, FileEntry> _files = new(StringComparer.Ordinal);
+
+    private sealed record FileEntry(byte[] Content, ulong Version, DateTime LastWriteTimeUtc);
 
     /// <summary>创建以指定逻辑路径为根的内存文件系统</summary>
     /// <param name="rootPath">根逻辑路径</param>
@@ -46,5 +49,48 @@ public sealed class InMemoryAssetFileSystem
             stack.Add(segment);
         }
         return string.Join(Separator, stack.Skip(_rootSegments.Length));
+    }
+
+    /// <summary>写入文件快照：相对根路径校验沿用 Normalize 语义；已存在路径覆盖并递增版本</summary>
+    /// <param name="path">逻辑路径（相对根目录）</param>
+    /// <param name="content">文件内容（内部复制保存，调用方后续修改不影响快照）</param>
+    /// <exception cref="ArgumentException">path 为 null/空白、绝对路径或 .. 越出根目录时抛出</exception>
+    public void Add(string path, byte[] content)
+    {
+        var normalized = Normalize(path);
+        var version = _files.TryGetValue(normalized, out var entry) ? entry.Version : 0UL;
+        _files[normalized] = new FileEntry((byte[])content.Clone(), version + 1, DateTime.UtcNow);
+    }
+
+    /// <summary>判断指定逻辑路径对应的文件是否存在</summary>
+    /// <param name="path">逻辑路径（相对根目录）</param>
+    /// <returns>文件存在时为 true</returns>
+    /// <exception cref="ArgumentException">path 为 null/空白、绝对路径或 .. 越出根目录时抛出</exception>
+    public bool Exists(string path) => _files.ContainsKey(Normalize(path));
+
+    /// <summary>异步读取文件内容</summary>
+    /// <param name="path">逻辑路径（相对根目录）</param>
+    /// <returns>文件内容的只读内存视图</returns>
+    /// <exception cref="ArgumentException">path 为 null/空白、绝对路径或 .. 越出根目录时抛出</exception>
+    /// <exception cref="FileNotFoundException">文件不存在时抛出</exception>
+    public ValueTask<ReadOnlyMemory<byte>> ReadAsync(string path)
+    {
+        var normalized = Normalize(path);
+        if (!_files.TryGetValue(normalized, out var entry))
+            throw new FileNotFoundException($"文件不存在：{normalized}", normalized);
+        return ValueTask.FromResult<ReadOnlyMemory<byte>>(entry.Content);
+    }
+
+    /// <summary>异步读取文件元数据</summary>
+    /// <param name="path">逻辑路径（相对根目录）</param>
+    /// <returns>文件元数据（长度/版本/最后写入时间）</returns>
+    /// <exception cref="ArgumentException">path 为 null/空白、绝对路径或 .. 越出根目录时抛出</exception>
+    /// <exception cref="FileNotFoundException">文件不存在时抛出</exception>
+    public ValueTask<FileMetadata> GetMetadataAsync(string path)
+    {
+        var normalized = Normalize(path);
+        if (!_files.TryGetValue(normalized, out var entry))
+            throw new FileNotFoundException($"文件不存在：{normalized}", normalized);
+        return ValueTask.FromResult(new FileMetadata(entry.Content.LongLength, entry.Version, entry.LastWriteTimeUtc));
     }
 }

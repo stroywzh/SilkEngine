@@ -1,48 +1,53 @@
-//虚拟文件系统的数据模型，序列化和反序列化都基于这个
+using SilkEngine.Assets;
+
 namespace SilkEngine.Assets.VirtualFileSystem;
 
-//TODO : 提取整体序列化Model，到统一的序列化/反序列化基类(等到Asset管线完成之后)
-// 虚拟节点的序列化存储模型
-public class VirtualFileDataModel
+/// <summary>虚拟文件系统的数据模型，序列化和反序列化都基于这个</summary>
+public sealed record VirtualFileDataModel
 {
-    public List<VirtualNode> Nodes;
+    /// <summary>全部虚拟节点快照</summary>
+    public IReadOnlyList<VirtualNode> Nodes { get; init; } = [];
 }
 
-/// <summary>
-/// 虚拟节点
-/// </summary>
-public class VirtualNode
+/// <summary>虚拟节点元数据模型：以 VirtualNodeId 为身份标识，节点信息均为不可变属性</summary>
+public sealed record VirtualNode
 {
-    // 节点内部id,通过该id来作为唯一标识,
-    // 通过该标识链接 Asset/Meta文件/DataBase索引/硬盘上的原始文件
-    public Guid InternalGuid { get; set; }
+    /// <summary>节点唯一标识；通过该标识链接资产、Meta 文件、数据库索引与硬盘上的原始文件</summary>
+    public required VirtualNodeId Id { get; init; }
 
-    // 父节点id
-    // TIP: 指定根目录的节点为 null
-    public Guid? ParentGuid { get; set; } = null;
-    public VirtualNodeType NodeType = VirtualNodeType.Directory;
+    /// <summary>父节点标识；根级节点为 null</summary>
+    public required VirtualNodeId? ParentId { get; init; }
 
-    public MetaDataModel MetaData { get; set; }
+    /// <summary>节点类型</summary>
+    public required VirtualNodeType NodeType { get; init; }
+
+    /// <summary>节点逻辑路径（规范化后）</summary>
+    public required string LogicalPath { get; init; }
+
+    /// <summary>索引内变更序号：新增为 1，每次修改/移动递增，用于增量同步</summary>
+    public required ulong Revision { get; init; }
+
+    /// <summary>节点 Meta 信息；文件节点的 FileHash 承载扫描提供的源版本/长度标量</summary>
+    public MetaDataModel? MetaData { get; init; }
 }
 
-/// <summary>
-/// 节点Meta信息模型
-/// </summary>
-public record MetaDataModel
+/// <summary>节点 Meta 信息模型：文件变更追踪与源文件身份信息</summary>
+public sealed record MetaDataModel
 {
-    public DateTime LastEditTime;
+    /// <summary>最后编辑时间</summary>
+    public DateTime LastEditTime { get; init; }
 
-    // nodeType is File 才有这个hash和MD5，Dir默认都是null
-    public ulong? FileHash = null;
-    public string? SourceMD5 = null;
+    /// <summary>文件节点的源版本/长度标量（来自扫描）；目录节点为 null</summary>
+    public ulong? FileHash { get; init; }
 
-    // 根目录节点为string.Empty
-    public string LogicPath = string.Empty;
+    /// <summary>源文件 MD5；目录节点为 null</summary>
+    public string? SourceMD5 { get; init; }
+
+    /// <summary>节点逻辑路径；根级节点为 string.Empty</summary>
+    public string LogicPath { get; init; } = string.Empty;
 }
 
-/// <summary>
-/// 节点类型
-/// </summary>
+/// <summary>节点类型</summary>
 public enum VirtualNodeType : byte
 {
     Directory = 0,
