@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using SilkEngine.Math;
 
@@ -79,7 +80,7 @@ public readonly struct MaterialValue
 }
 
 /// <summary>材质参数只读快照：构造时复制输入，此后不可变（供渲染层绑定消费，避免观察到并发修改）</summary>
-public sealed class MaterialParameterSnapshot
+public sealed class MaterialParameterSnapshot : IEnumerable<(string Name, MaterialValue Value)>
 {
     private readonly Dictionary<string, MaterialValue> _values;
 
@@ -166,4 +167,14 @@ public sealed class MaterialParameterSnapshot
 
     /// <summary>快照参数数量</summary>
     public int Count => _values.Count;
+
+    /// <summary>返回参数名称与值对的枚举器（供绑定合并与遍历消费）</summary>
+    /// <returns>参数枚举器</returns>
+    public IEnumerator<(string Name, MaterialValue Value)> GetEnumerator()
+    {
+        foreach (var pair in _values)
+            yield return (pair.Key, pair.Value);
+    }
+
+    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 }
