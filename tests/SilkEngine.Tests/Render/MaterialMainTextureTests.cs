@@ -33,7 +33,7 @@ public class MaterialMainTextureTests : IDisposable
     [Fact]
     public void MainTexture_Set_AddsRefToNewValue()
     {
-        var mat = new Material();
+        var mat = new MaterialLegacy();
         var tex = MakeTex("T");
         var entry = RegisterManaged(tex);
 
@@ -45,7 +45,7 @@ public class MaterialMainTextureTests : IDisposable
     [Fact]
     public void MainTexture_Replace_ReleasesOldValue()
     {
-        var mat = new Material();
+        var mat = new MaterialLegacy();
         var oldTex = MakeTex("Old");
         var newTex = MakeTex("New");
         var oldEntry = RegisterManaged(oldTex);
@@ -61,7 +61,7 @@ public class MaterialMainTextureTests : IDisposable
     [Fact]
     public void MainTexture_Clear_ReleasesValue()
     {
-        var mat = new Material();
+        var mat = new MaterialLegacy();
         var tex = MakeTex("T");
         var entry = RegisterManaged(tex);
         mat.MainTexture = tex;
@@ -74,7 +74,7 @@ public class MaterialMainTextureTests : IDisposable
     [Fact]
     public void MaterialDisposed_CascadesReleaseToMainTexture()
     {
-        var mat = new Material();
+        var mat = new MaterialLegacy();
         var matEntry = RegisterManaged(mat);
         var tex = MakeTex("T");
         var texEntry = RegisterManaged(tex);

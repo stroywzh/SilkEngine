@@ -20,7 +20,7 @@ public static class TestPNGQuad
             FragmentSource = ShaderSources.PngFragment,
         };
 
-        var mat = new Material { Name = "PNGMat" };
+        var mat = new MaterialLegacy { Name = "PNGMat" };
         var quad = new GameObject("PNGQuad");
         quad.Transform.LocalScale = new Vector3(4, 3, 1);
         var mr = quad.AddComponent<MeshRenderer>();
@@ -44,7 +44,7 @@ public static class TestPNGQuad
     private class TextureDemoRunner : MonoBehaviour
     {
         public EngineLoop? Engine;
-        public Material? Target;
+        public MaterialLegacy? Target;
         private AssetRequest<Texture2D>? _request;
 
         public override void OnStart()

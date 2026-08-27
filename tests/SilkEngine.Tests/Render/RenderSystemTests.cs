@@ -15,7 +15,7 @@ public class RenderInterfaceContractTests
         var mr = new GameObject("MR").AddComponent<MeshRenderer>();
         mr.Shader = new Shader { Name = "S" };
         mr.Mesh = new Mesh { Name = "M", Layout = [] };
-        mr.Material = new Material { Name = "Mat" };
+        mr.Material = new MaterialLegacy { Name = "Mat" };
 
         IRenderable r = mr;
         Assert.Same(mr.Shader, r.Shader);
@@ -54,7 +54,7 @@ public class ForwardPipelineTests
         var mr = new GameObject().AddComponent<MeshRenderer>();
         mr.Mesh = new Mesh { Name = "Test", Layout = [] };
         mr.Shader = new Shader { Name = "S" };
-        mr.Material = new Material();
+        mr.Material = new MaterialLegacy();
         var batches = new List<RenderBatch> { new() { Renderers = [mr] } };
 
         var passes = pipeline.Build(cam, batches);
@@ -98,7 +98,7 @@ public class ForwardPipelineTests
         var mr = new GameObject().AddComponent<MeshRenderer>();
         mr.Mesh = new Mesh { Name = "Test", Layout = [] };
         mr.Shader = new Shader { Name = "S" };
-        mr.Material = new Material { Name = "M" };
+        mr.Material = new MaterialLegacy { Name = "M" };
         var batches = new List<RenderBatch> { new() { Renderers = [mr] } };
 
         pipeline.Build(cam, batches);

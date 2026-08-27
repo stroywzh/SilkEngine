@@ -49,7 +49,7 @@ public class MeshRendererAssetTests : IDisposable
     [Fact]
     public void Set_Material_Managed_RefPlusOne()
     {
-        var mat = new Material { Name = "Mat" };
+        var mat = new MaterialLegacy { Name = "Mat" };
         var entry = RegisterManaged(mat);
         var mr = new GameObject().AddComponent<MeshRenderer>();
         mr.Material = mat;
@@ -62,7 +62,7 @@ public class MeshRendererAssetTests : IDisposable
         var mr = new GameObject().AddComponent<MeshRenderer>();
         mr.Shader = new Shader { Name = "S" };      // 未注册 → no-op
         mr.Mesh = new Mesh { Name = "M" };
-        mr.Material = new Material { Name = "Mat" };
+        mr.Material = new MaterialLegacy { Name = "Mat" };
         Assert.Equal("S", mr.Shader!.Name);
         Assert.Equal("M", mr.Mesh!.Name);
         Assert.Equal("Mat", mr.Material!.Name);
@@ -71,8 +71,8 @@ public class MeshRendererAssetTests : IDisposable
     [Fact]
     public void Replace_ManagedMaterial_OldMinusOne_NewPlusOne()
     {
-        var old = new Material { Name = "Old" };
-        var fresh = new Material { Name = "Fresh" };
+        var old = new MaterialLegacy { Name = "Old" };
+        var fresh = new MaterialLegacy { Name = "Fresh" };
         var eOld = RegisterManaged(old);
         var eFresh = RegisterManaged(fresh);
         var mr = new GameObject().AddComponent<MeshRenderer>();
@@ -85,7 +85,7 @@ public class MeshRendererAssetTests : IDisposable
     [Fact]
     public void Set_SameMaterialTwice_NoDoubleCount()
     {
-        var mat = new Material { Name = "M" };
+        var mat = new MaterialLegacy { Name = "M" };
         var entry = RegisterManaged(mat);
         var mr = new GameObject().AddComponent<MeshRenderer>();
         mr.Material = mat;
@@ -98,7 +98,7 @@ public class MeshRendererAssetTests : IDisposable
     {
         var shader = new Shader { Name = "S" };
         var mesh = new Mesh { Name = "M" };
-        var mat = new Material { Name = "Mat" };
+        var mat = new MaterialLegacy { Name = "Mat" };
         var es = RegisterManaged(shader);
         var em = RegisterManaged(mesh);
         var emat = RegisterManaged(mat);
@@ -118,7 +118,7 @@ public class MeshRendererAssetTests : IDisposable
     [Fact]
     public void OnDestroy_ZeroMaterialRef_FiresMaterialDisposed()
     {
-        var mat = new Material { Name = "M" };
+        var mat = new MaterialLegacy { Name = "M" };
         RegisterManaged(mat);
         var go = new GameObject();
         var mr = go.AddComponent<MeshRenderer>();
@@ -133,7 +133,7 @@ public class MeshRendererAssetTests : IDisposable
     [Fact]
     public void SharedMaterial_OneRendererDestroyed_OthersKeepRef()
     {
-        var mat = new Material { Name = "M" };
+        var mat = new MaterialLegacy { Name = "M" };
         var entry = RegisterManaged(mat);
         var go1 = new GameObject();
         var go2 = new GameObject();

@@ -41,7 +41,7 @@ public class RendererBaseTests : IDisposable
     {
         var shader = new Shader { Name = "S" };
         var mesh = new Mesh { Name = "M" };
-        var mat = new Material { Name = "Mat" };
+        var mat = new MaterialLegacy { Name = "Mat" };
         var es = RegisterManaged(shader);
         var em = RegisterManaged(mesh);
         var emat = RegisterManaged(mat);
@@ -59,8 +59,8 @@ public class RendererBaseTests : IDisposable
     [Fact]
     public void ReplaceAsset_OldMinusOne_NewPlusOne()
     {
-        var old = new Material { Name = "Old" };
-        var fresh = new Material { Name = "Fresh" };
+        var old = new MaterialLegacy { Name = "Old" };
+        var fresh = new MaterialLegacy { Name = "Fresh" };
         var eOld = RegisterManaged(old);
         var eFresh = RegisterManaged(fresh);
         var ui = new GameObject().AddComponent<UIRenderer>();
@@ -77,7 +77,7 @@ public class RendererBaseTests : IDisposable
     {
         var shader = new Shader { Name = "S" };
         var mesh = new Mesh { Name = "M" };
-        var mat = new Material { Name = "Mat" };
+        var mat = new MaterialLegacy { Name = "Mat" };
         var es = RegisterManaged(shader);
         var em = RegisterManaged(mesh);
         var emat = RegisterManaged(mat);

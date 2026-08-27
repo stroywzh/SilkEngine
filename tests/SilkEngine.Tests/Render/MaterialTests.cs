@@ -8,7 +8,7 @@ public class MaterialTests
     [Fact]
     public void SetFloat_RemovesSameNameFromVectorsAndMatrices()
     {
-        var m = new Material { Name = "m" };
+        var m = new MaterialLegacy { Name = "m" };
         m.SetVector3("x", new Vector3(1, 2, 3));
         m.SetMatrix4x4("x", new Matrix4x4());
         m.SetFloat("x", 5f);
@@ -20,7 +20,7 @@ public class MaterialTests
     [Fact]
     public void SetVector3_RemovesSameNameFromFloatsAndMatrices()
     {
-        var m = new Material { Name = "m" };
+        var m = new MaterialLegacy { Name = "m" };
         m.SetFloat("x", 5f);
         m.SetMatrix4x4("x", new Matrix4x4());
         m.SetVector3("x", new Vector3(1, 2, 3));
@@ -32,7 +32,7 @@ public class MaterialTests
     [Fact]
     public void SetMatrix4x4_RemovesSameNameFromFloatsAndVectors()
     {
-        var m = new Material { Name = "m" };
+        var m = new MaterialLegacy { Name = "m" };
         m.SetFloat("x", 5f);
         m.SetVector3("x", new Vector3(1, 2, 3));
         var mat = new Matrix4x4();
@@ -46,9 +46,9 @@ public class MaterialTests
     [Fact]
     public void Equals_MatrixValuesDifferent_ReturnsFalse()
     {
-        var a = new Material { Name = "m" };
+        var a = new MaterialLegacy { Name = "m" };
         a.SetMatrix4x4("mat", new Matrix4x4());
-        var b = new Material { Name = "m" };
+        var b = new MaterialLegacy { Name = "m" };
         var m = new Matrix4x4();
         m.M11 = 999f;
         b.SetMatrix4x4("mat", m);
@@ -58,9 +58,9 @@ public class MaterialTests
     [Fact]
     public void Equals_MatrixValuesSame_ReturnsTrue()
     {
-        var a = new Material { Name = "m" };
+        var a = new MaterialLegacy { Name = "m" };
         a.SetMatrix4x4("mat", new Matrix4x4());
-        var b = new Material { Name = "m" };
+        var b = new MaterialLegacy { Name = "m" };
         b.SetMatrix4x4("mat", new Matrix4x4());
         Assert.True(a.Equals(b));
     }

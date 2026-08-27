@@ -19,7 +19,7 @@ public static class TestCameraOrtho
             FragmentSource = ShaderSources.CamUvFragment,
         };
 
-        var mat = new Material { Name = "Mat" };
+        var mat = new MaterialLegacy { Name = "Mat" };
         var quad = new GameObject("Quad");
         quad.Transform.LocalScale = new Vector3(4, 3, 1);
         var mr = quad.AddComponent<MeshRenderer>();

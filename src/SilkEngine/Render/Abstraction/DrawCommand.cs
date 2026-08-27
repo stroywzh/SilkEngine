@@ -19,7 +19,7 @@ public abstract class DrawCommand
     /// <summary>
     /// 材质参数(uniform 值)
     /// </summary>
-    public Material? Material { get; init; }
+    public MaterialLegacy? Material { get; init; }
 
     /// <summary>
     /// 此绘制命令是否启用

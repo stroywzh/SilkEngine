@@ -9,7 +9,7 @@ public class OpenGLMaterialTests
     [Fact]
     public void ResolveTexture_NoMainTexture_ReturnsWhitePlaceholder()
     {
-        var mat = new Material();
+        var mat = new MaterialLegacy();
 
         Assert.Same(DefaultTextures.White, OpenGLMaterial.ResolveTexture(mat));
     }
@@ -22,7 +22,7 @@ public class OpenGLMaterialTests
             Name = "T",
             Data = new ImageData(1, 1, [1, 2, 3, 4]),
         };
-        var mat = new Material { MainTexture = tex };
+        var mat = new MaterialLegacy { MainTexture = tex };
 
         Assert.Same(tex, OpenGLMaterial.ResolveTexture(mat));
     }

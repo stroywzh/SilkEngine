@@ -19,7 +19,7 @@ public static class TestCameraPerspective
             FragmentSource = ShaderSources.LitFragment,
         };
 
-        var mat = new Material { Name = "Mat" };
+        var mat = new MaterialLegacy { Name = "Mat" };
         var cube = new GameObject("Cube");
         cube.Transform.LocalPosition = new Vector3(0, 0, 3);
         var mr = cube.AddComponent<MeshRenderer>();

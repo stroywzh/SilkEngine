@@ -22,7 +22,7 @@ public class UIRendererTests
 
         ui.Shader = shader;
         ui.Mesh = MeshFactory.CreateQuad(1f, 1f);
-        ui.Material = new Material { Name = "PngMat" };
+        ui.Material = new MaterialLegacy { Name = "PngMat" };
 
         Assert.Same(shader, ui.Shader);
         Assert.Equal("Quad", ui.Mesh!.Name);

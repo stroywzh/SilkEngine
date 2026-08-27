@@ -14,7 +14,7 @@ public class OpenGLMaterial : IMaterial
     public const string SamplerUniformName = "uMainTex";
 
     private readonly GL _gl;
-    private readonly Material _data;
+    private readonly MaterialLegacy _data;
     private readonly OpenGLShader _shader;
     private readonly OpenGLTextureRegistry _textures;
     private bool _disposed;
@@ -22,7 +22,7 @@ public class OpenGLMaterial : IMaterial
     /// <summary>
     /// 从 Material 数据创建 OpenGL 材质，绑定指定着色器
     /// </summary>
-    public OpenGLMaterial(GL gl, Material data, OpenGLShader shader, OpenGLTextureRegistry textures)
+    public OpenGLMaterial(GL gl, MaterialLegacy data, OpenGLShader shader, OpenGLTextureRegistry textures)
     {
         _gl = gl;
         _data = data;
@@ -80,7 +80,7 @@ public class OpenGLMaterial : IMaterial
     /// <summary>
     /// 解析材质实际绑定纹理：无主纹理（含 LazyAsync 未就绪）→ 引擎白色占位
     /// </summary>
-    internal static Texture2D ResolveTexture(Material material) =>
+    internal static Texture2D ResolveTexture(MaterialLegacy material) =>
         material.MainTexture ?? DefaultTextures.White;
 
     /// <inheritdoc />

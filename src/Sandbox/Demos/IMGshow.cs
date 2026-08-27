@@ -24,7 +24,7 @@ public static class IMGShow
         string path = Path.Combine(AppContext.BaseDirectory, "Resources", PictureName);
         var tex = engine.AssetManager.Load<Texture2D>(path);
 
-        var mat = new Material { Name = "PngMat" };
+        var mat = new MaterialLegacy { Name = "PngMat" };
         mat.MainTexture = tex;
 
         var quad = new GameObject("UIRenderQuad");

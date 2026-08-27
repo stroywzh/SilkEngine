@@ -9,7 +9,7 @@ public abstract class RendererBase : Component, IRenderable
 {
     private Shader _shader;
     private Mesh _mesh;
-    private Material _material;
+    private MaterialLegacy _material;
 
     /// <summary>渲染着色器；setter 经 AssetManager.SetTrackedAmbient 维持引用计数闭环。</summary>
     public Shader Shader
@@ -26,10 +26,10 @@ public abstract class RendererBase : Component, IRenderable
     }
 
     /// <summary>渲染材质；setter 经 AssetManager.SetTrackedAmbient 维持引用计数闭环。</summary>
-    public Material Material
+    public MaterialLegacy Material
     {
         get => _material;
-        set => AssetManager.SetTrackedAmbient<Material>(ref _material, value);
+        set => AssetManager.SetTrackedAmbient<MaterialLegacy>(ref _material, value);
     }
 
     /// <summary>世界矩阵（对象世界变换，组合父级；IRenderable 契约适配）。</summary>

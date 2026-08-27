@@ -15,7 +15,7 @@ public interface IRenderable
     Mesh? Mesh { get; }
 
     /// <summary>渲染材质（uniform 参数容器）。</summary>
-    Material? Material { get; }
+    MaterialLegacy? Material { get; }
 
     /// <summary>对象自身启用状态（批次收集已按此过滤，命令构建时保留语义）。</summary>
     bool Enabled { get; }
