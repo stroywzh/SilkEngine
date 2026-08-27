@@ -132,6 +132,7 @@ public class EngineLoop : IDisposable
             OnRender();
             _sceneManager.PostRender(_snapshotManager.Current);
             _frameCommitter.Commit(_snapshotManager, _registry, _sceneManager, _threadRuntime);
+            _threadRuntime.Drain(MainThreadPhase.Continuation);
         }
         if (LogConfig.EngineLoop)
             Log.Info("[EngineLoop] Run finished");
