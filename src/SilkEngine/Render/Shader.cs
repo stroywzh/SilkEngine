@@ -9,7 +9,7 @@ namespace SilkEngine.Render;
 public class Shader : IAsset
 {
     /// <summary>着色器标识名称</summary>
-    public string Name { get; init; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
 
     /// <summary>顶点着色器 GLSL 源码</summary>
     public string VertexSource { get; init; } = string.Empty;

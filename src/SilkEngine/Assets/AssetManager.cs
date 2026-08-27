@@ -62,6 +62,7 @@ public sealed class AssetManager
         }
         if (hit is { State: AssetState.Loading })
             throw new InvalidOperationException($"资产 {path} 正在异步加载中，同步 Load 不可用");
+
         var importer = ImporterFactory.Create(Path.GetExtension(path));
         var asset = importer.Import(File.ReadAllBytes(path), new ImportSettings { Path = path });
         if (asset is not T typed)

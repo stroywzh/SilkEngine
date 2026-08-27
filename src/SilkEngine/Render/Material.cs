@@ -9,7 +9,7 @@ namespace SilkEngine.Render;
 public class Material : IAsset, IReleaseAwareAsset
 {
     /// <summary>材质标识名称</summary>
-    public string Name { get; init; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
 
     /// <summary>浮点类型 uniform 参数</summary>
     public Dictionary<string, float> Floats { get; } = new();

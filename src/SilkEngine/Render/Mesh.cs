@@ -9,7 +9,7 @@ namespace SilkEngine.Render;
 public class Mesh : IAsset
 {
     /// <summary>网格标识名称</summary>
-    public string Name { get; init; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
 
     /// <summary>顶点数据（按 Layout 分量顺序排列的连续 float 数组）</summary>
     public float[] Vertices { get; init; } = [];

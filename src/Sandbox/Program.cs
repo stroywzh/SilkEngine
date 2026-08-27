@@ -20,8 +20,9 @@ class Program
         // Demos.TestCameraOrtho.Run(engine);
         // Demos.TestCameraPerspective.Run(engine);
         // Demos.TestPNGQuad.Run(engine);
-        Demos.TestThirdPerson3D.Run(engine);
+        // Demos.TestThirdPerson3D.Run(engine);
         // Demos.TestPNGQuad.Run(engine);
+        Demos.IMGShow.Run(engine);
         // ---------------------------------------------------------
 
         engine.Initialize().Run();
