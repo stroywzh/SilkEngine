@@ -13,7 +13,7 @@ internal static class TextureTargets
 /// <summary>
 /// OpenGL 纹理资源：渲染线程从无资产语义的创建请求创建 RGBA8 纹理（渲染线程上下文内调用）。
 /// </summary>
-public sealed class OpenGLTexture : IDisposable
+public sealed class OpenGLTexture : IOpenGlTextureResource, IDisposable
 {
     private readonly GL _gl;
     private readonly uint _handle;
@@ -68,6 +68,13 @@ public sealed class OpenGLTexture : IDisposable
 
     /// <summary>GL 纹理句柄。</summary>
     public uint Handle => _handle;
+/// <summary>绑定纹理到指定纹理单元（帧绘制路径）。</summary>
+    /// <param name="unit">纹理单元序号（0 起）</param>
+    public void Bind(uint unit)
+    {
+        _gl.ActiveTexture((TextureUnit)((int)TextureUnit.Texture0 + (int)unit));
+        _gl.BindTexture(TextureTargets.Texture2dTarget, _handle);
+    }
 
     /// <summary>释放 GL 纹理句柄（幂等）。</summary>
     public void Dispose()

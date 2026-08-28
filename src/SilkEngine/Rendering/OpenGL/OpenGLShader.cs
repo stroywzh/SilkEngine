@@ -7,7 +7,7 @@ namespace SilkEngine.Rendering.OpenGL;
 /// <summary>
 /// OpenGL 着色器资源：渲染线程从无资产语义的创建请求编译 GLSL 程序。
 /// </summary>
-public sealed class OpenGLShader : IDisposable
+public sealed class OpenGLShader : IOpenGlShaderResource, IDisposable
 {
     private readonly GL _gl;
     private readonly uint _program;
@@ -71,8 +71,8 @@ public sealed class OpenGLShader : IDisposable
     /// <summary>绑定程序。</summary>
     public void Use() => _gl.UseProgram(_program);
 
-    /// <summary>OpenGL 程序句柄。</summary>
-    internal uint GetProgram() => _program;
+    /// <summary>GL 程序句柄（帧路径 uniform 上传用）。</summary>
+    public uint Program => _program;
 
     /// <summary>释放 GL 程序句柄（幂等）。</summary>
     public void Dispose()

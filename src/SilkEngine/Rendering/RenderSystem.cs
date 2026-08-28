@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using SilkEngine.Core;
 using SilkEngine.Render;
+using SilkEngine.Rendering.Abstraction;
 using SilkEngine.Rendering.Backend;
 using SilkEngine.Rendering.Pipeline;
 using SilkEngine.Threading;
@@ -66,7 +67,11 @@ public sealed class RenderSystem : IDisposable
             return;
         camera.UpdateMatrices(aspect);
         var packets = _pipeline.Build(camera, batches);
-        _renderThread.SubmitFrame(packets);
+        var submission = new RenderSubmission(
+            new FrameCameraBlock(camera.ViewMatrix, camera.ProjectionMatrix),
+            packets,
+            RenderResourceCreateBatch.Empty);
+        _renderThread.SubmitFrame(submission);
     }
 
     /// <summary>释放渲染线程宿主（幂等；backend 由渲染线程 finally 释放）。</summary>

@@ -8,7 +8,7 @@ namespace SilkEngine.Rendering.OpenGL;
 /// <summary>
 /// OpenGL 网格资源：渲染线程从无资产语义的创建请求创建 VAO/VBO/EBO，支持索引与非索引绘制。
 /// </summary>
-public sealed class OpenGLMesh : IDisposable
+public sealed class OpenGLMesh : IOpenGlMeshResource, IDisposable
 {
     private readonly GL _gl;
     private readonly uint _vao,

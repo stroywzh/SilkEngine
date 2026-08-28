@@ -16,11 +16,17 @@ namespace SilkEngine.Rendering.OpenGL;
 /// 不解析任何资产类型、不查询服务定位器。
 /// GL 上下文归属渲染线程（Initialize 在渲染线程 MakeCurrent）；Dispose 幂等。
 /// </summary>
-public sealed class OpenGLRenderBackend : IRenderBackend, IRenderDevice, IWindowSurface
+public sealed class OpenGLRenderBackend : IRenderBackend, IRenderDevice, IRenderFrameExecutor, IWindowSurface
 {
+    private const string ViewUniform = "uView";
+    private const string ProjectionUniform = "uProjection";
+    private const string ModelUniform = "uModel";
+    private const string TextureUniform = "uMainTex";
+
     private readonly Dictionary<ulong, IDisposable> _resources = new();
     private IWindow? _window;
     private GL? _gl;
+    private IOpenGlFrameCalls? _frameCalls;
     private ulong _nextHandle = 1;
 
     private float _clearR = 0.1f,
@@ -58,14 +64,18 @@ public sealed class OpenGLRenderBackend : IRenderBackend, IRenderDevice, IWindow
 
     /// <summary>
     /// 初始化后端（渲染线程启动阶段调用一次）：创建窗口、获取 GL API 并绑定上下文。
+    /// 测试注入帧调用接缝后跳过真实窗口（仅验证帧执行路径）。
     /// </summary>
     public void Initialize()
     {
+        if (_frameCalls is not null)
+            return; // 测试注入：无窗口路径
         _window = Silk.NET.Windowing.Window.Create(DefaultWindowOption.DefaultOpenGLOption);
         _window.Initialize();
         _gl = GL.GetApi(_window);
         _window.IsContextControlDisabled = true;
         _window.MakeCurrent();
+        _frameCalls = new OpenGlFrameCalls(_gl);
     }
 
     /// <summary>创建纹理资源（渲染线程上下文内调用）。</summary>
@@ -94,40 +104,54 @@ public sealed class OpenGLRenderBackend : IRenderBackend, IRenderDevice, IWindow
             resource.Dispose();
     }
 
-    /// <summary>提交一个渲染包：按 Render Handle 解析 GL 资源并执行单次绘制。</summary>
+    /// <summary>提交单个渲染包（兼容旧路径）：包内使用恒等相机块与帧首清屏语义。</summary>
     /// <param name="packet">不可变渲染提交数据（仅句柄/参数/矩阵）</param>
     public void Execute(RenderPacket packet)
+        => ExecuteFrame(new RenderSubmission(
+            FrameCameraBlock.Identity, [packet], RenderResourceCreateBatch.Empty));
+
+    /// <summary>
+    /// 执行整帧渲染提交（RenderThreadHost 帧路径）：帧首清屏 → 上传相机矩阵（uView/uProjection）→
+    /// 逐包上传 uModel 并绘制。矩阵 upload 全部 transpose=true（行主序 → GL 列主序）。
+    /// </summary>
+    /// <param name="submission">本帧不可变提交（相机块 + 渲染包）</param>
+    public void ExecuteFrame(RenderSubmission submission)
     {
-        var gl = _gl;
-        if (gl == null)
+        var calls = _frameCalls;
+        if (calls is null)
             return;
-        if (!_resources.TryGetValue(packet.Shader.Value, out var shaderRes) || shaderRes is not OpenGLShader glShader)
+        calls.SetupFrame(_clearR, _clearG, _clearB, _clearA, Width, Height);
+        foreach (var packet in submission.Packets)
+            ExecutePacket(calls, submission.Camera, packet);
+    }
+
+    /// <summary>执行单个渲染包：按 Render Handle 解析 GL 资源并完成一次绘制。</summary>
+    private void ExecutePacket(IOpenGlFrameCalls calls, FrameCameraBlock camera, RenderPacket packet)
+    {
+        if (!_resources.TryGetValue(packet.Shader.Value, out var shaderRes) || shaderRes is not IOpenGlShaderResource glShader)
         {
-            Log.Warn($"[Render] Skip packet: shader handle {packet.Shader.Value} 未创建");
+            Log.Warning($"[Render] Skip packet: shader handle {packet.Shader.Value} 未创建");
             return;
         }
-        if (!_resources.TryGetValue(packet.Mesh.Value, out var meshRes) || meshRes is not OpenGLMesh glMesh)
+        if (!_resources.TryGetValue(packet.Mesh.Value, out var meshRes) || meshRes is not IOpenGlMeshResource glMesh)
         {
-            Log.Warn($"[Render] Skip packet: mesh handle {packet.Mesh.Value} 未创建");
+            Log.Warning($"[Render] Skip packet: mesh handle {packet.Mesh.Value} 未创建");
             return;
         }
         try
         {
-            gl.Enable(GLEnum.DepthTest);
-            gl.Viewport(0, 0, (uint)Width, (uint)Height);
-            gl.ClearColor(_clearR, _clearG, _clearB, _clearA);
-            gl.Clear((uint)(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit));
-
-            glShader.Use();
-            UploadParameters(glShader, packet.Material);
-            BindTexture(gl, packet.Texture, glShader);
-            UploadMatrix(glShader, "uModel", packet.ModelMatrix);
+            calls.UseProgram(glShader.Program);
+            UploadParameters(calls, glShader.Program, packet.Material);
+            BindTexture(calls, glShader.Program, packet.Texture);
+            UploadMatrix(calls, glShader.Program, ViewUniform, camera.View);
+            UploadMatrix(calls, glShader.Program, ProjectionUniform, camera.Projection);
+            UploadMatrix(calls, glShader.Program, ModelUniform, packet.ModelMatrix);
             glMesh.Draw();
         }
         catch (Exception ex)
         {
             // 单包失败不中断后续绘制
-            Log.Warn($"[Render] Execute packet failed: {ex.Message}");
+            Log.Warning($"[Render] Execute packet failed: {ex.Message}");
         }
     }
 
@@ -139,17 +163,22 @@ public sealed class OpenGLRenderBackend : IRenderBackend, IRenderDevice, IWindow
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
             return;
+        _frameCalls?.Dispose();
+        _frameCalls = null;
         if (_window != null && _gl != null)
+        {
             _window.MakeCurrent(); // 删除 GPU 资源前确保当前线程拥有 GL 上下文（wgl 允许任意线程 MakeCurrent 同一 HGLRC）
 
-        foreach (var resource in _resources.Values)
-            resource.Dispose();
-        _resources.Clear();
+            foreach (var resource in _resources.Values)
+                resource.Dispose();
+            _resources.Clear();
 
-        if (_window != null && _gl != null)
             _window.ClearContext();
-        _window?.Dispose();
-        _gl?.Dispose();
+            _window.Dispose();
+            _gl.Dispose();
+            _window = null;
+            _gl = null;
+        }
     }
 
     private GL RequireGl() =>
@@ -162,42 +191,42 @@ public sealed class OpenGLRenderBackend : IRenderBackend, IRenderDevice, IWindow
         return handle;
     }
 
+    /// <summary>注入帧调用接缝（测试专用）：跳过真实窗口与 GL 上下文，直接驱动帧执行路径。</summary>
+    internal void SetFrameCallsForTests(IOpenGlFrameCalls frameCalls) => _frameCalls = frameCalls;
+
+    /// <summary>直接登记模拟资源（测试专用）：以句柄映射到资源接缝实例。</summary>
+    internal void RegisterResourceForTests(ulong handle, IDisposable resource) => _resources[handle] = resource;
+
     /// <summary>上传材质 float 参数（渲染值集合，无资产语义）。</summary>
-    private void UploadParameters(OpenGLShader shader, RenderMaterialParameters parameters)
+    private void UploadParameters(IOpenGlFrameCalls calls, uint program, RenderMaterialParameters parameters)
     {
-        var program = shader.GetProgram();
         foreach (var (name, value) in parameters.Enumerate())
         {
-            int loc = _gl!.GetUniformLocation(program, name);
+            int loc = calls.GetUniformLocation(program, name);
             if (loc != -1)
-                _gl.Uniform1(loc, value.FloatValue);
+                calls.Uniform1(loc, value.FloatValue);
         }
     }
 
     /// <summary>绑定主纹理采样器（uMainTex；无纹理句柄或未创建时跳过）。</summary>
-    private void BindTexture(GL gl, RenderTextureHandle texture, OpenGLShader shader)
+    private void BindTexture(IOpenGlFrameCalls calls, uint program, RenderTextureHandle texture)
     {
         if (texture == default)
             return;
-        if (!_resources.TryGetValue(texture.Value, out var res) || res is not OpenGLTexture glTex)
+        if (!_resources.TryGetValue(texture.Value, out var res) || res is not IOpenGlTextureResource glTex)
             return;
-        int samplerLoc = gl.GetUniformLocation(shader.GetProgram(), "uMainTex");
+        int samplerLoc = calls.GetUniformLocation(program, TextureUniform);
         if (samplerLoc == -1)
             return;
-        gl.ActiveTexture(TextureUnit.Texture0);
-        gl.BindTexture(TextureTargets.Texture2dTarget, glTex.Handle);
-        gl.Uniform1(samplerLoc, 0);
+        calls.Uniform1(samplerLoc, 0);
+        glTex.Bind(0);
     }
 
-    private void UploadMatrix(OpenGLShader glShader, string name, Math.Matrix4x4 m)
+    private void UploadMatrix(IOpenGlFrameCalls calls, uint program, string name, Math.Matrix4x4 m)
     {
-        int loc = _gl!.GetUniformLocation(glShader.GetProgram(), name);
+        int loc = calls.GetUniformLocation(program, name);
         if (loc == -1)
             return;
-        unsafe
-        {
-            // Matrix4x4 为 Sequential 布局（16 个连续 float），参数按值传入已固定，零分配直传
-            _gl.UniformMatrix4(loc, 1, true, &m.M11);
-        }
+        calls.UniformMatrix4(loc, true, m);
     }
 }

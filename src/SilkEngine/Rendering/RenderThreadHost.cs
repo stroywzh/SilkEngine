@@ -126,8 +126,11 @@ internal sealed class RenderThreadHost : IManagedLoop, IDisposable
                     {
                         DrainUnloadQueue?.Invoke(_backend.Release);
                         ConsumeCreateBatch(_pending.Creates);
-                        foreach (var packet in _pending.Packets)
-                            _backend.Execute(packet);
+                        if (_backend is IRenderFrameExecutor executor)
+                            executor.ExecuteFrame(_pending);
+                        else
+                            foreach (var packet in _pending.Packets)
+                                _backend.Execute(packet);
                         _backend.Present();
                     }
                     catch (Exception ex)
