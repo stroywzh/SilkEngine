@@ -61,7 +61,7 @@ public sealed class RenderSystem : IDisposable
     /// <param name="aspect">视口宽高比（宽/高）</param>
     /// <param name="camera">当前相机视图（null 时跳过本帧渲染）</param>
     /// <param name="batches">渲染批次（EngineLoop 经 RenderCollector 组装）</param>
-    public void Render(float aspect, ICameraView? camera, IReadOnlyList<RenderBatch> batches)
+    public void Render(float aspect, ICameraView? camera, IReadOnlyList<RenderBatch> batches, RenderResourceCreateBatch? creates = null)
     {
         if (camera == null)
             return;
@@ -70,7 +70,7 @@ public sealed class RenderSystem : IDisposable
         var submission = new RenderSubmission(
             new FrameCameraBlock(camera.ViewMatrix, camera.ProjectionMatrix),
             packets,
-            RenderResourceCreateBatch.Empty);
+            creates ?? RenderResourceCreateBatch.Empty);
         _renderThread.SubmitFrame(submission);
     }
 

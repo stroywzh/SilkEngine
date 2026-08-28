@@ -8,6 +8,7 @@ using SilkEngine.Assets.VirtualFileSystem;
 using SilkEngine.InputSystem;
 using SilkEngine.Render;
 using SilkEngine.Rendering;
+using SilkEngine.Rendering.Abstraction;
 using SilkEngine.Rendering.Backend;
 using SilkEngine.Rendering.Pipeline;
 using SilkEngine.Scene;
@@ -144,25 +145,35 @@ public class EngineLoop : IDisposable
         }
         while (!_renderSystem.ShouldClose && !_stopRequested)
         {
-            if (!Embedded)
-                _renderSystem.PumpEvents();
-            if (_paused)
-            {
-                Thread.Sleep(16);
-                _clock.Reset();
-                continue;
-            }
-            _clock.Tick();
-            Input.Update();
-            _frameScheduler.Tick(Time.DeltaTime, fdt => _sceneManager.FixedTick(_snapshotManager.Current, fdt), d => _sceneManager.Tick(_snapshotManager.Current, d), () => _sceneManager.LateTick(_snapshotManager.Current));
-            _threadRuntime.Drain(MainThreadPhase.PreRender);
-            OnRender();
-            _sceneManager.PostRender(_snapshotManager.Current);
-            _frameCommitter.Commit(_snapshotManager, _registry, _sceneManager, _threadRuntime);
-            _threadRuntime.Drain(MainThreadPhase.Continuation);
+            StepFrame();
         }
         if (LogConfig.EngineLoop)
             Log.Info("[EngineLoop] Run finished");
+    }
+
+    /// <summary>
+    /// 驱动单帧心跳（Host/Embedded 与测试步进共用；Run 循环逐帧调用）：
+    /// 时钟 → Input → Tick 派发 → PreRender → 渲染提交（相机 + 渲染包 + 资源创建批次）→
+    /// 结果发布 → PostRender → 帧末提交 → Continuation 排空。
+    /// </summary>
+    internal void StepFrame()
+    {
+        if (!Embedded)
+            _renderSystem.PumpEvents();
+        if (_paused)
+        {
+            Thread.Sleep(16);
+            _clock.Reset();
+            return;
+        }
+        _clock.Tick();
+        Input.Update();
+        _frameScheduler.Tick(Time.DeltaTime, fdt => _sceneManager.FixedTick(_snapshotManager.Current, fdt), d => _sceneManager.Tick(_snapshotManager.Current, d), () => _sceneManager.LateTick(_snapshotManager.Current));
+        _threadRuntime.Drain(MainThreadPhase.PreRender);
+        OnRender();
+        _sceneManager.PostRender(_snapshotManager.Current);
+        _frameCommitter.Commit(_snapshotManager, _registry, _sceneManager, _threadRuntime);
+        _threadRuntime.Drain(MainThreadPhase.Continuation);
     }
 
     /// <summary>
@@ -178,7 +189,11 @@ public class EngineLoop : IDisposable
         var renderables = snapshot.GetComponents<MeshRenderer>().Where(r => r.Enabled && r.GameObject.IsActiveInHierarchy).ToList();
         _collector.Gather(cameras, renderables, out var camera, out var batches);
         var surface = _renderSystem.Surface;
-        _renderSystem.Render(surface is null ? 1f : (float)surface.Width / surface.Height, camera, batches);
+        var createBatch = _assetManager?.DrainCreateBatch() ?? RenderResourceCreateBatch.Empty;
+        _renderSystem.Render(surface is null ? 1f : (float)surface.Width / surface.Height, camera, batches, createBatch);
+        // Main 域应用渲染线程回传的创建结果（按 RequestId 发布 GPU 句柄或入队释放）
+        if (_assetManager is { } assets)
+            assets.ApplyCreateResults(_renderSystem.RenderHost.LastCreateResults);
     }
 
     private Camera GetDefaultCamera() =>

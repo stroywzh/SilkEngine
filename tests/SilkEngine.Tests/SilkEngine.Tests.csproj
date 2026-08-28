@@ -14,6 +14,7 @@
     </ItemGroup>
     <ItemGroup>
       <ProjectReference Include="..\..\src\SilkEngine\SilkEngine.csproj" />
+      <ProjectReference Include="..\..\src\Sandbox\Sandbox.csproj" />
     </ItemGroup>
     <ItemGroup>
       <ProjectReference Include="..\..\src\SilkEngine.SourceGen\SilkEngine.SourceGen.csproj"
