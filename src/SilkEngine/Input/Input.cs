@@ -14,6 +14,7 @@ public static class Input
     private static readonly MouseState _mouse = new();
     private static readonly Dictionary<string, float> _axes = new();
     private static readonly KeyCode[] _keyCodes = Enum.GetValues<KeyCode>();
+    private static InputActionService? _actions;
 
     /// <summary>键盘双缓冲状态（GetKey/GetKeyDown/GetKeyUp）</summary>
     public static KeyboardState Keyboard => _keyboard;
@@ -51,6 +52,38 @@ public static class Input
         _provider?.Dispose();
         _provider = provider;
     }
+
+    /// <summary>当前动作输入服务（EngineHost.Initialize 装配；未装配为 null）。</summary>
+    internal static InputActionService? Actions => _actions;
+
+    /// <summary>装配动作输入服务（EngineHost.Initialize 调用；旧服务直接替换）。</summary>
+    internal static void SetActionService(InputActionService service) => _actions = service;
+
+    /// <summary>注册命名动作映射（转发到当前动作服务；未装配时忽略）。</summary>
+    /// <param name="name">映射名</param>
+    /// <param name="configure">动作声明回调</param>
+    public static void AddActionMap(string name, Action<InputActionMap> configure)
+        => _actions?.AddMap(name, configure);
+
+    /// <summary>按钮动作当前帧是否按住（转发到当前动作服务；未装配恒 false）。</summary>
+    public static bool GetButton(string map, string action)
+        => _actions?.GetButton(map, action) ?? false;
+
+    /// <summary>按钮动作本帧按下（上升沿；未装配恒 false）。</summary>
+    public static bool GetButtonDown(string map, string action)
+        => _actions?.GetButtonDown(map, action) ?? false;
+
+    /// <summary>按钮动作本帧释放（下降沿；未装配恒 false）。</summary>
+    public static bool GetButtonUp(string map, string action)
+        => _actions?.GetButtonUp(map, action) ?? false;
+
+    /// <summary>轴动作值（[-1, 1]；未装配恒 0）。</summary>
+    public static float GetAxis(string map, string action)
+        => _actions?.GetAxis(map, action) ?? 0f;
+
+    /// <summary>鼠标增量动作值（未装配恒零）。</summary>
+    public static Vector2 GetMouseDelta(string map, string action)
+        => _actions?.GetMouseDelta(map, action) ?? Vector2.Zero;
 
     /// <summary>当前帧是否按住指定键。</summary>
     /// <param name="key">按键码</param>
@@ -154,5 +187,7 @@ public static class Input
 
             _axes[axis.name] = Mathf.Clamp(current, -1f, 1f);
         }
+
+        _actions?.Update();
     }
 }

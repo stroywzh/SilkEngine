@@ -5,6 +5,24 @@ using SilkEngine.Math;
 
 namespace SandBox;
 
+/// <summary>游戏动作声明（业务唯一输入入口；经 Input 门面转发到 EngineHost 装配的动作服务）。</summary>
+public static class GameplayActions
+{
+    public const string Map = "Gameplay";
+
+    /// <summary>注册游戏动作映射（启动时调用一次）。</summary>
+    public static void Configure()
+    {
+        Input.AddActionMap(Map, map =>
+        {
+            map.Button("Jump", KeyCode.Space);
+            map.Axis("MoveX", KeyCode.A, KeyCode.D);
+            map.Axis("MoveZ", KeyCode.S, KeyCode.W);
+            map.MouseDelta("Look", 0.002f);
+        });
+    }
+}
+
 public class PlayerController : MonoBehaviour
 {
     public float Speed = 5f;
@@ -13,14 +31,8 @@ public class PlayerController : MonoBehaviour
     public override void OnUpdate(float dt)
     {
         var dir = Vector3.Zero;
-        if (Input.GetKey(KeyCode.W))
-            dir += Vector3.Forward;
-        if (Input.GetKey(KeyCode.S))
-            dir -= Vector3.Forward;
-        if (Input.GetKey(KeyCode.A))
-            dir -= Vector3.Right;
-        if (Input.GetKey(KeyCode.D))
-            dir += Vector3.Right;
+        dir += Input.GetAxis(GameplayActions.Map, "MoveZ") * Vector3.Forward;
+        dir += Input.GetAxis(GameplayActions.Map, "MoveX") * Vector3.Right;
 
         if (dir == Vector3.Zero)
             return;
@@ -46,12 +58,9 @@ public class CameraFollow : MonoBehaviour
         if (Target == null)
             return;
 
-        // if (!Input.Mouse.MiddleButton)
-        //     return;
-
-        var mouse = Input.Mouse.MoveVector;
-        _yaw += mouse.X * Sensitivity;
-        _pitch = Math.Clamp(_pitch - mouse.Y * Sensitivity, -1.2f, 1.2f);
+        var mouse = Input.GetMouseDelta(GameplayActions.Map, "Look");
+        _yaw += mouse.X;
+        _pitch = Math.Clamp(_pitch - mouse.Y, -1.2f, 1.2f);
 
         float x = MathF.Cos(_pitch) * MathF.Sin(_yaw) * Distance;
         float y = MathF.Sin(_pitch) * Distance;

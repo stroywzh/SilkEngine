@@ -123,6 +123,7 @@ public class EngineLoop : IDisposable
             inputProvider.Initialize(win);
             Input.SetProvider(inputProvider);
         }
+        Input.SetActionService(new InputActionService(Input.Keyboard, Input.Mouse));
         _sceneManager.RegisterScene();
         _frameCommitter.Commit(_snapshotManager, _registry, _sceneManager, _threadRuntime);
         _stopRequested = false;
