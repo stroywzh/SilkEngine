@@ -44,9 +44,10 @@ public sealed class GameObject : Object
         clone.Transform.LocalScale = go.Transform.LocalScale;
         foreach (var c in go._components)
         {
-            var factory = ComponentFactory.Resolve(c.GetType().FullName!);
-            if (factory == null)
-                continue;
+            var factory = ComponentFactory.Resolve(c.GetType().FullName!)
+                ?? throw new InvalidOperationException(
+                    $"Cannot instantiate component of unregistered type '{c.GetType().Name}'."
+                );
             clone.AddComponent(factory());   // 默认值重建：挂载→OnAwake→Enable→注册（不复刻状态）
         }
         foreach (var child in go.Transform.Children)

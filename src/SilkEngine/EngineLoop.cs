@@ -96,6 +96,7 @@ public class EngineLoop : IDisposable
         _registry = registry;
         _snapshotManager = snapshotManager;
         _renderSystem = new RenderSystem(_backend, _threadRuntime);
+        _collector.AddProvider(new SceneRendererProvider(snapshotManager));
         var files = new DiskAssetFileSystem(assetRoot ?? "Assets");
         var pipeline = new AssetPipeline(
             files,
@@ -178,8 +179,8 @@ public class EngineLoop : IDisposable
     }
 
     /// <summary>
-    /// 帧渲染桥接（Render 域零 Scene 依赖）：Scene 域查询活跃相机与渲染器（含默认相机回退），
-    /// 经 RenderCollector 组装批次后交 RenderSystem（ICameraView/IRenderable 接口消费）。
+    /// 帧渲染桥接（Render 域零 Scene 依赖）：Scene 域查询活跃相机（含默认相机回退），
+    /// RenderCollector 经已注册 provider 统一收集渲染器后交 RenderSystem（ICameraView/IRenderable 接口消费）。
     /// </summary>
     protected virtual void OnRender()
     {
@@ -187,8 +188,7 @@ public class EngineLoop : IDisposable
         var cameras = snapshot.GetComponents<Camera>().Where(c => c.GameObject.IsActiveInHierarchy).ToList();
         if (cameras.Count == 0)
             cameras.Add(GetDefaultCamera());
-        var renderables = snapshot.GetComponents<MeshRenderer>().Where(r => r.Enabled && r.GameObject.IsActiveInHierarchy).ToList();
-        _collector.Gather(cameras, renderables, out var camera, out var batches);
+        _collector.Collect(cameras, out var camera, out var batches);
         var surface = _renderSystem.Surface;
         var createBatch = _assetManager?.DrainCreateBatch() ?? RenderResourceCreateBatch.Empty;
         _renderSystem.Render(surface is null ? 1f : (float)surface.Width / surface.Height, camera, batches, createBatch);
