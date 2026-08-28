@@ -32,6 +32,20 @@ public abstract class RendererBase : Component, IRenderable
         _shaderSlot = Services.TryGet<AssetManager>(out var assets) ? assets.CreateSlot(handle) : null;
     }
 
+    /// <summary>网格资产句柄（业务属性；赋值经 AssetSlot 驻留，旧槽自动释放）。</summary>
+    public AssetHandle<MeshAsset> Mesh
+    {
+        get => _meshSlot?.Handle ?? default;
+        set => SetMesh(value);
+    }
+
+    /// <summary>着色器资产句柄（业务属性；赋值经 AssetSlot 驻留，旧槽自动释放）。</summary>
+    public AssetHandle<ShaderAsset> Shader
+    {
+        get => _shaderSlot?.Handle ?? default;
+        set => SetShader(value);
+    }
+
     /// <summary>已解析的网格 GPU 句柄（经资产管理器 GPU 句柄缓存；未发布或未驻留为 default）。</summary>
     public RenderMeshHandle MeshHandle => ResolveMesh();
 

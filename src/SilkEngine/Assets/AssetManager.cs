@@ -379,6 +379,9 @@ public sealed class AssetManager : IDisposable
     /// <summary>测试断言用：当前缓存</summary>
     internal AssetCache Cache => _cache;
 
+    /// <summary>测试断言用：目录登记记录数（瞬态资产不进入目录 → RegisterTransient 后恒 0）。</summary>
+    internal int IndexCountForTests => (_keyResolver as AssetPipeline)?.CatalogCountForTests ?? 0;
+
     /// <summary>AssetId → 缓存载荷（Data 为 T 且目录修订一致才返回）；未命中、类型不符或源已失效返回 null。</summary>
     /// <typeparam name="T">资产载荷类型</typeparam>
     /// <param name="assetId">资产 ID</param>

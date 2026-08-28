@@ -18,7 +18,7 @@ class Program
         host.Initialize();
 
         // -------------------- 逐个取消注释测试 --------------------
-        Demos.TestSingleCube.Run(host.Loop);
+        Demos.TestSingleCube.Run(host);
         // Demos.TestNDCTriangle.Run(host.Loop);
         // Demos.TestNDCQuad.Run(host.Loop);
         // Demos.TestCameraOrtho.Run(host.Loop);

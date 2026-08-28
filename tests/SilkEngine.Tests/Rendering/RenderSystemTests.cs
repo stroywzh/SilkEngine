@@ -12,7 +12,9 @@ namespace SilkEngine.Tests.Rendering;
 /// <summary>
 /// 新 RenderSystem 契约测试：ThreadRuntime 托管 + RenderThreadHost 帧同步，
 /// 管线构建 RenderPacket 列表并提交（Present 每帧一次）。
+/// 与 Assets 集合串行：RenderSystem ctor 自注册全局 Services。
 /// </summary>
+[Collection("Assets")]
 public class RenderSystemTests
 {
     private sealed class RecordingBackend : IRenderBackend

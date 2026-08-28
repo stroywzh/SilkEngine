@@ -12,7 +12,9 @@ namespace SilkEngine.Tests.Rendering;
 /// <summary>
 /// CameraBlock 契约：RenderSystem 在 Main 域把 ICameraView 的 View/Projection 矩阵
 /// 复制进不可变 RenderSubmission（随提交下发，不突变共享材质）。
+/// 与 Assets 集合串行：RenderSystem ctor 自注册全局 Services。
 /// </summary>
+[Collection("Assets")]
 public class CameraBlockTests
 {
     private sealed class CapturingBackend : IRenderBackend, IRenderFrameExecutor

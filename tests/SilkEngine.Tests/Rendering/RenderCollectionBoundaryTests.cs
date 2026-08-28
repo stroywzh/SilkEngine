@@ -76,6 +76,20 @@ public class RenderCollectionBoundaryTests : IDisposable
         Assert.Equal(7UL, renderer.ShaderHandle.Value);
     }
 
+    [Fact]
+    public void Renderer_AssetSlotProperties_BindAndResolveHandles()
+    {
+        var meshHandle = _am.RegisterTransient(new MeshAsset("M", new float[] { 0, 0, 0, 1, 0, 0 }, new[] { 3 }, null));
+        var shaderHandle = _am.RegisterTransient(new ShaderAsset("S", "vs", "fs"));
+
+        var renderer = new GameObject("R").AddComponent<MeshRenderer>();
+        renderer.Mesh = meshHandle;
+        renderer.Shader = shaderHandle;
+
+        Assert.Equal(meshHandle, renderer.Mesh);
+        Assert.Equal(shaderHandle, renderer.Shader);
+    }
+
     private MeshRenderer CreateRendererWithResolvedAssetSlots()
     {
         var meshId = RegisterReady(new MeshAsset("M", [0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0], [3], null));

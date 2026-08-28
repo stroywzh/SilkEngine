@@ -1,32 +1,26 @@
-using SilkEngine.Assets;
-using SilkEngine.Core;
+using SilkEngine.Host;
 using SilkEngine.Math;
-using SilkEngine.Render;
 using SilkEngine.Scene;
 
 namespace SandBox.Demos;
 
 public static class TestSingleCube
 {
-    public static void Run(EngineLoop engine)
+    public static void Run(EngineHost host)
     {
         var scene = new Scene("SingleCube");
-        engine.SceneManager.LoadScene(scene);
-
-        var shader = new ShaderAsset("PerspCheck", ShaderSources.LitVertex, ShaderSources.LitFragment);
-        var mesh = MeshFactory.CreateCube(1f);
+        host.SceneManager.LoadScene(scene);
 
         var cube = new GameObject("Cube");
         var mr = cube.AddComponent<MeshRenderer>();
-        mr.SetShader(new AssetHandle<ShaderAsset>(DemoAssets.NewId()));
-        mr.SetMesh(new AssetHandle<MeshAsset>(DemoAssets.NewId()));
+        mr.Shader = DemoAssetsExt.CreateLitShader(host);
+        mr.Mesh = DemoAssetsExt.CreateCubeMesh(host);
         scene.AddRootObject(cube);
-
-        Log.Info($"[TestSingleCube] {shader.Name} + {mesh.Name} 已装配（GPU 句柄待创建请求接线后发布）");
 
         var camObj = new GameObject("Cam");
         camObj.Transform.LocalPosition = new Vector3(3, 2, -5);
         var cam = camObj.AddComponent<Camera>();
         scene.AddRootObject(camObj);
+        cam.UpdateMatrices(16f / 9f);
     }
 }
