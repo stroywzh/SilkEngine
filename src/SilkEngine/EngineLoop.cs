@@ -33,7 +33,7 @@ public class EngineLoop : IDisposable
     private RenderSystem _renderSystem = null!;
     // RenderCollector不应有主线程持有
     private readonly RenderCollector _collector = new();
-    private Camera? _defaultCamera; // 实际无用逻辑
+    private SceneRenderWorld _sceneRenderWorld = null!;
     private volatile bool _stopRequested, _paused, _disposed, _canStart;
 
     public bool Embedded { get; set; } = false;
@@ -84,7 +84,8 @@ public class EngineLoop : IDisposable
         _registry = registry;
         _snapshotManager = snapshotManager;
         _renderSystem = new RenderSystem(_backend, _threadRuntime);
-        _collector.AddProvider(new SceneRendererProvider(snapshotManager));
+        var rendererProvider = new SceneRendererProvider(snapshotManager);
+        _sceneRenderWorld = new SceneRenderWorld(snapshotManager, [rendererProvider]);
         var files = new DiskAssetFileSystem(assetRoot ?? "Assets");
         var pipeline = new AssetPipeline(
             files,
@@ -167,16 +168,13 @@ public class EngineLoop : IDisposable
     }
 
     /// <summary>
-    /// 帧渲染桥接（Render 域零 Scene 依赖）：Scene 域查询活跃相机（含默认相机回退），
-    /// RenderCollector 经已注册 provider 统一收集渲染器后交 RenderSystem（ICameraView/IRenderable 接口消费）。
+    /// 帧渲染桥接（Render 域零 Scene 依赖）：SceneRenderWorld 从快照构建只读渲染源
+    /// （活跃相机 + provider 渲染器），RenderCollector 组装批次后交 RenderSystem。
     /// </summary>
     protected virtual void OnRender()
     {
-        var snapshot = _snapshotManager.Current;
-        var cameras = snapshot.GetComponents<Camera>().Where(c => c.GameObject.IsActiveInHierarchy).ToList();
-        if (cameras.Count == 0)
-            cameras.Add(GetDefaultCamera());
-        _collector.Collect(cameras, out var camera, out var batches);
+        var source = _sceneRenderWorld.BuildSnapshot();
+        _collector.Collect(source, out var camera, out var batches);
         var surface = _renderSystem.Surface;
         var createBatch = _assetManager?.DrainCreateBatch() ?? RenderResourceCreateBatch.Empty;
         _renderSystem.Render(surface is null ? 1f : (float)surface.Width / surface.Height, camera, batches, createBatch);
@@ -185,8 +183,6 @@ public class EngineLoop : IDisposable
             assets.ApplyCreateResults(_renderSystem.RenderHost.LastCreateResults);
     }
 
-    private Camera GetDefaultCamera() =>
-        _defaultCamera ??= new GameObject("Default Camera").AddComponent<Camera>();
     public void Stop() => _stopRequested = true;
     public void Dispose()
     {

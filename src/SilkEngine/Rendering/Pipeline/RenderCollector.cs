@@ -35,6 +35,19 @@ public sealed class RenderCollector
     }
 
     /// <summary>
+    /// 统一收集：从 <see cref="RenderSourceSnapshot"/> 组装批次（相机取首个，渲染器聚合为单批）。
+    /// </summary>
+    /// <param name="source">渲染源快照（Scene 域构建；Cameras 恒非空）</param>
+    /// <param name="camera">选中的相机视图（列表首个；列表为空时为 null）</param>
+    /// <param name="batches">组装出的渲染批次列表（无渲染器时为空；内部复用缓冲，仅帧内有效）</param>
+    public void Collect(
+        RenderSourceSnapshot source,
+        out ICameraView? camera,
+        out IReadOnlyList<RenderBatch> batches
+    )
+        => Gather(source.Cameras, source.Renderers, out camera, out batches);
+
+    /// <summary>
     /// 统一收集：枚举全部已注册 provider 的可渲染对象（聚合为单批），相机取列表首个。
     /// </summary>
     /// <param name="cameras">已过滤的相机视图列表（首个即当前相机；空列表时 camera 为 null）</param>
