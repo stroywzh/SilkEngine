@@ -14,7 +14,7 @@ class Program
         LogConfig.Render = false;
 
         // -------------------- 逐个取消注释测试 --------------------
-        // Demos.TestSingleCube.Run(engine);
+        Demos.TestSingleCube.Run(engine);
         // Demos.TestNDCTriangle.Run(engine);
         // Demos.TestNDCQuad.Run(engine);
         // Demos.TestCameraOrtho.Run(engine);
@@ -22,7 +22,7 @@ class Program
         // Demos.TestPNGQuad.Run(engine);
         // Demos.TestThirdPerson3D.Run(engine);
         // Demos.TestPNGQuad.Run(engine);
-        Demos.IMGShow.Run(engine);
+        // Demos.IMGShow.Run(engine);
         // ---------------------------------------------------------
 
         engine.Initialize().Run();

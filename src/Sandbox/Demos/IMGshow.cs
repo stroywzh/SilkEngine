@@ -17,7 +17,8 @@ public static class IMGShow
         var shader = new ShaderAsset("PngShader", ShaderSources.PngVertex, ShaderSources.PngFragment);
         var mesh = MeshFactory.CreateQuad(1f, 1f);
 
-        string path = Path.Combine(AppContext.BaseDirectory, "Resources", PictureName);
+        // string path = Path.Combine("Resources", PictureName);
+        string path = "Resources/" +PictureName;
         var tex = engine.AssetManager.Load<TextureAsset>(path);
 
         var quad = new GameObject("UIRenderQuad");
