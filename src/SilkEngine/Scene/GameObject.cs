@@ -59,6 +59,12 @@ public sealed class GameObject : Object
 
     internal List<Component> _components = new();
 
+    /// <summary>所属场景上下文（Scene.CreateGameObject 装配；独立创建的对象为 null）。</summary>
+    internal SceneContext? Context { get; set; }
+
+    /// <summary>所属场景（经上下文解析；未绑定上下文为 null；测试与业务归属查询用）。</summary>
+    internal Scene? SceneForTests => Context?.Scene;
+
     /// <summary>本对象固有 Transform（构造时创建，恒非空）。</summary>
     public Transform Transform { get; }
     private bool _isActive = true;
@@ -98,6 +104,16 @@ public sealed class GameObject : Object
     public GameObject(string name = "GameObject")
     {
         Name = name;
+        Transform = new Transform((GameObject)this);
+    }
+
+    /// <summary>创建绑定场景上下文的根对象（Scene.CreateGameObject 内部使用）。</summary>
+    /// <param name="name">对象名称</param>
+    /// <param name="context">场景上下文（可为 null）</param>
+    internal GameObject(string name, SceneContext? context)
+    {
+        Name = name;
+        Context = context;
         Transform = new Transform((GameObject)this);
     }
 
@@ -156,8 +172,12 @@ public sealed class GameObject : Object
 
         c.RecomputeActiveState();
 
-        // 回退链（协调裁决 C1）：Services 未注册时 TryGet 静默不注册（保留旧测试语义）
-        (registry ?? (Services.TryGet<SceneManager>(out var sm) ? sm?.Registry : null))?.Register(c);
+        // 注册目标优先级：显式 registry → 场景上下文注册表 → Services 回退链（协调裁决 C1，
+        // 兼容旧测试语义；阶段 4 移除回退后仅显式/上下文路径生效）
+        var target = registry
+            ?? Context?.Registry
+            ?? (Services.TryGet<SceneManager>(out var sm) ? sm?.Registry : null);
+        target?.Register(c);
 
         if (LogConfig.Lifecycle)
             Log.Info($"[Lifecycle] Added component {c.GetType().Name} to '{Name}'");

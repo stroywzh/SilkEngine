@@ -109,7 +109,7 @@ public class EngineLoop : IDisposable
         _assetManager = new AssetManager(pipeline, _threadRuntime.MainThread, _threadRuntime, new AssetSerializerRegistry());
         // release-request 队列承接：渲染线程帧首排空 → backend.Release（Rendering 域零 Assets 引用，主线程接线）
         _renderSystem.RenderHost.DrainUnloadQueue = _assetManager.ProcessUnloadQueue;
-        _sceneManager = new SceneManager();
+        _sceneManager = new SceneManager { AssetService = _assetManager };
     }
 
     public EngineLoop Initialize()

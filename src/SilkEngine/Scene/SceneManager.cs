@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using SilkEngine.Assets;
 using SilkEngine.Core;
 using Object = SilkEngine.Core.Object;
 
@@ -35,6 +36,9 @@ public class SceneManager : IDisposable
     /// <summary>已注入的组件注册表（GameObject.AddComponent 回退链与派发消费）。</summary>
     internal ComponentRegistry? Registry => _registry;
 
+    /// <summary>资产服务（EngineLoop 装配后注入；SceneContext 消费，无资产场景为 null）。</summary>
+    internal AssetManager? AssetService { get; set; }
+
     private readonly Action<Object, float> _destroyHandler;
 
     /// <summary>实例构造订阅全局销毁事件（引擎单实例；测试经 Dispose 解绑防累积）</summary>
@@ -52,6 +56,37 @@ public class SceneManager : IDisposable
 
     /// <summary>当前活动场景；LoadScene 后即切换（旧场景对象销毁延后至帧末）。</summary>
     public SilkEngine.Scene.Scene? ActiveScene { get; internal set; }
+
+    /// <summary>
+    /// 业务统一创建入口：创建场景并装配显式上下文（注册表 + 资产服务 + 场景归属），
+    /// 供 <see cref="SilkEngine.Scene.Scene.CreateGameObject"/> 绑定消费。
+    /// </summary>
+    /// <param name="name">场景名称</param>
+    /// <returns>已绑定上下文的新场景</returns>
+    /// <exception cref="InvalidOperationException">注册表尚未注入（EngineLoop.Initialize 前）</exception>
+    public SilkEngine.Scene.Scene Create(string name)
+    {
+        if (_registry is null)
+            throw new InvalidOperationException(
+                "SceneManager 注册表尚未注入：请先完成 EngineHost.Initialize 再创建场景。"
+            );
+        var scene = new SilkEngine.Scene.Scene(name);
+        scene.Context = new SceneContext(this, _registry, AssetService, scene);
+        return scene;
+    }
+
+    /// <summary>
+    /// 登记场景对象（Scene.CreateGameObject 调用）：对象组件经注入注册表登记并立即生效
+    /// （帧末快照 swap 后对派发可见）。
+    /// </summary>
+    /// <param name="go">要登记的对象</param>
+    internal void RegisterSceneObject(GameObject go)
+    {
+        if (_registry is null)
+            return;
+        InvokeRecursive(go, c => _registry.Register(c));
+        _registry.ApplyPending();
+    }
 
     /// <summary>加载场景（使用注入的注册表）：旧场景根对象进销毁队列，新场景组件立即注册、帧末统一生效。</summary>
     /// <param name="scene">要加载的场景</param>
