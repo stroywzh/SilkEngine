@@ -11,6 +11,28 @@ namespace SilkEngine.Assets;
 public sealed class AssetGpuResourceCache
 {
     private readonly Dictionary<(AssetId AssetId, ulong Revision, RenderResourceKind Kind), ulong> _handles = new();
+    private readonly Dictionary<RenderResourceRequestId, TrackedRenderRequest> _requests = new();
+
+    /// <summary>登记创建请求关联（Main 域调用）：RequestId → (AssetId, Revision, Kind)。</summary>
+    /// <param name="requestId">创建请求关联标识</param>
+    /// <param name="assetId">资产标识</param>
+    /// <param name="revision">源修订</param>
+    /// <param name="kind">资源种类</param>
+    public void TrackRequest(RenderResourceRequestId requestId, AssetId assetId, ulong revision, RenderResourceKind kind)
+        => _requests[requestId] = new TrackedRenderRequest(assetId, revision, kind, requestId);
+
+    /// <summary>按 RequestId 解析创建请求关联（Main 域调用；结果批次回传后匹配资产身份）。</summary>
+    /// <param name="requestId">创建请求关联标识</param>
+    /// <param name="tracked">关联记录（未命中为 null）</param>
+    /// <returns>命中为 true</returns>
+    internal bool TryResolveRequest(RenderResourceRequestId requestId, out TrackedRenderRequest? tracked)
+        => _requests.TryGetValue(requestId, out tracked);
+
+    /// <summary>移除创建请求关联（Main 域调用；结果已应用或请求取消时调用）。</summary>
+    /// <param name="requestId">创建请求关联标识</param>
+    /// <returns>存在并移除为 true</returns>
+    public bool RemoveRequest(RenderResourceRequestId requestId)
+        => _requests.Remove(requestId);
 
     /// <summary>登记纹理 GPU 句柄（渲染侧创建完成后回填）</summary>
     /// <param name="assetId">资产标识</param>
@@ -72,3 +94,14 @@ public sealed class AssetGpuResourceCache
     private void Publish(AssetId assetId, ulong revision, RenderResourceKind kind, ulong handle)
         => _handles[(assetId, revision, kind)] = handle;
 }
+
+/// <summary>创建请求关联记录（Assets 侧内部）：把无资产语义的 RequestId 关联回资产身份。</summary>
+/// <param name="AssetId">资产标识</param>
+/// <param name="Revision">源修订</param>
+/// <param name="Kind">资源种类</param>
+/// <param name="RequestId">创建请求关联标识</param>
+internal sealed record TrackedRenderRequest(
+    AssetId AssetId,
+    ulong Revision,
+    RenderResourceKind Kind,
+    RenderResourceRequestId RequestId);
