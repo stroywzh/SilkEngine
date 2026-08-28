@@ -33,6 +33,8 @@ public class OpenGLMatrixUploadTests
 
         public void Uniform1(int location, float value) { }
 
+        public void Uniform3(int location, Vector3 value) { }
+
         public void UniformMatrix4(int location, bool transpose, Matrix4x4 matrix)
         {
             MatrixNames.Add(_uniformNames.GetValueOrDefault(location, location.ToString()));
@@ -159,6 +161,8 @@ public class OpenGLMatrixUploadTests
         public int GetUniformLocation(uint program, string name) => -1; // 全部未命中
 
         public void Uniform1(int location, float value) { }
+
+        public void Uniform3(int location, Vector3 value) { }
 
         public void UniformMatrix4(int location, bool transpose, Matrix4x4 matrix)
             => MatrixNames.Add(location.ToString());

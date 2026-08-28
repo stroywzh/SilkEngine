@@ -197,13 +197,17 @@ public sealed class OpenGLRenderBackend : IRenderBackend, IRenderDevice, IRender
     /// <summary>直接登记模拟资源（测试专用）：以句柄映射到资源接缝实例。</summary>
     internal void RegisterResourceForTests(ulong handle, IDisposable resource) => _resources[handle] = resource;
 
-    /// <summary>上传材质 float 参数（渲染值集合，无资产语义）。</summary>
+    /// <summary>上传材质参数（渲染值集合，无资产语义；float → Uniform1，Vector3 → Uniform3）。</summary>
     private void UploadParameters(IOpenGlFrameCalls calls, uint program, RenderMaterialParameters parameters)
     {
         foreach (var (name, value) in parameters.Enumerate())
         {
             int loc = calls.GetUniformLocation(program, name);
-            if (loc != -1)
+            if (loc == -1)
+                continue;
+            if (value.TryGetVector3(out var v3))
+                calls.Uniform3(loc, v3);
+            else
                 calls.Uniform1(loc, value.FloatValue);
         }
     }

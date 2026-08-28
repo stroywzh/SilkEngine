@@ -21,6 +21,9 @@ internal interface IOpenGlFrameCalls : IDisposable
     /// <summary>上传 float uniform。</summary>
     void Uniform1(int location, float value);
 
+    /// <summary>上传 vec3 uniform。</summary>
+    void Uniform3(int location, Vector3 value);
+
     /// <summary>上传 mat4 uniform（transpose 由调用方按行主序约定传 true）。</summary>
     void UniformMatrix4(int location, bool transpose, Matrix4x4 matrix);
 }
@@ -67,6 +70,9 @@ internal sealed class OpenGlFrameCalls(GL gl) : IOpenGlFrameCalls
 
     /// <inheritdoc />
     public void Uniform1(int location, float value) => gl.Uniform1(location, value);
+
+    /// <inheritdoc />
+    public void Uniform3(int location, Vector3 value) => gl.Uniform3(location, value.X, value.Y, value.Z);
 
     /// <inheritdoc />
     public unsafe void UniformMatrix4(int location, bool transpose, Matrix4x4 matrix)

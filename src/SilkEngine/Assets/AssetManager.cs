@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using SilkEngine.Assets.Binding;
 using SilkEngine.Assets.Serialization;
 using SilkEngine.Assets.VirtualFileSystem;
 using SilkEngine.Core;
@@ -378,6 +379,9 @@ public sealed class AssetManager : IDisposable
 
     /// <summary>测试断言用：当前缓存</summary>
     internal AssetCache Cache => _cache;
+
+    /// <summary>测试断言用：资产驻留持有计数（未驻留为 0）。</summary>
+    internal int GetResidencyForTests(AssetId assetId) => _residency.GetValueOrDefault(assetId);
 
     /// <summary>测试断言用：目录登记记录数（瞬态资产不进入目录 → RegisterTransient 后恒 0）。</summary>
     internal int IndexCountForTests => (_keyResolver as AssetPipeline)?.CatalogCountForTests ?? 0;
