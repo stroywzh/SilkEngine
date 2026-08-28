@@ -17,54 +17,72 @@ public abstract class RendererBase : Component, IRenderable
     private AssetSlot<MeshAsset>? _meshSlot;
     private AssetSlot<ShaderAsset>? _shaderSlot;
     private AssetSlot<TextureAsset>? _textureSlot;
+    private AssetHandle<MeshAsset> _meshHandle;
+    private AssetHandle<ShaderAsset> _shaderHandle;
+    private AssetHandle<TextureAsset> _textureHandlePending;
     private RenderTextureHandle _textureHandle;
     private RenderMaterialParameters _materialParameters = new([]);
     private Material? _material;
     private RenderMaterialParameters? _materialParamsCache;
     private int _materialParamsVersion = -1;
+    private AssetManager? _assetService;
 
-    /// <summary>绑定网格资产驻留槽（旧槽释放；无资产管理器时仅记录句柄，解析结果为 default）。</summary>
+    /// <summary>显式注入资产服务（无场景上下文时测试/宿主装配用；上下文优先）。</summary>
+    /// <param name="assets">资产管理器</param>
+    internal void BindAssetService(AssetManager assets) => _assetService = assets;
+
+    private AssetManager? ResolveAssetService()
+    {
+        if (_assetService is null)
+            _assetService = GameObject?.Context?.AssetService;
+        return _assetService;
+    }
+
+    /// <summary>绑定网格资产驻留槽（旧槽释放；资产服务未就绪时记录句柄，解析时惰性建槽）。</summary>
     /// <param name="handle">网格资产句柄</param>
     public void SetMesh(AssetHandle<MeshAsset> handle)
     {
         _meshSlot?.Dispose();
-        _meshSlot = Services.TryGet<AssetManager>(out var assets) ? assets.CreateSlot(handle) : null;
+        _meshHandle = handle;
+        _meshSlot = handle != default && ResolveAssetService() is { } assets ? assets.CreateSlot(handle) : null;
     }
 
-    /// <summary>绑定着色器资产驻留槽（旧槽释放；无资产管理器时仅记录句柄，解析结果为 default）。</summary>
+    /// <summary>绑定着色器资产驻留槽（旧槽释放；资产服务未就绪时记录句柄，解析时惰性建槽）。</summary>
     /// <param name="handle">着色器资产句柄</param>
     public void SetShader(AssetHandle<ShaderAsset> handle)
     {
         _shaderSlot?.Dispose();
-        _shaderSlot = Services.TryGet<AssetManager>(out var assets) ? assets.CreateSlot(handle) : null;
+        _shaderHandle = handle;
+        _shaderSlot = handle != default && ResolveAssetService() is { } assets ? assets.CreateSlot(handle) : null;
     }
 
-    /// <summary>绑定纹理资产驻留槽（旧槽释放；无资产管理器时仅记录句柄，解析结果为 default）。</summary>
+    /// <summary>绑定纹理资产驻留槽（旧槽释放；资产服务未就绪时记录句柄，解析时惰性建槽）。</summary>
     /// <param name="handle">纹理资产句柄</param>
     public void SetTexture(AssetHandle<TextureAsset> handle)
     {
         _textureSlot?.Dispose();
-        _textureSlot = Services.TryGet<AssetManager>(out var assets) ? assets.CreateSlot(handle) : null;
+        _textureHandlePending = handle;
+        _textureSlot = handle != default && ResolveAssetService() is { } assets ? assets.CreateSlot(handle) : null;
     }
 
     /// <summary>网格资产句柄（业务属性；赋值经 AssetSlot 驻留，旧槽自动释放）。</summary>
     public AssetHandle<MeshAsset> Mesh
     {
-        get => _meshSlot?.Handle ?? default;
+        get => _meshSlot?.Handle ?? _meshHandle;
         set => SetMesh(value);
     }
 
     /// <summary>着色器资产句柄（业务属性；赋值经 AssetSlot 驻留，旧槽自动释放）。</summary>
     public AssetHandle<ShaderAsset> Shader
     {
-        get => _shaderSlot?.Handle ?? default;
+        get => _shaderSlot?.Handle ?? _shaderHandle;
         set => SetShader(value);
     }
 
     /// <summary>纹理资产句柄（业务属性；赋值经 AssetSlot 驻留，旧槽自动释放）。</summary>
     public AssetHandle<TextureAsset> Texture
     {
-        get => _textureSlot?.Handle ?? default;
+        get => _textureSlot?.Handle ?? _textureHandlePending;
         set => SetTexture(value);
     }
 
@@ -127,7 +145,7 @@ public abstract class RendererBase : Component, IRenderable
 
     private RenderMeshHandle ResolveMesh()
     {
-        if (Services.TryGet<AssetManager>(out var assets) && _meshSlot is { Handle: var h } && h != default
+        if (ResolveAssetService() is { } assets && EnsureMeshSlot() is { Handle: var h } && h != default
             && assets.TryGetRenderHandle(h.Id, RenderResourceKind.Mesh, out var handle))
             return new RenderMeshHandle(handle);
         return default;
@@ -135,7 +153,7 @@ public abstract class RendererBase : Component, IRenderable
 
     private RenderShaderHandle ResolveShader()
     {
-        if (Services.TryGet<AssetManager>(out var assets) && _shaderSlot is { Handle: var h } && h != default
+        if (ResolveAssetService() is { } assets && EnsureShaderSlot() is { Handle: var h } && h != default
             && assets.TryGetRenderHandle(h.Id, RenderResourceKind.Shader, out var handle))
             return new RenderShaderHandle(handle);
         return default;
@@ -143,14 +161,35 @@ public abstract class RendererBase : Component, IRenderable
 
     private RenderTextureHandle ResolveTexture()
     {
-        if (_textureSlot is { Handle: var h } && h != default)
+        if (EnsureTextureSlot() is { Handle: var h } && h != default)
         {
-            if (Services.TryGet<AssetManager>(out var assets)
+            if (ResolveAssetService() is { } assets
                 && assets.TryGetRenderHandle(h.Id, RenderResourceKind.Texture, out var handle))
                 return new RenderTextureHandle(handle);
             return default;
         }
         return _textureHandle;
+    }
+
+    private AssetSlot<MeshAsset>? EnsureMeshSlot()
+    {
+        if (_meshSlot is null && _meshHandle != default && ResolveAssetService() is { } assets)
+            _meshSlot = assets.CreateSlot(_meshHandle);
+        return _meshSlot;
+    }
+
+    private AssetSlot<ShaderAsset>? EnsureShaderSlot()
+    {
+        if (_shaderSlot is null && _shaderHandle != default && ResolveAssetService() is { } assets)
+            _shaderSlot = assets.CreateSlot(_shaderHandle);
+        return _shaderSlot;
+    }
+
+    private AssetSlot<TextureAsset>? EnsureTextureSlot()
+    {
+        if (_textureSlot is null && _textureHandlePending != default && ResolveAssetService() is { } assets)
+            _textureSlot = assets.CreateSlot(_textureHandlePending);
+        return _textureSlot;
     }
 
     private RenderMaterialParameters ResolveMaterialParameters(Material material)

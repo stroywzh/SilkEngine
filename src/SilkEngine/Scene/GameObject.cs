@@ -173,11 +173,8 @@ public sealed class GameObject : Object
 
         c.RecomputeActiveState();
 
-        // 注册目标优先级：显式 registry → 场景上下文注册表 → Services 回退链（协调裁决 C1，
-        // 兼容旧测试语义；阶段 4 移除回退后仅显式/上下文路径生效）
-        var target = registry
-            ?? Context?.Registry
-            ?? (Services.TryGet<SceneManager>(out var sm) ? sm?.Registry : null);
+        // 注册目标：显式 registry 优先，其次场景上下文注册表（无 Services 回退——阶段 4 移除热路径服务定位）
+        var target = registry ?? Context?.Registry;
         target?.Register(c);
 
         if (LogConfig.Lifecycle)

@@ -41,7 +41,7 @@ public sealed class AssetManager : IDisposable
 
     /// <summary>
     /// 构造注入管线、主线程派发器与线程运行时（管线须支持路径解析与 FrameCommit 结果投递）。
-    /// 构造即自注册进 Services。
+    /// 构造不注册全局服务（Host 兼容阶段集中注册）。
     /// </summary>
     /// <param name="pipeline">资产管线（路径解析 + 构建执行）</param>
     /// <param name="mainThread">主线程派发器（结果应用阶段）</param>
@@ -62,7 +62,6 @@ public sealed class AssetManager : IDisposable
         _keyResolver.ResultSink = ApplyPipelineResult;
         Resolver = new CatalogReferenceResolver(this);
         _bridge = new AssetRenderBridge(new ReleaseOnlySink(this));
-        Services.Register(this);
     }
 
     /// <summary>注册序列化器（直通注册表；同类型重复注册抛 <see cref="InvalidOperationException"/>）</summary>

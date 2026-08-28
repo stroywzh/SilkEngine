@@ -1,6 +1,7 @@
 using SilkEngine.Assets;
 using SilkEngine.Assets.Importer;
 using SilkEngine.Assets.VirtualFileSystem;
+using SilkEngine.Core;
 using SilkEngine.Threading;
 
 namespace SilkEngine.Tests.Core.Assets;
@@ -21,14 +22,17 @@ internal static class TestAssetPipeline
     /// <summary>创建自注册 AssetManager（管线内建内存文件系统与空索引；调用方负责 Unregister）</summary>
     /// <param name="files">资产文件服务（默认空内存文件系统）</param>
     /// <param name="seedIndex">索引种子回调（ApplyScan 前的索引装配）</param>
-    /// <returns>可独立使用的 AssetManager 实例</returns>
+    /// <returns>可独立使用的 AssetManager 实例（已注册进 Services，兼容旧 ctor 自注册语义）</returns>
     public static AssetManager CreateManager(IAssetFileSystem? files = null, Action<IVirtualFileIndex>? seedIndex = null)
-        => CreateContext(files, seedIndex).Manager;
+    {
+        var ctx = CreateContext(files, seedIndex);
+        return ctx.Manager;
+    }
 
     /// <summary>创建自注册 AssetManager 上下文（含线程运行时与管线，供测试排空 FrameCommit）</summary>
     /// <param name="files">资产文件服务（默认空内存文件系统）</param>
     /// <param name="seedIndex">索引种子回调（ApplyScan 前的索引装配）</param>
-    /// <returns>管理器上下文</returns>
+    /// <returns>管理器上下文（Manager 已注册进 Services；调用方负责注销）</returns>
     public static ManagerContext CreateContext(IAssetFileSystem? files = null, Action<IVirtualFileIndex>? seedIndex = null)
     {
         var runtime = new ThreadRuntime();
@@ -43,10 +47,9 @@ internal static class TestAssetPipeline
             new SyncBackgroundScheduler(),
             runtime.MainThread,
             runtime);
-        return new ManagerContext(
-            new AssetManager(pipeline, runtime.MainThread, runtime),
-            runtime,
-            pipeline);
+        var manager = new AssetManager(pipeline, runtime.MainThread, runtime);
+        Services.Register(manager); // 兼容旧 ctor 自注册语义（AssetOperation/Asset.Load 静态门面依赖）
+        return new ManagerContext(manager, runtime, pipeline);
     }
 }
 

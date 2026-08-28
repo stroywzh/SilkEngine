@@ -61,20 +61,8 @@ public class EngineLoop : IDisposable
     public AssetManager AssetManager =>
         _assetManager ?? throw new InvalidOperationException("EngineLoop.Initialize 尚未执行");
 
-    /// <summary>
-    /// 创建引擎心跳驱动器（兼容路径）：从全局服务注册表解析核心依赖后装配。
-    /// </summary>
-    /// <param name="backend">渲染后端（窗口/上下文/绘制执行）</param>
-    /// <param name="assetRoot">资产根目录（缺省 "Assets"）</param>
-    public EngineLoop(IRenderBackend backend, string? assetRoot = null)
-        : this(
-            backend,
-            assetRoot,
-            Services.Get<ThreadRuntime>(),
-            Services.Get<ComponentRegistry>(),
-            Services.Get<FrameSnapshotManager>())
-    {
-    }
+    /// <summary>渲染系统实例（宿主集中装配用；不参与热路径）。</summary>
+    internal RenderSystem RenderSystem => _renderSystem;
 
     /// <summary>
     /// 创建引擎心跳驱动器（Host 组合根显式装配）：依赖经构造注入，不经全局服务解析。

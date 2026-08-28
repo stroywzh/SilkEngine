@@ -41,14 +41,12 @@ public class SceneManager : IDisposable
 
     private readonly Action<Object, float> _destroyHandler;
 
-    /// <summary>实例构造订阅全局销毁事件（引擎单实例；测试经 Dispose 解绑防累积）</summary>
+    /// <summary>实例构造订阅全局销毁事件（引擎单实例；测试经 Dispose 解绑防累积）。构造不注册全局服务（Host 集中装配）。</summary>
     public SceneManager()
     {
         _destroyHandler = (obj, delay) =>
             _destroyQueue.Add(new DestroyEntry { Target = obj, Delay = delay, Origin = ActiveScene });
         Object.DestroyHandler += _destroyHandler;
-
-        Services.Register(this);
     }
 
     /// <summary>解绑 DestroyHandler（Services.Shutdown 反序释放 / 测试夹具调用）</summary>
@@ -107,6 +105,12 @@ public class SceneManager : IDisposable
         }
         ActiveScene = scene;
         var reg = registry ?? _registry;
+        // 无上下文的独立场景在加载时装配上下文（渲染器经上下文解析资产服务；Create 路径已装配），
+        // 并传播给已有根对象（AddRootObject 早于 LoadScene 时对象上下文尚未绑定）。
+        if (scene.Context is null && reg is not null)
+            scene.Context = new SceneContext(this, reg, AssetService, scene);
+        foreach (var go in scene._rootObjects)
+            go.Context ??= scene.Context;
         if (reg != null)
         {
             foreach (var go in scene._rootObjects)

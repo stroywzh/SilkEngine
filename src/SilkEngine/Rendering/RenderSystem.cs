@@ -22,7 +22,8 @@ public sealed class RenderSystem : IDisposable
     private readonly IRenderPipeline _pipeline;
 
     /// <summary>
-    /// 创建渲染系统：装配 RenderThreadHost 并登记进 ThreadRuntime 受管循环与 Services。
+    /// 创建渲染系统：装配 RenderThreadHost 并登记进 ThreadRuntime 受管循环。
+    /// 构造不注册全局服务（Host 兼容阶段集中注册）。
     /// </summary>
     /// <param name="backend">渲染后端（窗口/上下文/绘制执行）</param>
     /// <param name="runtime">线程运行时（受管循环登记与关闭协议）</param>
@@ -33,7 +34,6 @@ public sealed class RenderSystem : IDisposable
         _renderThread = new RenderThreadHost(runtime, backend);
         runtime.RegisterManagedLoop(_renderThread);
         _pipeline = pipeline ?? new ForwardPipeline();
-        Services.Register(this);
     }
 
     /// <summary>渲染后端实例（Rendering 契约）</summary>

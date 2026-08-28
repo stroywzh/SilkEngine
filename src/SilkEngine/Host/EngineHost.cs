@@ -114,6 +114,10 @@ public sealed class EngineHost : IDisposable
             Embedded = _options.Embedded,
         };
         loop.Initialize();
+        // 兼容阶段集中注册：静态门面（AssetOperation/Input 等）经 Services 取用；业务经 EngineLoop 公开属性
+        Services.Register(loop.RenderSystem);
+        Services.Register(loop.AssetManager);
+        Services.Register(loop.SceneManager);
         _loop = loop;
     }
 }

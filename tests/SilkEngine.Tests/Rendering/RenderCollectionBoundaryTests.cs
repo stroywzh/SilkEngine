@@ -83,6 +83,7 @@ public class RenderCollectionBoundaryTests : IDisposable
         var shaderHandle = _am.RegisterTransient(new ShaderAsset("S", "vs", "fs"));
 
         var renderer = new GameObject("R").AddComponent<MeshRenderer>();
+        renderer.BindAssetService(_am);
         renderer.Mesh = meshHandle;
         renderer.Shader = shaderHandle;
 
@@ -98,6 +99,7 @@ public class RenderCollectionBoundaryTests : IDisposable
         _am.PublishRenderShader(shaderId, new RenderShaderHandle(7));
 
         var renderer = new GameObject("R").AddComponent<MeshRenderer>();
+        renderer.BindAssetService(_am);
         renderer.SetMesh(new AssetHandle<MeshAsset>(meshId));
         renderer.SetShader(new AssetHandle<ShaderAsset>(shaderId));
         return renderer;

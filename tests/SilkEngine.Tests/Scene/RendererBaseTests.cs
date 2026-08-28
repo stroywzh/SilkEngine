@@ -45,7 +45,7 @@ public class RendererBaseTests : IDisposable
     public void SetMesh_CreatesSlot_AddsResidency()
     {
         var id = RegisterReady(new MeshAsset("M", [0, 0, 0], [3], null));
-        var mr = new GameObject().AddComponent<MeshRenderer>();
+        var mr = NewRenderer();
         mr.SetMesh(new AssetHandle<MeshAsset>(id));
 
         _am.UnloadUnused(); // 驻留持有 → 不驱逐
@@ -57,7 +57,7 @@ public class RendererBaseTests : IDisposable
     public void SetShader_CreatesSlot_AddsResidency()
     {
         var id = RegisterReady(new ShaderAsset("S", "vs", "fs"));
-        var mr = new GameObject().AddComponent<MeshRenderer>();
+        var mr = NewRenderer();
         mr.SetShader(new AssetHandle<ShaderAsset>(id));
 
         _am.UnloadUnused();
@@ -70,7 +70,7 @@ public class RendererBaseTests : IDisposable
     {
         var meshId = RegisterReady(new MeshAsset("M", [0, 0, 0], [3], null));
         var shaderId = RegisterReady(new ShaderAsset("S", "vs", "fs"));
-        var mr = new GameObject().AddComponent<MeshRenderer>();
+        var mr = NewRenderer();
         mr.SetMesh(new AssetHandle<MeshAsset>(meshId));
         mr.SetShader(new AssetHandle<ShaderAsset>(shaderId));
 
@@ -86,7 +86,7 @@ public class RendererBaseTests : IDisposable
     {
         var id = RegisterReady(new MeshAsset("M", [0, 0, 0], [3], null));
         _am.PublishRenderMesh(id, new RenderMeshHandle(42));
-        var mr = new GameObject().AddComponent<MeshRenderer>();
+        var mr = NewRenderer();
         mr.SetMesh(new AssetHandle<MeshAsset>(id));
 
         Assert.Equal(42UL, mr.MeshHandle.Value);
@@ -97,7 +97,7 @@ public class RendererBaseTests : IDisposable
     {
         var id = RegisterReady(new ShaderAsset("S", "vs", "fs"));
         _am.PublishRenderShader(id, new RenderShaderHandle(9));
-        var mr = new GameObject().AddComponent<MeshRenderer>();
+        var mr = NewRenderer();
         mr.SetShader(new AssetHandle<ShaderAsset>(id));
 
         Assert.Equal(9UL, mr.ShaderHandle.Value);
@@ -107,10 +107,18 @@ public class RendererBaseTests : IDisposable
     public void UnpublishedSlot_ResolvesDefault()
     {
         var id = RegisterReady(new MeshAsset("M", [0, 0, 0], [3], null));
-        var mr = new GameObject().AddComponent<MeshRenderer>();
+        var mr = NewRenderer();
         mr.SetMesh(new AssetHandle<MeshAsset>(id)); // 驻留但未发布 GPU 句柄
 
         Assert.Equal(default, mr.MeshHandle);
+    }
+
+    /// <summary>创建无场景上下文的渲染器并显式注入资产服务（构造器自注册已移除后的测试装配）。</summary>
+    private MeshRenderer NewRenderer()
+    {
+        var mr = new GameObject().AddComponent<MeshRenderer>();
+        mr.BindAssetService(_am);
+        return mr;
     }
 
     [Fact]

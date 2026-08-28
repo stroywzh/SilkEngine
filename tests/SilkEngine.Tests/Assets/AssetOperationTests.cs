@@ -23,7 +23,7 @@ public class AssetOperationTests : IDisposable
     {
         var runtime = new ThreadRuntime();
         runtime.RegisterMainThread();
-        _ = new AssetManager(
+        var manager = new AssetManager(
             new AssetPipeline(
                 new InMemoryAssetFileSystem("Assets"),
                 new InMemoryVirtualFileIndex(),
@@ -34,6 +34,7 @@ public class AssetOperationTests : IDisposable
                 runtime),
             runtime.MainThread,
             runtime);
+        Services.Register(manager); // AssetOperation.FromTask 静态门面经 Services 取用
         return runtime;
     }
 

@@ -32,6 +32,7 @@ public class Scene
 
     /// <summary>
     /// 添加根对象（无父级的对象；子树对象不单独登记）。
+    /// 无上下文的独立对象在加入时绑定本场景上下文（渲染器等组件经上下文解析资产服务）。
     /// </summary>
     /// <param name="go">要添加的对象</param>
     /// <exception cref="InvalidOperationException">同实例重复添加</exception>
@@ -41,6 +42,7 @@ public class Scene
             throw new InvalidOperationException(
                 $"GameObject '{go.Name}' is already a root object of scene '{Name}'"
             );
+        go.Context ??= Context;
         _rootObjects.Add(go);
     }
 
