@@ -1,7 +1,6 @@
 using System;
 using System.Diagnostics;
 using System.Linq;
-using SilkEngine.Core;
 using SilkEngine.Assets;
 using SilkEngine.Assets.Importer;
 using SilkEngine.Assets.Serialization;
@@ -61,14 +60,42 @@ public class EngineLoop : IDisposable
     public AssetManager AssetManager =>
         _assetManager ?? throw new InvalidOperationException("EngineLoop.Initialize 尚未执行");
 
-    public EngineLoop(IRenderBackend backend)
+    /// <summary>
+    /// 创建引擎心跳驱动器（兼容路径）：从全局服务注册表解析核心依赖后装配。
+    /// </summary>
+    /// <param name="backend">渲染后端（窗口/上下文/绘制执行）</param>
+    /// <param name="assetRoot">资产根目录（缺省 "Assets"）</param>
+    public EngineLoop(IRenderBackend backend, string? assetRoot = null)
+        : this(
+            backend,
+            assetRoot,
+            Services.Get<ThreadRuntime>(),
+            Services.Get<ComponentRegistry>(),
+            Services.Get<FrameSnapshotManager>())
+    {
+    }
+
+    /// <summary>
+    /// 创建引擎心跳驱动器（Host 组合根显式装配）：依赖经构造注入，不经全局服务解析。
+    /// </summary>
+    /// <param name="backend">渲染后端（窗口/上下文/绘制执行）</param>
+    /// <param name="assetRoot">资产根目录（null 时缺省 "Assets"）</param>
+    /// <param name="threadRuntime">线程运行时（线程资源唯一属主）</param>
+    /// <param name="registry">组件注册表（帧原子性核心）</param>
+    /// <param name="snapshotManager">帧快照管理器（双缓冲）</param>
+    internal EngineLoop(
+        IRenderBackend backend,
+        string? assetRoot,
+        ThreadRuntime threadRuntime,
+        ComponentRegistry registry,
+        FrameSnapshotManager snapshotManager)
     {
         _backend = backend;
-        _threadRuntime = Services.Get<ThreadRuntime>();
-        _registry = Services.Get<ComponentRegistry>();
-        _snapshotManager = Services.Get<FrameSnapshotManager>();
+        _threadRuntime = threadRuntime;
+        _registry = registry;
+        _snapshotManager = snapshotManager;
         _renderSystem = new RenderSystem(_backend, _threadRuntime);
-        var files = new DiskAssetFileSystem("Assets");
+        var files = new DiskAssetFileSystem(assetRoot ?? "Assets");
         var pipeline = new AssetPipeline(
             files,
             new InMemoryVirtualFileIndex(),
@@ -107,7 +134,7 @@ public class EngineLoop : IDisposable
     {
         if (!_canStart)
         {
-            Log.Warn("[EngineLoop]: Invalid Operation,EngineLoop haven't Initialized yet.");
+            Log.Warning("[EngineLoop]: Invalid Operation,EngineLoop haven't Initialized yet.");
             return;
         }
         if (LogConfig.EngineLoop)
@@ -165,5 +192,6 @@ public class EngineLoop : IDisposable
         _stopRequested = true;
         // 反序：RenderSystem(渲染线程先停) → SnapshotManager/Registry → AssetManager → SceneManager(解绑) → ThreadRuntime(最后停)
         Services.Shutdown();
+        _threadRuntime.Dispose(); // Host 显式注入的运行时不在 Services 注册表内，由此兜底释放（幂等）
     }
 }

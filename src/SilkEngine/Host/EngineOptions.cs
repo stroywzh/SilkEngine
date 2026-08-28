@@ -30,5 +30,10 @@ public sealed class EngineOptions
     {
         if (string.IsNullOrWhiteSpace(AssetRoot))
             throw new ArgumentException("AssetRoot 不能为空白", nameof(AssetRoot));
+        if(!Directory.Exists(AssetRoot))
+        {
+            SilkEngine.Core.Log.Warning($"AssetRoot {AssetRoot} 不存在");
+
+        }
     }
 }

@@ -1,6 +1,6 @@
 using SilkEngine.Core;
+using SilkEngine.Host;
 using SilkEngine.InputSystem;
-using SilkEngine.Rendering.OpenGL;
 
 namespace SandBox;
 
@@ -8,23 +8,27 @@ class Program
 {
     static void Main(string[] args)
     {
-        var backend = new OpenGLRenderBackend();
-        var engine = new EngineLoop(backend);
+        using var host = EngineHost.Create(builder =>
+        {
+            builder.UseOpenGL();
+            builder.UseAssetRoot("Assets");
+        });
         Input.EnableLog = true;
         LogConfig.Render = false;
+        host.Initialize();
 
         // -------------------- 逐个取消注释测试 --------------------
-        Demos.TestSingleCube.Run(engine);
-        // Demos.TestNDCTriangle.Run(engine);
-        // Demos.TestNDCQuad.Run(engine);
-        // Demos.TestCameraOrtho.Run(engine);
-        // Demos.TestCameraPerspective.Run(engine);
-        // Demos.TestPNGQuad.Run(engine);
-        // Demos.TestThirdPerson3D.Run(engine);
-        // Demos.TestPNGQuad.Run(engine);
-        // Demos.IMGShow.Run(engine);
+        Demos.TestSingleCube.Run(host.Loop);
+        // Demos.TestNDCTriangle.Run(host.Loop);
+        // Demos.TestNDCQuad.Run(host.Loop);
+        // Demos.TestCameraOrtho.Run(host.Loop);
+        // Demos.TestCameraPerspective.Run(host.Loop);
+        // Demos.TestPNGQuad.Run(host.Loop);
+        // Demos.TestThirdPerson3D.Run(host.Loop);
+        // Demos.TestPNGQuad.Run(host.Loop);
+        // Demos.IMGShow.Run(host.Loop);
         // ---------------------------------------------------------
 
-        engine.Initialize().Run();
+        host.Run();
     }
 }

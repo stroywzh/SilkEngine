@@ -6,13 +6,15 @@ namespace SilkEngine.Tests.Host;
 /// <summary>
 /// EngineHost 生命周期状态机边界：Create 只装配数据（不启动运行时、不访问 Services），
 /// Initialize 单次生效（重复调用抛错），Stop/Dispose 幂等。
+/// 与 ServicesTests/ThreadRuntimeTests 同集合串行（Initialize 装配真实对象图并自注册、Dispose 触发 Services.Shutdown）。
 /// </summary>
+[Collection("Assets")]
 public class EngineHostTests
 {
     [Fact]
     public void Host_BuildDoesNotStartRuntime_InitializeStartsItOnce()
     {
-        using var host = EngineHost.Create();
+        using var host = EngineHost.Create(b => b.UseHeadlessForTests());
 
         Assert.False(host.IsInitialized);
         host.Initialize();
@@ -23,7 +25,7 @@ public class EngineHostTests
     [Fact]
     public void Host_StopAndDisposeAreIdempotent()
     {
-        using var host = EngineHost.Create();
+        using var host = EngineHost.Create(b => b.UseHeadlessForTests());
 
         host.Initialize();
         host.Stop();
@@ -37,7 +39,7 @@ public class EngineHostTests
     [Fact]
     public void Host_InitializeAfterDispose_Throws()
     {
-        var host = EngineHost.Create();
+        var host = EngineHost.Create(b => b.UseHeadlessForTests());
         host.Dispose();
 
         Assert.Throws<InvalidOperationException>(() => host.Initialize());
