@@ -25,6 +25,12 @@ public sealed class AssetManager : IDisposable
     private readonly ConcurrentQueue<RenderResourceReleaseRequest> _renderReleases = new();
     private readonly Dictionary<AssetId, int> _residency = new();
     private readonly AssetGpuResourceCache _gpuCache = new();
+    private readonly List<RenderResourceCreateItem> _pendingCreates = [];
+    private readonly AssetRenderBridge _bridge;
+    private ulong _nextRequestId;
+
+    /// <summary>最近一次 GPU 句柄发布时的线程域（测试断言用；未发布为 Unknown）。</summary>
+    internal ThreadDomain LastPublishDomainForTests { get; private set; } = ThreadDomain.Unknown;
 
     /// <summary>
     /// 受控引用解析器视图：按 AssetId 从本管理器缓存解析已加载载荷（序列化层唯一资产访问边界，无全局服务定位）。
@@ -54,6 +60,7 @@ public sealed class AssetManager : IDisposable
         _serializerRegistry = serializerRegistry ?? new AssetSerializerRegistry();
         _keyResolver.ResultSink = ApplyPipelineResult;
         Resolver = new CatalogReferenceResolver(this);
+        _bridge = new AssetRenderBridge(new ReleaseOnlySink(this));
         Services.Register(this);
     }
 
@@ -227,6 +234,127 @@ public sealed class AssetManager : IDisposable
         return _gpuCache.TryGet(assetId, revision, kind, out handle);
     }
 
+    /// <summary>
+    /// 注册瞬态资产（不经 VFS/目录）：Main 域专用，Payload 立即就绪并排队 GPU 创建请求。
+    /// ID 由引擎资产层生成（<see cref="AssetId"/> 包装新 GUID），调用方不能自造句柄。
+    /// </summary>
+    /// <typeparam name="T">资产载荷类型</typeparam>
+    /// <param name="payload">规范载荷实例</param>
+    /// <returns>稳定资产句柄</returns>
+    /// <exception cref="ArgumentNullException">payload 为 null</exception>
+    public AssetHandle<T> RegisterTransient<T>(T payload)
+        where T : class, IAssetPayload
+    {
+        ArgumentNullException.ThrowIfNull(payload);
+        ((IThreadGuard)_runtime).Assert(ThreadDomain.Main, "AssetManager.RegisterTransient");
+        var id = new AssetId(Guid.NewGuid());
+        var entry = _cache.GetOrAdd(id);
+        entry.State = AssetState.Ready;
+        entry.SourceRevision = 0UL;
+        _cache.SetPayload(entry, payload);
+        QueueGpuCreation(id, entry.SourceRevision, payload);
+        return new AssetHandle<T>(id);
+    }
+
+    /// <summary>将待提交创建请求批量提升为创建批次并清空（Main 域；提交前由宿主调用）。</summary>
+    /// <returns>创建批次（无待创建请求时为空批次）</returns>
+    internal RenderResourceCreateBatch DrainCreateBatch()
+    {
+        if (_pendingCreates.Count == 0)
+            return RenderResourceCreateBatch.Empty;
+        var batch = new RenderResourceCreateBatch(_pendingCreates.ToArray());
+        _pendingCreates.Clear();
+        return batch;
+    }
+
+    /// <summary>刷新待创建请求（当前阶段注册时同步入队；为未来批量/节流刷新保留扩展点）。</summary>
+    internal void FlushPendingRenderCreates()
+    {
+    }
+
+    /// <summary>
+    /// 应用渲染线程回传的创建结果批次（Main 域，SubmitFrame 返回后调用）：
+    /// 按 RequestId 关联资产身份并校验当前修订；匹配时发布句柄，过期时只生成句柄释放请求。
+    /// </summary>
+    /// <param name="results">创建结果批次</param>
+    public void ApplyCreateResults(RenderResourceCreateResultBatch results)
+    {
+        ((IThreadGuard)_runtime).Assert(ThreadDomain.Main, "AssetManager.ApplyCreateResults");
+        foreach (var result in results.Results)
+        {
+            if (!_gpuCache.TryResolveRequest(result.RequestId, out var tracked) || tracked is null)
+                continue; // 未知请求（已应用或已取消）：跳过
+            _gpuCache.RemoveRequest(result.RequestId);
+            var entry = _cache.Find(tracked.AssetId);
+            if (entry is null || entry.SourceRevision != tracked.Revision)
+            {
+                // 过期结果：不发布，仅生成句柄释放请求（渲染线程帧首消费）
+                if (result.State == RenderResourceCreateResultState.Succeeded && result.Handle.Value != 0)
+                    _renderReleases.Enqueue(new RenderResourceReleaseRequest(tracked.Kind, result.Handle.Value));
+                continue;
+            }
+            if (result.State != RenderResourceCreateResultState.Succeeded)
+            {
+                Log.Error($"[AssetManager] GPU 创建失败 ({tracked.Kind}): {result.Error?.Message}");
+                continue;
+            }
+            PublishRenderHandle(tracked.AssetId, tracked.Kind, result.Handle.Value);
+            LastPublishDomainForTests = _runtime.CurrentDomain;
+        }
+    }
+
+    /// <summary>按种类发布 GPU 句柄（结果校验通过后回填缓存）。</summary>
+    private void PublishRenderHandle(AssetId assetId, RenderResourceKind kind, ulong handle)
+    {
+        switch (kind)
+        {
+            case RenderResourceKind.Texture:
+                _gpuCache.Publish(assetId, _cache.Find(assetId)?.SourceRevision ?? 0UL, new RenderTextureHandle(handle));
+                break;
+            case RenderResourceKind.Shader:
+                _gpuCache.Publish(assetId, _cache.Find(assetId)?.SourceRevision ?? 0UL, new RenderShaderHandle(handle));
+                break;
+            case RenderResourceKind.Mesh:
+                _gpuCache.Publish(assetId, _cache.Find(assetId)?.SourceRevision ?? 0UL, new RenderMeshHandle(handle));
+                break;
+            default:
+                Log.Warning($"[AssetManager] 未知资源种类，跳过发布: {kind}");
+                break;
+        }
+    }
+
+    /// <summary>测试断言用：按资产与种类查询已登记 GPU 句柄（未登记为 0）。</summary>
+    internal ulong GetRenderHandleForTests(AssetId assetId, RenderResourceKind kind)
+        => TryGetRenderHandle(assetId, kind, out var handle) ? handle : 0UL;
+
+    /// <summary>排队 GPU 创建请求（Main 域）：Payload → 无资产语义请求 + RequestId 关联登记。</summary>
+    private void QueueGpuCreation(AssetId assetId, ulong revision, IAssetPayload payload)
+    {
+        RenderResourceCreateRequest? request = payload switch
+        {
+            TextureAsset texture => _bridge.CreateTextureRequest(texture),
+            ShaderAsset shader => _bridge.CreateShaderRequest(shader),
+            MeshAsset mesh => _bridge.CreateMeshRequest(mesh),
+            _ => null, // 非渲染载荷不产生 GPU 创建请求
+        };
+        if (request is null)
+            return;
+        var requestId = new RenderResourceRequestId(Interlocked.Increment(ref _nextRequestId));
+        _gpuCache.TrackRequest(requestId, assetId, revision, request.Kind);
+        _pendingCreates.Add(new RenderResourceCreateItem(requestId, request));
+    }
+
+    /// <summary>仅承接释放请求的桥接接收器（创建请求经 QueueGpuCreation 携带身份排队）。</summary>
+    private sealed class ReleaseOnlySink(AssetManager owner) : IRenderRequestSink
+    {
+        /// <summary>创建请求不经接收器提交（由 AssetManager 携带资产身份排队）。</summary>
+        public void Submit(RenderResourceCreateRequest request)
+            => throw new InvalidOperationException("创建请求须经 AssetManager.QueueGpuCreation 携带资产身份提交");
+
+        /// <summary>释放请求入队（渲染线程帧首消费）。</summary>
+        public void Submit(RenderResourceReleaseRequest request) => owner._renderReleases.Enqueue(request);
+    }
+
     /// <summary>帧末结果应用（Pipeline 经 FrameCommit 投递；Main 域）：更新 AssetEntry.Payload 与状态。</summary>
     /// <param name="result">管线结果</param>
     internal void ApplyPipelineResult(AssetPipelineResult result)
@@ -237,6 +365,7 @@ public sealed class AssetManager : IDisposable
             entry.State = AssetState.Ready;
             entry.SourceRevision = result.Key.SourceRevision;
             _cache.SetPayload(entry, result.Payload);
+            QueueGpuCreation(entry.AssetId, entry.SourceRevision, result.Payload);
         }
         else
         {

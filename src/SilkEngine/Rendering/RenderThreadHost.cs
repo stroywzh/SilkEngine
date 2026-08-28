@@ -20,10 +20,17 @@ internal sealed class RenderThreadHost : IManagedLoop, IDisposable
     private readonly IRenderBackend _backend;
     private readonly ManualResetEventSlim _frameReady = new(false);
     private readonly ManualResetEventSlim _frameDone = new(false);
-    private IReadOnlyList<RenderPacket> _pending = [];
+    private RenderSubmission _pending = RenderSubmission.Empty;
     private Thread? _thread;
     private volatile bool _running;
     private int _disposed;
+
+    /// <summary>最近一帧的资源创建结果批次（Main 域在 SubmitFrame 返回后读取；初始为空批次）。</summary>
+    public RenderResourceCreateResultBatch LastCreateResults { get; private set; } =
+        RenderResourceCreateResultBatch.Empty;
+
+    /// <summary>渲染线程是否在运行（未启动或已请求停止为 false）。</summary>
+    public bool IsRunning => _running;
 
     /// <summary>
     /// 帧首释放请求排空器（Assets 侧主线程接线：资产管理器 ProcessUnloadQueue 形态）；
@@ -52,14 +59,24 @@ internal sealed class RenderThreadHost : IManagedLoop, IDisposable
         _thread.Start();
     }
 
-    /// <summary>提交一帧冻结渲染数据（主线程构建的不可变 RenderPacket 列表）并阻塞等待渲染线程完成（帧同步握手）。</summary>
+    /// <summary>提交一帧冻结渲染数据（仅渲染包，无创建请求的兼容重载）并阻塞等待渲染线程完成。</summary>
     /// <param name="packets">冻结帧（帧内消费有效）</param>
     /// <exception cref="InvalidOperationException">宿主未运行或已释放</exception>
     public void SubmitFrame(IReadOnlyList<RenderPacket> packets)
+        => SubmitFrame(new RenderSubmission(FrameCameraBlock.Identity, packets, RenderResourceCreateBatch.Empty));
+
+    /// <summary>
+    /// 提交一帧不可变渲染交接（相机块 + 冻结渲染包 + 资源创建批次）并阻塞等待渲染线程完成。
+    /// 渲染线程按序：排空释放队列 → 消费创建批次（单请求异常捕获为 Failed 结果，不中断循环）
+    /// → 执行渲染包 → Present → 暴露结果批次（<see cref="LastCreateResults"/>）。
+    /// </summary>
+    /// <param name="submission">本帧不可变提交</param>
+    /// <exception cref="InvalidOperationException">宿主未运行或已释放</exception>
+    public void SubmitFrame(RenderSubmission submission)
     {
         if (!_running)
             throw new InvalidOperationException("RenderThreadHost 未运行");
-        _pending = packets;
+        _pending = submission;
         _frameReady.Set();
         _frameDone.Wait();
         _frameDone.Reset();
@@ -108,7 +125,8 @@ internal sealed class RenderThreadHost : IManagedLoop, IDisposable
                     try
                     {
                         DrainUnloadQueue?.Invoke(_backend.Release);
-                        foreach (var packet in _pending)
+                        ConsumeCreateBatch(_pending.Creates);
+                        foreach (var packet in _pending.Packets)
                             _backend.Execute(packet);
                         _backend.Present();
                     }
@@ -129,4 +147,40 @@ internal sealed class RenderThreadHost : IManagedLoop, IDisposable
             }
         }
     }
+
+    /// <summary>渲染域消费创建批次：逐请求调用后端 Create，单个失败捕获为 Failed 结果，不中断帧循环。</summary>
+    private void ConsumeCreateBatch(RenderResourceCreateBatch creates)
+    {
+        if (creates.Items.Count == 0)
+        {
+            LastCreateResults = RenderResourceCreateResultBatch.Empty;
+            return;
+        }
+        var results = new List<RenderResourceCreateResult>(creates.Items.Count);
+        foreach (var item in creates.Items)
+        {
+            try
+            {
+                var handle = CreateResource(item.Request);
+                results.Add(new RenderResourceCreateResult(
+                    item.RequestId, RenderResourceCreateResultState.Succeeded, handle, null));
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"[RenderThread] resource create failed: {ex.Message}");
+                results.Add(new RenderResourceCreateResult(
+                    item.RequestId, RenderResourceCreateResultState.Failed, default, ex));
+            }
+        }
+        LastCreateResults = new RenderResourceCreateResultBatch(results);
+    }
+
+    /// <summary>按请求种类分派后端 Create（后端实现 IRenderDevice，异常向上传播为 Failed 结果）。</summary>
+    private RenderResourceHandle CreateResource(RenderResourceCreateRequest request) => request switch
+    {
+        RenderTextureCreateRequest texture => new RenderResourceHandle(_backend.CreateTexture(texture).Value),
+        RenderShaderCreateRequest shader => new RenderResourceHandle(_backend.CreateShader(shader).Value),
+        RenderMeshCreateRequest mesh => new RenderResourceHandle(_backend.CreateMesh(mesh).Value),
+        _ => throw new NotSupportedException($"未知资源创建请求类型: {request.GetType().Name}"),
+    };
 }

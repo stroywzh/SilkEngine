@@ -27,6 +27,12 @@ public class UnloadQueueTests
 
         public void Release(RenderResourceReleaseRequest request) => Releases.Add(request);
 
+        public RenderTextureHandle CreateTexture(RenderTextureCreateRequest request) => new(1);
+
+        public RenderShaderHandle CreateShader(RenderShaderCreateRequest request) => new(1);
+
+        public RenderMeshHandle CreateMesh(RenderMeshCreateRequest request) => new(1);
+
         public void Dispose() { }
     }
 

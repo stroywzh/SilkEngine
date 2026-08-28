@@ -9,11 +9,22 @@ namespace SilkEngine.Rendering;
 /// </summary>
 internal sealed class HeadlessRenderBackend : IRenderBackend
 {
+    private ulong _nextHandle = 1;
+
     /// <inheritdoc />
     public void Initialize()
     {
         // 无窗口：无上下文可初始化
     }
+
+    /// <inheritdoc />
+    public RenderTextureHandle CreateTexture(RenderTextureCreateRequest request) => new(_nextHandle++);
+
+    /// <inheritdoc />
+    public RenderShaderHandle CreateShader(RenderShaderCreateRequest request) => new(_nextHandle++);
+
+    /// <inheritdoc />
+    public RenderMeshHandle CreateMesh(RenderMeshCreateRequest request) => new(_nextHandle++);
 
     /// <inheritdoc />
     public void Execute(RenderPacket packet)

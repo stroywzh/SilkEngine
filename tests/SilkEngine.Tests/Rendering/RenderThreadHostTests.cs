@@ -22,6 +22,9 @@ public class RenderThreadHostTests
         public bool Disposed;
         public int DisposeCount;
         public int DisposeThreadId;
+        public int MeshCreateCount;
+        public bool ThrowOnMeshCreate;
+        private ulong _nextHandle = 100;
 
         public void Initialize() => InitializeCount++;
 
@@ -33,6 +36,18 @@ public class RenderThreadHostTests
         {
             ReleaseCount++;
             ReleasedHandle = request.Handle;
+        }
+
+        public RenderTextureHandle CreateTexture(RenderTextureCreateRequest request) => new(_nextHandle++);
+
+        public RenderShaderHandle CreateShader(RenderShaderCreateRequest request) => new(_nextHandle++);
+
+        public RenderMeshHandle CreateMesh(RenderMeshCreateRequest request)
+        {
+            MeshCreateCount++;
+            if (ThrowOnMeshCreate)
+                throw new InvalidOperationException("mesh create failed");
+            return new RenderMeshHandle(_nextHandle++);
         }
 
         public void Dispose()
@@ -133,6 +148,66 @@ public class RenderThreadHostTests
 
         Assert.Equal(1, backend.ReleaseCount);
         Assert.Equal(7UL, backend.ReleasedHandle);
+    }
+
+    [Fact]
+    public void SubmitFrame_WithCreateBatch_CreatesResourcesAndReturnsResults()
+    {
+        using var runtime = new ThreadRuntime();
+        runtime.RegisterMainThread();
+        var backend = new RecordingBackend();
+        using var host = new RenderThreadHost(runtime, backend);
+        runtime.RegisterManagedLoop(host);
+        host.Start();
+
+        var creates = new RenderResourceCreateBatch(new[]
+        {
+            new RenderResourceCreateItem(
+                new RenderResourceRequestId(1),
+                new RenderMeshCreateRequest(
+                    new RenderMeshDescriptor(3, 0, new[] { 3 }),
+                    new float[] { 0, 1, 2 },
+                    Array.Empty<int>())),
+        });
+        host.SubmitFrame(new RenderSubmission(FrameCameraBlock.Identity, [], creates));
+
+        Assert.Equal(1, backend.MeshCreateCount);
+        var result = Assert.Single(host.LastCreateResults.Results);
+        Assert.Equal(RenderResourceCreateResultState.Succeeded, result.State);
+        Assert.NotEqual(default, result.Handle);
+        Assert.Equal(1UL, result.RequestId.Value);
+        Assert.True(host.IsRunning);
+    }
+
+    [Fact]
+    public void SubmitFrame_CreateFailure_ReturnsFailedResultWithoutStoppingHost()
+    {
+        using var runtime = new ThreadRuntime();
+        runtime.RegisterMainThread();
+        var backend = new RecordingBackend { ThrowOnMeshCreate = true };
+        using var host = new RenderThreadHost(runtime, backend);
+        runtime.RegisterManagedLoop(host);
+        host.Start();
+
+        var creates = new RenderResourceCreateBatch(new[]
+        {
+            new RenderResourceCreateItem(
+                new RenderResourceRequestId(2),
+                new RenderMeshCreateRequest(
+                    new RenderMeshDescriptor(3, 0, new[] { 3 }),
+                    new float[] { 0, 1, 2 },
+                    Array.Empty<int>())),
+        });
+        host.SubmitFrame(new RenderSubmission(FrameCameraBlock.Identity, [], creates));
+
+        var result = Assert.Single(host.LastCreateResults.Results);
+        Assert.Equal(RenderResourceCreateResultState.Failed, result.State);
+        Assert.NotNull(result.Error);
+        Assert.True(host.IsRunning);
+
+        // 后续帧仍可正常提交（单创建失败不中断渲染循环）
+        host.SubmitFrame([]);
+        Assert.Empty(backend.Packets);
     }
 
     [Fact]
