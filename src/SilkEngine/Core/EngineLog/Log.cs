@@ -62,7 +62,7 @@ public static class Log
 
     public static void Info(object message) => Write(LogLevel.Info, message);
 
-    public static void Warn(object message) => Write(LogLevel.Warn, message);
+    public static void Warning(object message) => Write(LogLevel.Warn, message);
 
     public static void Error(object message) => Write(LogLevel.Error, message);
 

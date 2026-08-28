@@ -30,6 +30,7 @@ dotnet_diagnostic.SA1206.severity = none
 dotnet_diagnostic.SA1004.severity = none
 dotnet_diagnostic.SA1214.severity = none
 dotnet_diagnostic.SA1309.severity = none
+dotnet_diagnostic.SA1313.severity = none
 dotnet_diagnostic.SA1401.severity = none
 dotnet_diagnostic.SA1407.severity = none
 dotnet_diagnostic.SA1502.severity = none

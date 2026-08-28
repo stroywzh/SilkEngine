@@ -22,17 +22,17 @@ public static class ComponentFactory
     {
         if (_factories.TryGetValue(typeFullName, out var factory))
             return factory;
-        Log.Warn($"ComponentFactory: unknown component type '{typeFullName}'");
+        Log.Warning($"ComponentFactory: unknown component type '{typeFullName}'");
         return null;
     }
 
     /// <summary>泛型注册：typeof(T).FullName → () =&gt; new T()。</summary>
-    public static void Register<T>() where T : Component, new()
-        => Register(typeof(T).FullName!, () => new T());
+    public static void Register<T>()
+        where T : Component, new() => Register(typeof(T).FullName!, () => new T());
 
     /// <summary>注册自定义组件工厂（用户扩展点）。</summary>
     /// <param name="typeFullName">组件类型全名</param>
     /// <param name="factory">创建组件实例的工厂委托</param>
-    public static void Register(string typeFullName, Func<Component> factory)
-        => _factories[typeFullName] = factory;
+    public static void Register(string typeFullName, Func<Component> factory) =>
+        _factories[typeFullName] = factory;
 }

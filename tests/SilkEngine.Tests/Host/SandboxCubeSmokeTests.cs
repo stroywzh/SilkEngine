@@ -7,6 +7,8 @@ using SilkEngine.Scene;
 
 namespace SilkEngine.Tests.Host;
 
+using Scene = SilkEngine.Scene.Scene;
+
 /// <summary>
 /// Sandbox 黑盒垂直验收：Sandbox 项目源码不引用任何引擎内部入口；
 /// 经 EngineHost + DemoAssetsExt 的 headless 引擎在若干帧内完成
