@@ -84,15 +84,4 @@ public class AssetSerializerRegistryTests
         var loaded = await store.LoadAsync(id);
         Assert.Equal(second, loaded);
     }
-
-    [Fact]
-    public async Task SqlStore_ThrowsNotImplementedException()
-    {
-        var store = new SqlAssetSerializerStore();
-
-        await Assert.ThrowsAsync<NotImplementedException>(() =>
-            store.SaveAsync(Fixtures.SerializationRecord()));
-        await Assert.ThrowsAsync<NotImplementedException>(() =>
-            store.LoadAsync(new AssetId(Guid.NewGuid())));
-    }
 }

@@ -16,8 +16,9 @@ public sealed class RenderBatch
 /// （纯组装，无场景依赖）。活跃性过滤与默认相机回退由上游（Scene 域查询）完成。
 /// 输出缓冲帧间复用（热路径零分配）：返回的批次列表为内部引用，消费须在本帧内完成
 /// （帧序保证：RenderSystem.Render → SubmitFrame 阻塞等渲染线程执行完毕后才进入下一帧 Collect）。
+/// 仅由 Host/EngineLoop 内部使用（internal）。
 /// </summary>
-public sealed class RenderCollector
+internal sealed class RenderCollector
 {
     private readonly List<IRendererProvider> _providers = [];
     private readonly List<IRenderable> _renderables = [];

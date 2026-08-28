@@ -28,8 +28,9 @@ internal interface IAssetKeyResolver
 /// 成功结果经 FrameCommit 投递给 <see cref="ResultSink"/>（AssetManager 应用）。
 /// 依赖以 DFS active set 检测循环，失败携带依赖链；源/导入器修订不匹配时过期结果以
 /// <see cref="AssetStaleResultException"/> 失败，不写入缓存。
+/// 仅由 Host/AssetManager 内部使用（internal；业务经 AssetManager 门面）。
 /// </summary>
-public sealed class AssetPipeline : IAssetPipeline, IAssetKeyResolver
+internal sealed class AssetPipeline : IAssetPipeline, IAssetKeyResolver
 {
     private readonly IAssetFileSystem _files;
     private readonly IVirtualFileIndex _index;

@@ -10,8 +10,9 @@ namespace SilkEngine.Rendering.Pipeline;
 /// 只复制已解析的 Render Handle、材质参数与模型矩阵，不调用 MaterialBinding、不查询资产管理器。
 /// 输出缓冲双缓冲复用（Build 每帧交替，RenderSystem 帧序同步消费——SubmitFrame 阻塞等渲染线程
 /// 执行完毕后才进入下一帧 Build；RenderPacket 实例仍每帧新建）。
+/// 仅由 Host/RenderSystem 内部使用（internal）。
 /// </summary>
-public sealed class ForwardPipeline : IRenderPipeline
+internal sealed class ForwardPipeline : IRenderPipeline
 {
     private readonly List<RenderPacket> _packetsA = [];
     private readonly List<RenderPacket> _packetsB = [];

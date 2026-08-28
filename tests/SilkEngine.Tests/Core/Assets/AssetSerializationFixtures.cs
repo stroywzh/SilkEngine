@@ -149,7 +149,7 @@ public static class Fixtures
     /// <summary>构造自足 AssetManager 上下文（含线程运行时与管线；供测试排空 FrameCommit 应用缓存）</summary>
     /// <param name="files">资产文件服务（默认内存文件系统）</param>
     /// <returns>管理器上下文（ctor 自注册；调用方负责注销）</returns>
-    public static ManagerContext AssetManagerContext(IAssetFileSystem? files = null)
+    internal static ManagerContext AssetManagerContext(IAssetFileSystem? files = null)
         => TestAssetPipeline.CreateContext(files);
 
     /// <summary>按源材质引用构造其资产序列化记录（夹具重建源资产载荷；记录绝不携带实例覆盖）</summary>

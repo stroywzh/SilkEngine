@@ -53,8 +53,8 @@ internal static class TestAssetPipeline
     }
 }
 
-/// <summary>管理器测试上下文（测试夹具）</summary>
+/// <summary>管理器测试上下文（测试夹具；管线为 internal 编排类型，上下文随之 internal）</summary>
 /// <param name="Manager">自注册的资产管理器</param>
 /// <param name="Runtime">线程运行时（FrameCommit 排空用）</param>
 /// <param name="Pipeline">资产管线</param>
-public sealed record ManagerContext(AssetManager Manager, ThreadRuntime Runtime, AssetPipeline Pipeline);
+internal sealed record ManagerContext(AssetManager Manager, ThreadRuntime Runtime, AssetPipeline Pipeline);
