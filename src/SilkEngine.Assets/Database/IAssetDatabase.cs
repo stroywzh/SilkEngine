@@ -53,6 +53,16 @@ internal interface IAssetDatabase : IAsyncDisposable
     /// <param name="cancellationToken">取消令牌</param>
     ValueTask UpsertBuildAsync(AssetDbBuildRecord record, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// 单事务对账：按规范化逻辑路径与类型更新文件节点与资产记录——
+    /// 先清理同逻辑路径下异 ID 的旧行（Assets 旧行级联清除依赖/构建），再按主键 upsert；
+    /// FileNodes 与 Assets 的变更在同一事务内原子落库。
+    /// </summary>
+    /// <param name="fileNode">文件节点记录（LogicalPath 须已规范化）</param>
+    /// <param name="asset">资产记录（LogicalPath 须已规范化）</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    ValueTask ReconcileAsync(AssetDbFileNodeRecord fileNode, AssetDbAssetRecord asset, CancellationToken cancellationToken);
+
     /// <summary>捕获全部资产、文件节点、依赖边与构建记录的不可变快照</summary>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>当前数据库内容的整体快照</returns>

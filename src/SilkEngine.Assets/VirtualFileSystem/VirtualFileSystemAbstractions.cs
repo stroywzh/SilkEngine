@@ -47,6 +47,9 @@ public sealed record ScanFile
     /// <summary>源版本/长度标量；仅文件使用，用于识别内容变化</summary>
     public ulong Version { get; init; }
 
+    /// <summary>源内容指纹（SHA-256 十六进制）；仅文件携带，目录为 null</summary>
+    public string? SourceFingerprint { get; init; }
+
     /// <summary>移动身份提示：上一位置逻辑路径；为 null 时扫描不携带旧身份</summary>
     public string? PreviousPath { get; init; }
 
@@ -63,13 +66,15 @@ public sealed record ScanFile
     /// <param name="logicalPath">文件逻辑路径</param>
     /// <param name="version">源版本/长度标量</param>
     /// <param name="previousPath">移动身份提示：上一位置逻辑路径，可为 null</param>
+    /// <param name="sourceFingerprint">源内容指纹（SHA-256 十六进制），可为 null</param>
     /// <returns>文件扫描条目</returns>
-    public static ScanFile File(string logicalPath, ulong version, string? previousPath = null) => new()
+    public static ScanFile File(string logicalPath, ulong version, string? previousPath = null, string? sourceFingerprint = null) => new()
     {
         LogicalPath = logicalPath,
         NodeType = VirtualNodeType.File,
         Version = version,
         PreviousPath = previousPath,
+        SourceFingerprint = sourceFingerprint,
     };
 }
 
