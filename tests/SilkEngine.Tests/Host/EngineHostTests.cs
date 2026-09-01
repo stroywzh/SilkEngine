@@ -62,7 +62,28 @@ public class EngineHostTests
         using var host = EngineHost.Create();
 
         Assert.Equal("Assets", host.Options.AssetRoot);
+        Assert.Equal("Library", host.Options.LibraryRoot);
         Assert.False(host.Options.Headless);
         Assert.Equal(GraphicsBackend.OpenGL, host.Options.GraphicsBackend);
+    }
+
+    [Fact]
+    public void Host_UseLibraryRoot_StoresConfiguration()
+    {
+        using var host = EngineHost.Create(b => b.UseLibraryRoot("AssetLibrary"));
+
+        Assert.Equal("AssetLibrary", host.Options.LibraryRoot);
+    }
+
+    [Fact]
+    public void Host_BlankLibraryRoot_InitializeThrows()
+    {
+        using var host = EngineHost.Create(b =>
+        {
+            b.UseHeadlessForTests();
+            b.UseLibraryRoot(" ");
+        });
+
+        Assert.Throws<ArgumentException>(host.Initialize);
     }
 }
