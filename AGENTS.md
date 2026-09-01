@@ -5,11 +5,11 @@
 ## 代码风格
 
 - 所有公共 API 使用 C# 现代语法（init-only 属性、主构造函数、集合表达式）
-- 命名空间：根命名空间不放置类型，全部归于子命名空间——`SilkEngine.Core`（含 `.Core.Assets`）/ `.Scene` / `.Render` / `.Threading` / `.InputSystem` / `.Math`
-- 静态门面与实例模式：`Time` / `Input` / `Log` 为全局门面；`SceneManager` / `AssetManager` 为实例类（EngineLoop 创建并注册进 Services，跨程序集经 EngineLoop 公开属性取用）
+- 命名空间：根命名空间不放置类型，全部归于子命名空间——`SilkEngine.Core`（含 `.Core.Assets`）/ `.Scene` / `.Render` / `.Assets`（含 Binding/Importer/Serialization/VirtualFileSystem）/ `.Rendering`（含 Abstraction/Backend/OpenGL/Pipeline）/ `.Threading` / `.InputSystem` / `.Math` / `.Host`；命名空间与物理目录/程序集解耦（如 `SilkEngine.Render` 类型分布于 Assets 与 Rendering.OpenGL 项目）
+- 静态门面与实例模式：`Time` / `Input` / `Log` 为全局门面；`SceneManager` / `AssetManager` 为实例类（EngineHost 组合根创建并注册进 Services，业务经 EngineHost 公开门面属性取用）
 - 线程通过 `ThreadFactory.CreateThread` 统一创建（禁止直接 `new Thread()`）
 - `allow(ArbirtaryCode)` requires safe code blocks explicitly: 仅 "unsafe" 标为 unsafe；所有其他代码逻辑应为 safe
-- Priority: automated testing exists with full coverage (422 xUnit tests)
+- Priority: automated testing exists with full coverage (568 xUnit tests)
 
 ## 架构
 
@@ -38,8 +38,9 @@ Assets.AssetRenderBridge → Rendering.Abstraction 请求/Handle → Rendering.B
 
 ### 核心子系统
 
-- **Services**: `internal static class`（SilkEngine.Core）服务定位器：Register（重复注册抛错）/ Get（未注册 fail-fast）/ TryGet（初始化前静默回退，如 GameObject 注册回退链）/ Unregister（测试夹具用）/ Shutdown（反序 Dispose 全部 IDisposable 服务并清空注册表，幂等）。EngineLoop.Initialize 注册管理者实例，跨程序集经 EngineLoop 公开属性取用。`[Service(Priority, Name)]` 特性经 ServiceRegistrationGenerator 自动注册（ModuleInitializer，按 Priority 升序、类名次排序；仅引擎程序集 SERV001/002 把关）
-- **EngineLoop**: 心跳提供者，计算 dt（钳制 0.1s）→ 驱动 Input/Tick/渲染。内建 FixedStepAccumulator（LogicLoop 合并，替代 LogicLoop.FixedDeltaTime）；`Initialize` 创建 RenderSystem/AssetManager 并 `Services.Register` 全部管理者、`SceneManager.Attach` 注入注册表与快照管理器；`CommitFrame` 私有帧末提交（销毁→注册→快照 swap→资产完成）；公开 `SceneManager`/`AssetManager` 属性；`Dispose → Services.Shutdown` 反序释放。支持 Pause 和 Embedded 模式
+- **程序集拆分**：按依赖方向拆为 8 个引擎程序集——`SilkEngine.Runtime`（Math/Core/Threading/Input）→ `SilkEngine.Rendering.Abstraction` + `SilkEngine.Rendering.Backend`（无资产语义契约，仅依赖 Runtime）→ `SilkEngine.Assets`（含 Render 域 Material*/MeshFactory）→ `SilkEngine.Scene` → `SilkEngine.Rendering`（RenderSystem/RenderThreadHost/Pipeline）→ `SilkEngine.Rendering.OpenGL` → `SilkEngine.Host`（组合根：EngineHost/EngineBuilder/EngineOptions + internal EngineLoop）。禁令：Rendering 域不得引用 Assets/Scene；Threading 不得引用 Rendering/Assets；Sandbox 仅直接引用 Host（`DependencyBoundaryTests` 断言）。跨程序集 friend access 保留给 `SilkEngine.Tests`
+- **Services**: `public static class`（SilkEngine.Runtime）服务定位器：Register（重复注册抛错）/ Get（未注册 fail-fast）/ TryGet（初始化前静默回退）/ Unregister（测试夹具用）/ Shutdown（反序 Dispose 全部 IDisposable 服务并清空注册表，幂等）。EngineHost 组合根集中注册管理者实例，业务经 EngineHost 公开门面取用。`[Service(Priority, Name)]` 特性经 ServiceRegistrationGenerator 自动注册（ModuleInitializer，按 Priority 升序、类名次排序；仅 SilkEngine* 引擎程序集 SERV001/002 把关）
+- **EngineLoop**: internal 心跳驱动器（位于 SilkEngine.Host，EngineHost.Loop 内部属性；业务用 SceneManager/AssetManager 门面），计算 dt（钳制 0.1s）→ 驱动 Input/Tick/渲染。内建 FixedStepAccumulator（LogicLoop 合并）；`Initialize` 执行 `SceneManager.Attach` 注入注册表与快照管理器并注册输入服务；依赖（RenderSystem/AssetManager/ThreadRuntime/ComponentRegistry/FrameSnapshotManager）全部由 EngineHost 经构造注入，资产管线组合收在 `AssetManager.CreateDiskBacked` 工厂；支持 Pause 和 Embedded 模式
 - **FrameSnapshot/ComponentRegistry**: 帧原子性核心。ComponentRegistry 类型索引注册表（持久化 ComponentGroup + MonoBehaviour 基类索引 `_mbIndex` 按具体类型归类），FrameSnapshotManager 双缓冲快照，帧末 CommitPending 统一应用销毁/注册并 swap（零分配）。销毁幂等（`_destroyPending`/`_destroyed` 双标志），LoadScene 场景切换注销旧场景全部组件
 - **Scene System**: Object → GameObject(内置Transform) → Component(活跃状态机: `RecomputeActiveState` 单一真理源, OnEnable/OnDisable/OnDestroy 下沉至 Component, Enabled/IsActive/SetParent 三路幂等重放) → MonoBehaviour(OnAwake/OnStart/OnUpdate/OnFixedUpdate/OnLateUpdate/OnPostRender)。工厂 `InitializeComponent`（挂载→OnAwake→RecomputeActiveState(Enable)→注册），GO 层级活跃门控 `IsActiveInHierarchy` 级联通知，`Started` 标志位 Start 补发，`AddObjectToScene` 运行时增删；SceneManager 为实例（ctor 订阅 Object.DestroyHandler，Dispose 解绑），`Attach(registry, snapshotManager)` 注入（替代 ActiveRegistry），Tick/FixedTick/LateTick/PostRender 经 `Registry.MonoBehaviourGroups` 基类索引直读派发（零 IsSubclassOf 扫描）
 - **Rendering**: `Rendering` 负责 RenderSystem、RenderCollector、ForwardPipeline、RenderPacket/RenderFrame 和 RenderThreadHost；`Rendering.Abstraction` 定义无资产语义的数据/Handle，`Rendering.Backend` 定义后端能力契约，`Rendering.OpenGL`/`Rendering.Vulkan` 提供具体实现。整个 Rendering 域不引用或解析 AssetId、AssetHandle、AssetPipeline、AssetManager、AssetEntry 或 AssetPayload；Assets 侧通过 AssetRenderBridge 完成资产到渲染契约的转换
@@ -61,21 +62,27 @@ PumpEvents → GetDeltaTime → Input.Update → TickFrame(FixedStepAccumulator 
 ### 项目结构
 
 ```
-src/SilkEngine/              # 引擎类库 (92 .cs)
-  Core/ (含 Assets/ + Assets/Importer/)  Scene/  Rendering/ (含 Abstraction/ Backend/ OpenGL/ Vulkan/ Pipeline/)
-  Threading/  Input/  Math/
-src/SilkEngine.SourceGen/    # [Service] 自动注册生成器 (netstandard2.0 Roslyn 增量生成器)
-src/Sandbox/                 # 演示程序 (Program.cs 逐个启用 + Demos/ 9 文件共享 ShaderSources + Gameplay.cs; Resources/test.png)
-tests/SilkEngine.Tests/      # 415 个 xUnit 测试
-tests/SilkEngine.SourceGen.Tests/  # 7 个 Service 注册测试
+src/SilkEngine.Runtime/            # Math/ Core/(EngineLog) Threading/ Input/ + Object.cs Time.cs
+src/SilkEngine.Rendering.Abstraction/  # 无资产语义渲染契约（RenderPacket/Handle/IRenderable/ICameraView…）
+src/SilkEngine.Rendering.Backend/  # 后端能力契约（IRenderBackend/IRenderDevice/IWindowSurface…）
+src/SilkEngine.Assets/             # 资产域（AssetManager/AssetPipeline/Importer/Serialization/VFS/Binding + Render 域 Material*/MeshFactory）
+src/SilkEngine.Scene/              # 场景域（GameObject/Component/SceneManager/FrameSnapshot/RendererBase/SceneRenderWorld…）
+src/SilkEngine.Rendering/          # RenderSystem/RenderThreadHost/HeadlessRenderBackend + Pipeline/（internal Collector/ForwardPipeline）
+src/SilkEngine.Rendering.OpenGL/   # OpenGL 后端 + DefaultWindowOption
+src/SilkEngine.Host/               # 组合根：EngineHost/EngineBuilder/EngineOptions + internal EngineLoop
+src/SilkEngine.SourceGen/          # [Service] 自动注册生成器 (netstandard2.0 Roslyn 增量生成器)
+src/Sandbox/                       # 演示程序（Program.cs 逐个启用 + Demos/ 全部经 EngineHost+DemoAssetsExt + Gameplay.cs）
+tests/SilkEngine.Tests/            # 560 个 xUnit 测试（含 Architecture/ 依赖边界测试）
+tests/SilkEngine.SourceGen.Tests/  # 8 个 Service 注册测试
 ```
 
 ## 测试
 
 - 框架: xUnit 2.9.3，目标 net10.0
-- 422 个测试（SilkEngine.Tests 415 + SourceGen.Tests 7）覆盖 Math / Scene / Threading / Input / Render / Core / MeshFactory / Assets
+- 568 个测试（SilkEngine.Tests 560 + SourceGen.Tests 8）覆盖 Math / Scene / Threading / Input / Render / Core / MeshFactory / Assets / Architecture（程序集依赖边界）/ Host
 - TDD 强制: 所有业务逻辑代码必须先写测试→失败→实现→通过
-- 测试文件按模块分目录: Math/ Scene/ Threading/ Input/ Render/ Core/（Assets 位于 Core/Assets）+ SilkEngine.SourceGen.Tests（Service 注册测试）
+- 测试文件按模块分目录: Math/ Scene/ Threading/ Input/ Render/ Core/（Assets 位于 Core/Assets）Architecture/（边界与纯净性断言）Host/ + SilkEngine.SourceGen.Tests（Service 注册测试）
+- 验证基线: `dotnet test SilkEngine.slnx --settings seq.runsettings`（顺序模式规避既有 flaky）
 
 ## 约束
 
