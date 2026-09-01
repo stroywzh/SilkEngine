@@ -52,10 +52,12 @@ public sealed class AssetManager : IDisposable
         IAssetPipeline pipeline,
         IMainThreadDispatcher mainThread,
         ThreadRuntime runtime,
-        AssetSerializerRegistry? serializerRegistry = null)
+        AssetSerializerRegistry? serializerRegistry = null
+    )
     {
         _pipeline = pipeline ?? throw new ArgumentNullException(nameof(pipeline));
-        _keyResolver = pipeline as IAssetKeyResolver
+        _keyResolver =
+            pipeline as IAssetKeyResolver
             ?? throw new InvalidOperationException("管线必须支持路径解析与结果投递。");
         _mainThread = mainThread ?? throw new ArgumentNullException(nameof(mainThread));
         _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
@@ -65,16 +67,45 @@ public sealed class AssetManager : IDisposable
         _bridge = new AssetRenderBridge(new ReleaseOnlySink(this));
     }
 
+    /// <summary>
+    /// 创建磁盘目录驱动的资产管理器（Host 组合根入口）：构造资产管线（VFS 索引 + 启动扫描 +
+    /// 导入器注册表）并注入线程运行时；管线保持内部类型，公开面不外泄。
+    /// </summary>
+    /// <param name="assetRoot">资产根目录（null 时缺省 "Assets"）</param>
+    /// <param name="runtime">线程运行时（Worker 池与主线程派发器来源）</param>
+    /// <returns>已完成启动扫描的资产管理器</returns>
+    public static AssetManager CreateDiskBacked(string? assetRoot, ThreadRuntime runtime)
+    {
+        var files = new DiskAssetFileSystem(assetRoot ?? "Assets");
+        var pipeline = new AssetPipeline(
+            files,
+            new InMemoryVirtualFileIndex(),
+            new AssetCatalog(),
+            new AssetImporterRegistry(),
+            runtime.Background,
+            runtime.MainThread,
+            runtime
+        );
+        pipeline.ApplyScan(files.Scan());
+        return new AssetManager(
+            pipeline,
+            runtime.MainThread,
+            runtime,
+            new AssetSerializerRegistry()
+        );
+    }
+
     /// <summary>注册序列化器（直通注册表；同类型重复注册抛 <see cref="InvalidOperationException"/>）</summary>
     /// <param name="serializer">待注册序列化器</param>
-    public void RegisterSerializer(IAssetSerializer serializer) => _serializerRegistry.Register(serializer);
+    public void RegisterSerializer(IAssetSerializer serializer) =>
+        _serializerRegistry.Register(serializer);
 
     /// <summary>按类型与 schema 版本解析序列化器（直通注册表；未知类型或版本不支持抛 <see cref="NotSupportedException"/>）</summary>
     /// <param name="typeId">资产类型标识</param>
     /// <param name="schemaVersion">记录 schema 版本</param>
     /// <returns>匹配的序列化器</returns>
-    public IAssetSerializer ResolveSerializer(AssetTypeId typeId, int schemaVersion)
-        => _serializerRegistry.Resolve(typeId, schemaVersion);
+    public IAssetSerializer ResolveSerializer(AssetTypeId typeId, int schemaVersion) =>
+        _serializerRegistry.Resolve(typeId, schemaVersion);
 
     /// <summary>释放：注销服务定位器中的自注册（幂等；框架生命周期仍由 Services.Shutdown 反序管理）</summary>
     public void Dispose() => Services.Unregister<AssetManager>();
@@ -87,8 +118,7 @@ public sealed class AssetManager : IDisposable
     /// <param name="task">外部任务</param>
     /// <returns>安全操作</returns>
     internal AssetOperation<T> WrapExternalTask<T>(Task<T> task)
-        where T : class, IAssetPayload
-        => new(default, task, null, _mainThread, _runtime);
+        where T : class, IAssetPayload => new(default, task, null, _mainThread, _runtime);
 
     /// <summary>
     /// 完全同步加载（仅建议启动初始化与小资产）：解析已索引路径 → 获取 BuildKey → 同步等待 Pipeline。
@@ -119,7 +149,10 @@ public sealed class AssetManager : IDisposable
     /// <exception cref="ArgumentException">path 为 null/空白或非法路径</exception>
     /// <exception cref="InvalidOperationException">路径未进入 VFS 索引或解析到目录（详细消息）</exception>
     /// <exception cref="NotSupportedException">扩展名无对应导入器</exception>
-    public AssetOperation<T> LoadAsync<T>(string path, CancellationToken cancellationToken = default)
+    public AssetOperation<T> LoadAsync<T>(
+        string path,
+        CancellationToken cancellationToken = default
+    )
         where T : class, IAssetPayload
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
@@ -142,28 +175,6 @@ public sealed class AssetManager : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         var key = _keyResolver.ResolveKey(path);
         return new AssetHandle<T>(key.AssetId);
-    }
-
-    /// <summary>
-    /// 创建磁盘目录驱动的资产管理器（Host 组合根入口）：构造资产管线（VFS 索引 + 启动扫描 +
-    /// 导入器注册表）并注入线程运行时；管线保持内部类型，公开面不外泄。
-    /// </summary>
-    /// <param name="assetRoot">资产根目录（null 时缺省 "Assets"）</param>
-    /// <param name="runtime">线程运行时（Worker 池与主线程派发器来源）</param>
-    /// <returns>已完成启动扫描的资产管理器</returns>
-    public static AssetManager CreateDiskBacked(string? assetRoot, ThreadRuntime runtime)
-    {
-        var files = new DiskAssetFileSystem(assetRoot ?? "Assets");
-        var pipeline = new AssetPipeline(
-            files,
-            new InMemoryVirtualFileIndex(),
-            new AssetCatalog(),
-            new AssetImporterRegistry(),
-            runtime.Background,
-            runtime.MainThread,
-            runtime);
-        pipeline.ApplyScan(files.Scan());
-        return new AssetManager(pipeline, runtime.MainThread, runtime, new AssetSerializerRegistry());
     }
 
     /// <summary>源变更失效：目录记录修订号递增并移除已完成缓存作业（下次访问重新构建；在途作业完成后按过期校验失败）。</summary>
@@ -202,7 +213,8 @@ public sealed class AssetManager : IDisposable
 
     /// <summary>登记驻留持有（Slot/Lease 经 Bind 调用）</summary>
     /// <param name="assetId">资产标识</param>
-    internal void AddResidency(AssetId assetId) => _residency[assetId] = _residency.GetValueOrDefault(assetId) + 1;
+    internal void AddResidency(AssetId assetId) =>
+        _residency[assetId] = _residency.GetValueOrDefault(assetId) + 1;
 
     /// <summary>释放驻留持有（幂等；下限 0）</summary>
     /// <param name="assetId">资产标识</param>
@@ -308,9 +320,7 @@ public sealed class AssetManager : IDisposable
     }
 
     /// <summary>刷新待创建请求（当前阶段注册时同步入队；为未来批量/节流刷新保留扩展点）。</summary>
-    internal void FlushPendingRenderCreates()
-    {
-    }
+    internal void FlushPendingRenderCreates() { }
 
     /// <summary>
     /// 应用渲染线程回传的创建结果批次（Main 域，SubmitFrame 返回后调用）：
@@ -329,8 +339,13 @@ public sealed class AssetManager : IDisposable
             if (entry is null || entry.SourceRevision != tracked.Revision)
             {
                 // 过期结果：不发布，仅生成句柄释放请求（渲染线程帧首消费）
-                if (result.State == RenderResourceCreateResultState.Succeeded && result.Handle.Value != 0)
-                    _renderReleases.Enqueue(new RenderResourceReleaseRequest(tracked.Kind, result.Handle.Value));
+                if (
+                    result.State == RenderResourceCreateResultState.Succeeded
+                    && result.Handle.Value != 0
+                )
+                    _renderReleases.Enqueue(
+                        new RenderResourceReleaseRequest(tracked.Kind, result.Handle.Value)
+                    );
                 continue;
             }
             if (result.State != RenderResourceCreateResultState.Succeeded)
@@ -349,13 +364,25 @@ public sealed class AssetManager : IDisposable
         switch (kind)
         {
             case RenderResourceKind.Texture:
-                _gpuCache.Publish(assetId, _cache.Find(assetId)?.SourceRevision ?? 0UL, new RenderTextureHandle(handle));
+                _gpuCache.Publish(
+                    assetId,
+                    _cache.Find(assetId)?.SourceRevision ?? 0UL,
+                    new RenderTextureHandle(handle)
+                );
                 break;
             case RenderResourceKind.Shader:
-                _gpuCache.Publish(assetId, _cache.Find(assetId)?.SourceRevision ?? 0UL, new RenderShaderHandle(handle));
+                _gpuCache.Publish(
+                    assetId,
+                    _cache.Find(assetId)?.SourceRevision ?? 0UL,
+                    new RenderShaderHandle(handle)
+                );
                 break;
             case RenderResourceKind.Mesh:
-                _gpuCache.Publish(assetId, _cache.Find(assetId)?.SourceRevision ?? 0UL, new RenderMeshHandle(handle));
+                _gpuCache.Publish(
+                    assetId,
+                    _cache.Find(assetId)?.SourceRevision ?? 0UL,
+                    new RenderMeshHandle(handle)
+                );
                 break;
             default:
                 Log.Warning($"[AssetManager] 未知资源种类，跳过发布: {kind}");
@@ -364,8 +391,8 @@ public sealed class AssetManager : IDisposable
     }
 
     /// <summary>测试断言用：按资产与种类查询已登记 GPU 句柄（未登记为 0）。</summary>
-    internal ulong GetRenderHandleForTests(AssetId assetId, RenderResourceKind kind)
-        => TryGetRenderHandle(assetId, kind, out var handle) ? handle : 0UL;
+    internal ulong GetRenderHandleForTests(AssetId assetId, RenderResourceKind kind) =>
+        TryGetRenderHandle(assetId, kind, out var handle) ? handle : 0UL;
 
     /// <summary>排队 GPU 创建请求（Main 域）：Payload → 无资产语义请求 + RequestId 关联登记。</summary>
     private void QueueGpuCreation(AssetId assetId, ulong revision, IAssetPayload payload)
@@ -388,11 +415,14 @@ public sealed class AssetManager : IDisposable
     private sealed class ReleaseOnlySink(AssetManager owner) : IRenderRequestSink
     {
         /// <summary>创建请求不经接收器提交（由 AssetManager 携带资产身份排队）。</summary>
-        public void Submit(RenderResourceCreateRequest request)
-            => throw new InvalidOperationException("创建请求须经 AssetManager.QueueGpuCreation 携带资产身份提交");
+        public void Submit(RenderResourceCreateRequest request) =>
+            throw new InvalidOperationException(
+                "创建请求须经 AssetManager.QueueGpuCreation 携带资产身份提交"
+            );
 
         /// <summary>释放请求入队（渲染线程帧首消费）。</summary>
-        public void Submit(RenderResourceReleaseRequest request) => owner._renderReleases.Enqueue(request);
+        public void Submit(RenderResourceReleaseRequest request) =>
+            owner._renderReleases.Enqueue(request);
     }
 
     /// <summary>帧末结果应用（Pipeline 经 FrameCommit 投递；Main 域）：更新 AssetEntry.Payload 与状态。</summary>
@@ -412,7 +442,9 @@ public sealed class AssetManager : IDisposable
             entry.State = AssetState.Failed;
             _cache.SetPayload(entry, null);
             if (result.Error is not null)
-                Log.Error($"[AssetManager] 资产构建失败 ({result.Key.AssetId}): {result.Error.Message}");
+                Log.Error(
+                    $"[AssetManager] 资产构建失败 ({result.Key.AssetId}): {result.Error.Message}"
+                );
         }
     }
 
@@ -430,8 +462,7 @@ public sealed class AssetManager : IDisposable
     /// <param name="assetId">资产 ID</param>
     /// <returns>已就绪载荷；未命中/类型不符/失效为 null</returns>
     public T? TryResolve<T>(AssetId assetId)
-        where T : class
-        => TryResolveUntyped(assetId) as T;
+        where T : class => TryResolveUntyped(assetId) as T;
 
     /// <summary>按句柄解析载荷；未命中/类型不符/失效返回 false。</summary>
     /// <typeparam name="T">资产载荷类型</typeparam>
@@ -462,8 +493,8 @@ public sealed class AssetManager : IDisposable
     /// <summary>取出下一个待渲染释放请求（Main 域驱逐后入队；渲染线程帧首消费）。</summary>
     /// <param name="request">释放请求（无资产语义：种类 + GPU 句柄）</param>
     /// <returns>有请求时为 true</returns>
-    internal bool TryDequeueRenderRelease(out RenderResourceReleaseRequest request)
-        => _renderReleases.TryDequeue(out request);
+    internal bool TryDequeueRenderRelease(out RenderResourceReleaseRequest request) =>
+        _renderReleases.TryDequeue(out request);
 
     /// <summary>渲染线程帧首调用：排空待释放请求队列；consume 为 null 时维持占位行为（Log + 丢弃）。</summary>
     /// <param name="consume">释放请求消费回调（渲染侧接入后提供）</param>
@@ -489,10 +520,10 @@ public sealed class AssetManager : IDisposable
 
         /// <summary>按强类型句柄从缓存解析已加载载荷；未加载/未命中返回 null</summary>
         public T Resolve<T>(AssetHandle<T> handle)
-            where T : class
-            => manager.TryResolveUntyped(handle.Id) as T ?? null!;
+            where T : class => manager.TryResolveUntyped(handle.Id) as T ?? null!;
 
         /// <summary>按非泛型句柄从缓存解析已加载载荷；未加载/未命中返回 null</summary>
-        public object Resolve(UntypedAssetHandle handle) => manager.TryResolveUntyped(handle.Id) ?? null!;
+        public object Resolve(UntypedAssetHandle handle) =>
+            manager.TryResolveUntyped(handle.Id) ?? null!;
     }
 }

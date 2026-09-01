@@ -5,10 +5,12 @@ public sealed class AssetException : Exception
 {
     /// <summary>创建资产异常</summary>
     /// <param name="message">错误描述</param>
-    public AssetException(string message) : base(message) { }
+    public AssetException(string message)
+        : base(message) { }
 
     /// <summary>创建资产异常并携带内部异常</summary>
     /// <param name="message">错误描述</param>
     /// <param name="innerException">内部异常</param>
-    public AssetException(string message, Exception innerException) : base(message, innerException) { }
+    public AssetException(string message, Exception innerException)
+        : base(message, innerException) { }
 }
