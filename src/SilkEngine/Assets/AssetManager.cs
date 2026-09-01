@@ -126,6 +126,23 @@ public sealed class AssetManager : IDisposable
         return _pipeline.Request<T>(key, cancellationToken);
     }
 
+    /// <summary>
+    /// 解析已索引路径为稳定资产句柄（不触发加载；Payload 经 <see cref="TryResolve{T}(AssetHandle{T}, out T?)"/> 解析）。
+    /// 用于渲染器资产属性等需要以句柄绑定索引资产的场景；句柄铸造收敛于本方法，调用方不自造随机 ID。
+    /// </summary>
+    /// <typeparam name="T">资产载荷类型</typeparam>
+    /// <param name="path">资产逻辑路径（相对文件服务根目录）</param>
+    /// <returns>资产句柄</returns>
+    /// <exception cref="ArgumentException">path 为 null/空白或非法路径</exception>
+    /// <exception cref="InvalidOperationException">路径未进入 VFS 索引或解析到目录（详细消息）</exception>
+    public AssetHandle<T> GetHandle<T>(string path)
+        where T : class, IAssetPayload
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        var key = _keyResolver.ResolveKey(path);
+        return new AssetHandle<T>(key.AssetId);
+    }
+
     /// <summary>源变更失效：目录记录修订号递增并移除已完成缓存作业（下次访问重新构建；在途作业完成后按过期校验失败）。</summary>
     /// <param name="path">资产逻辑路径（相对文件服务根目录）</param>
     /// <exception cref="ArgumentException">path 为 null/空白或非法路径</exception>

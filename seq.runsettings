@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+  <RunConfiguration>
+    <!-- 顺序执行：规避 FrameSnapshot 零分配与 Log 写入者的既有并行竞争（AGENTS.md 已知问题） -->
+    <MaxCpuCount>1</MaxCpuCount>
+  </RunConfiguration>
+</RunSettings>

@@ -48,6 +48,25 @@ public class TransientAssetTests : IDisposable
         Assert.DoesNotContain("DemoAssets.NewId", source);
     }
 
+    [Fact]
+    public void AllDemoSources_UseTransientAssetsWithoutFakeHandles()
+    {
+        var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../src/Sandbox/Demos"));
+        var files = Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories).ToList();
+
+        Assert.DoesNotContain(files, f => Path.GetFileName(f) == "DemoAssets.cs");
+
+        foreach (var file in files)
+        {
+            var source = File.ReadAllText(file);
+            Assert.DoesNotContain("DemoAssets.NewId", source);
+            Assert.DoesNotContain("Guid.NewGuid", source);
+            Assert.DoesNotContain("new AssetHandle", source);
+            Assert.DoesNotContain("IRenderDevice", source);
+            Assert.DoesNotContain("GPU 句柄待创建请求接线后发布", source);
+        }
+    }
+
     private static string FindSource(string fileName)
     {
         var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../src/Sandbox"));

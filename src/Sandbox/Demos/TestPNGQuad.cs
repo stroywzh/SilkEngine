@@ -1,29 +1,24 @@
 using SilkEngine.Assets;
-using SilkEngine.Core;
+using SilkEngine.Host;
 using SilkEngine.Math;
-using SilkEngine.Render;
 using SilkEngine.Scene;
 
 namespace SandBox.Demos;
 
 public static class TestPNGQuad
 {
-    public static void Run(EngineLoop engine)
+    public static void Run(EngineHost host)
     {
         var scene = new Scene("PNG_Quad");
-        engine.SceneManager.LoadScene(scene);
-
-        var shader = new ShaderAsset("PNG", ShaderSources.PngVertex, ShaderSources.PngFragment);
-        var mesh = MeshFactory.CreateQuad(1, 1);
+        host.SceneManager.LoadScene(scene);
 
         var quad = new GameObject("PNGQuad");
         quad.Transform.LocalScale = new Vector3(4, 3, 1);
         var mr = quad.AddComponent<MeshRenderer>();
-        mr.SetShader(new AssetHandle<ShaderAsset>(DemoAssets.NewId()));
-        mr.SetMesh(new AssetHandle<MeshAsset>(DemoAssets.NewId()));
+        mr.Shader = DemoAssetsExt.CreateShader(host, "PNG", ShaderSources.PngVertex, ShaderSources.PngFragment);
+        mr.Mesh = DemoAssetsExt.CreateQuadMesh(host, 1, 1);
+        mr.Texture = DemoAssetsExt.CreateTexture(host, "Resources/test.png");
         scene.AddRootObject(quad);
-
-        Log.Info($"[TestPNGQuad] {shader.Name} + {mesh.Name} 已装配（GPU 句柄待创建请求接线后发布）");
 
         var camObj = new GameObject("Cam");
         camObj.Transform.LocalPosition = new Vector3(0, 0, -1);
@@ -31,5 +26,6 @@ public static class TestPNGQuad
         cam.Orthographic = true;
         cam.OrthographicSize = 5f;
         scene.AddRootObject(camObj);
+        cam.UpdateMatrices(16f / 9f);
     }
 }
