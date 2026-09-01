@@ -6,7 +6,7 @@
         <Nullable>enable</Nullable>
     </PropertyGroup>
     <ItemGroup>
-      <ProjectReference Include="..\..\src\SilkEngine\SilkEngine.csproj" />
+      <ProjectReference Include="..\SilkEngine.Host\SilkEngine.Host.csproj" />
     </ItemGroup>
     <ItemGroup>
       <None Update="Resources\**" CopyToOutputDirectory="PreserveNewest" />

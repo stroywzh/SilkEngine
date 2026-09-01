@@ -17,9 +17,9 @@ public class NamespaceBoundaryTests
 
     private static string FindSource(string fileName)
     {
-        var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../src/SilkEngine"));
+        var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../src/SilkEngine.Rendering.OpenGL"));
         var file = Directory.GetFiles(root, fileName, SearchOption.AllDirectories).SingleOrDefault();
-        return file ?? throw new FileNotFoundException($"{fileName} 未在 src/SilkEngine 下找到");
+        return file ?? throw new FileNotFoundException($"{fileName} 未在 src/SilkEngine.Rendering.OpenGL 下找到");
     }
 
     [Fact]
@@ -35,11 +35,10 @@ public class NamespaceBoundaryTests
     [Fact]
     public void OpenGlSources_DoNotReferenceAssetDomainTypes()
     {
-        var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../src/SilkEngine"));
-        var openGlDir = Path.Combine(root, "Rendering", "OpenGL");
-        Assert.True(Directory.Exists(openGlDir), "Rendering/OpenGL 目录不存在");
+        var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../src/SilkEngine.Rendering.OpenGL"));
+        Assert.True(Directory.Exists(root), "SilkEngine.Rendering.OpenGL 目录不存在");
 
-        foreach (var f in Directory.GetFiles(openGlDir, "*.cs", SearchOption.AllDirectories))
+        foreach (var f in Directory.GetFiles(root, "*.cs", SearchOption.AllDirectories))
         {
             var text = File.ReadAllText(f);
             foreach (var token in BannedTokens)

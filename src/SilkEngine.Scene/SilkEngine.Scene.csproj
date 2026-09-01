@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>Library</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <AssemblyName>SilkEngine.Scene</AssemblyName>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+    <ItemGroup>
+      <PackageReference Include="StyleCop.Analyzers" Version="1.1.118">
+        <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        <PrivateAssets>all</PrivateAssets>
+      </PackageReference>
+    </ItemGroup>
+    <ItemGroup>
+      <InternalsVisibleTo Include="SilkEngine.Tests" />
+    </ItemGroup>
+    <ItemGroup>
+      <ProjectReference Include="..\SilkEngine.Runtime\SilkEngine.Runtime.csproj" />
+      <ProjectReference Include="..\SilkEngine.Assets\SilkEngine.Assets.csproj" />
+      <ProjectReference Include="..\SilkEngine.Rendering.Abstraction\SilkEngine.Rendering.Abstraction.csproj" />
+      <ProjectReference Include="..\SilkEngine.SourceGen\SilkEngine.SourceGen.csproj"
+                        OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    </ItemGroup>
+</Project>

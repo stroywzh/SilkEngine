@@ -17,7 +17,7 @@ using Scene = SilkEngine.Scene.Scene;
 public class EngineLoopContinuationTests : IDisposable
 {
     private static readonly string SourceRoot = Path.GetFullPath(
-        Path.Combine(AppContext.BaseDirectory, "../../../../../src/SilkEngine"));
+        Path.Combine(AppContext.BaseDirectory, "../../../../../src/SilkEngine.Host"));
 
     /// <summary>测试级清理：注销测试内 ctor 自注册的 SceneManager 实例（Unregister 幂等）</summary>
     public void Dispose() => Services.Unregister<SceneManager>();
@@ -25,7 +25,7 @@ public class EngineLoopContinuationTests : IDisposable
     private static string FindSource(string fileName)
     {
         var file = Directory.GetFiles(SourceRoot, fileName, SearchOption.AllDirectories).SingleOrDefault();
-        return file ?? throw new FileNotFoundException($"{fileName} 未在 src/SilkEngine 下找到");
+        return file ?? throw new FileNotFoundException($"{fileName} 未在 src/SilkEngine.Host 下找到");
     }
 
     private static (SceneManager Sm, FrameSnapshotManager Mgr, ComponentRegistry Reg) SetupScene()

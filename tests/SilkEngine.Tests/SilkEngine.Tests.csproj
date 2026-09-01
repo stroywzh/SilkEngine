@@ -13,7 +13,14 @@
         <PackageReference Include="xunit.runner.visualstudio" Version="3.0.2" />
     </ItemGroup>
     <ItemGroup>
-      <ProjectReference Include="..\..\src\SilkEngine\SilkEngine.csproj" />
+      <ProjectReference Include="..\..\src\SilkEngine.Host\SilkEngine.Host.csproj" />
+      <ProjectReference Include="..\..\src\SilkEngine.Runtime\SilkEngine.Runtime.csproj" />
+      <ProjectReference Include="..\..\src\SilkEngine.Assets\SilkEngine.Assets.csproj" />
+      <ProjectReference Include="..\..\src\SilkEngine.Scene\SilkEngine.Scene.csproj" />
+      <ProjectReference Include="..\..\src\SilkEngine.Rendering\SilkEngine.Rendering.csproj" />
+      <ProjectReference Include="..\..\src\SilkEngine.Rendering.Abstraction\SilkEngine.Rendering.Abstraction.csproj" />
+      <ProjectReference Include="..\..\src\SilkEngine.Rendering.Backend\SilkEngine.Rendering.Backend.csproj" />
+      <ProjectReference Include="..\..\src\SilkEngine.Rendering.OpenGL\SilkEngine.Rendering.OpenGL.csproj" />
       <ProjectReference Include="..\..\src\Sandbox\Sandbox.csproj" />
     </ItemGroup>
     <ItemGroup>

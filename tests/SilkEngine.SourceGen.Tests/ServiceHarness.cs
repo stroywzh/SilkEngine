@@ -18,6 +18,8 @@ internal static class ServiceHarness
             .Select(p => MetadataReference.CreateFromFile(p))
             .ToList();
         refs.Add(MetadataReference.CreateFromFile(typeof(Component).Assembly.Location));
+        // ServiceAttribute/Services 位于 Runtime 程序集（拆分后 [Service] 标注类型分布于各引擎程序集）
+        refs.Add(MetadataReference.CreateFromFile(typeof(SilkEngine.Core.Services).Assembly.Location));
         return refs;
     }
 

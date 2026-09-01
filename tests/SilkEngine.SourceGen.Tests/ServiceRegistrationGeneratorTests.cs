@@ -63,6 +63,15 @@ public class ServiceRegistrationGeneratorTests
     }
 
     [Fact]
+    public void EnginePrefixedAssembly_GeneratesBootstrap()
+    {
+        // 程序集拆分后 [Service] 类型分布在 SilkEngine.* 引擎程序集（Runtime/Scene 等）
+        var (generated, diags) = ServiceHarness.Run(Snippet, assemblyName: "SilkEngine.Runtime");
+        Assert.Empty(diags.Where(d => d.Severity == DiagnosticSeverity.Error));
+        Assert.Single(generated, g => g.Contains("__ServiceBootstrap"));
+    }
+
+    [Fact]
     public void AbstractOrParameterized_ErrorsServ002()
     {
         var (_, diags) = ServiceHarness.Run("""

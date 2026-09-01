@@ -11,33 +11,36 @@ namespace SilkEngine.Tests.Assets;
 public class LegacyAssetRemovalTests
 {
     private static readonly string SourceRoot = Path.GetFullPath(
-        Path.Combine(AppContext.BaseDirectory, "../../../../../src/SilkEngine"));
+        Path.Combine(AppContext.BaseDirectory, "../../../../../src"));
 
     private static string FindSource(string fileName)
     {
         var file = Directory.GetFiles(SourceRoot, fileName, SearchOption.AllDirectories).SingleOrDefault();
-        return file ?? throw new FileNotFoundException($"{fileName} 未在 src/SilkEngine 下找到");
-    }
-
-    private static string FindSourceRoot(string folderName)
-    {
-        var dir = Path.Combine(SourceRoot, folderName);
-        if (!Directory.Exists(dir))
-            throw new DirectoryNotFoundException($"{dir} 目录不存在");
-        return dir;
+        return file ?? throw new FileNotFoundException($"{fileName} 未在 src 下找到");
     }
 
     [Fact]
     public void RenderingSources_ContainNoAssetDomainReferences()
     {
-        var files = Directory.EnumerateFiles(FindSourceRoot("Rendering"), "*.cs", SearchOption.AllDirectories);
+        // Rendering 域 4 个项目（含具体后端）源码零 Assets 域类型名
+        var renderingRoots = new[]
+        {
+            "SilkEngine.Rendering",
+            "SilkEngine.Rendering.Abstraction",
+            "SilkEngine.Rendering.Backend",
+            "SilkEngine.Rendering.OpenGL",
+        };
         var forbidden = new[] { "AssetId", "AssetHandle", "IAssetPayload", "TextureAsset", "ShaderAsset", "MeshAsset", "MaterialAsset", "AssetManager", "AssetPipeline" };
 
-        foreach (var file in files)
+        foreach (var folder in renderingRoots)
         {
-            var source = File.ReadAllText(file);
-            foreach (var token in forbidden)
-                Assert.DoesNotContain(token, source);
+            var files = Directory.EnumerateFiles(Path.Combine(SourceRoot, folder), "*.cs", SearchOption.AllDirectories);
+            foreach (var file in files)
+            {
+                var source = File.ReadAllText(file);
+                foreach (var token in forbidden)
+                    Assert.DoesNotContain(token, source);
+            }
         }
     }
 

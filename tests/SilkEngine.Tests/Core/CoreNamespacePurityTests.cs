@@ -6,13 +6,13 @@ namespace SilkEngine.Tests.Core;
 public class CoreNamespacePurityTests
 {
     private static readonly string RootDir = Path.GetFullPath(
-        Path.Combine(AppContext.BaseDirectory, "../../../../../src/SilkEngine")
+        Path.Combine(AppContext.BaseDirectory, "../../../../../src/SilkEngine.Runtime")
     );
     private static readonly string CoreDir = Path.Combine(RootDir, "Core");
 
     private static IEnumerable<string> CoreFiles()
     {
-        // EngineLoop 为顶层编排者，允许依赖 Scene（架构决策）；纯净范围 = Core/ 子目录 + 根目录基础类型 Object/Time
+        // 纯净范围 = Runtime 程序集的 Core/ 子目录 + 根目录基础类型 Object/Time
         var rootCore = new[] { "Object.cs", "Time.cs" }
             .Select(f => Path.Combine(RootDir, f));
         return Directory.GetFiles(CoreDir, "*.cs", SearchOption.AllDirectories)

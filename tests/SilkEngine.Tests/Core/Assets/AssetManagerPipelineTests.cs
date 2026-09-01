@@ -107,7 +107,7 @@ public class AssetManagerPipelineTests : IDisposable
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir is not null)
         {
-            var candidate = Path.Combine(dir.FullName, "src", "SilkEngine", "Assets", fileName);
+            var candidate = Path.Combine(dir.FullName, "src", "SilkEngine.Assets", fileName);
             if (File.Exists(candidate))
                 return candidate;
             dir = dir.Parent;

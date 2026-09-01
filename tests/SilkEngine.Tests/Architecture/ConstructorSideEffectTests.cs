@@ -55,11 +55,11 @@ public class ConstructorSideEffectTests
     private static string FindSource(string fileName)
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !Directory.Exists(Path.Combine(dir.FullName, "src", "SilkEngine")))
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "SilkEngine.slnx")))
             dir = dir.Parent;
         Assert.NotNull(dir);
         return Directory.EnumerateFiles(
-                Path.Combine(dir.FullName, "src", "SilkEngine"),
+                Path.Combine(dir!.FullName, "src"),
                 fileName,
                 SearchOption.AllDirectories)
             .First();

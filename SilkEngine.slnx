@@ -1,5 +1,12 @@
 <Solution>
-  <Project Path="src/SilkEngine/SilkEngine.csproj" />
+  <Project Path="src/SilkEngine.Runtime/SilkEngine.Runtime.csproj" />
+  <Project Path="src/SilkEngine.Rendering.Abstraction/SilkEngine.Rendering.Abstraction.csproj" />
+  <Project Path="src/SilkEngine.Rendering.Backend/SilkEngine.Rendering.Backend.csproj" />
+  <Project Path="src/SilkEngine.Assets/SilkEngine.Assets.csproj" />
+  <Project Path="src/SilkEngine.Scene/SilkEngine.Scene.csproj" />
+  <Project Path="src/SilkEngine.Rendering/SilkEngine.Rendering.csproj" />
+  <Project Path="src/SilkEngine.Rendering.OpenGL/SilkEngine.Rendering.OpenGL.csproj" />
+  <Project Path="src/SilkEngine.Host/SilkEngine.Host.csproj" />
   <Project Path="src/SilkEngine.SourceGen/SilkEngine.SourceGen.csproj" />
   <Project Path="src/Sandbox/Sandbox.csproj" />
   <Project Path="tests/SilkEngine.Tests/SilkEngine.Tests.csproj" />

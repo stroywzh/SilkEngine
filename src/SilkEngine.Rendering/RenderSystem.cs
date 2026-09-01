@@ -1,0 +1,107 @@
+using System;
+using System.Collections.Generic;
+using SilkEngine.Core;
+using SilkEngine.Rendering.Abstraction;
+using SilkEngine.Rendering.Backend;
+using SilkEngine.Rendering.Pipeline;
+using SilkEngine.Threading;
+using IRenderBackend = SilkEngine.Rendering.Backend.IRenderBackend;
+using IRenderPipeline = SilkEngine.Rendering.Pipeline.IRenderPipeline;
+
+namespace SilkEngine.Rendering;
+
+/// <summary>
+/// 渲染系统：主线程收集渲染数据、RenderThreadHost 专用渲染线程执行绘制，SubmitFrame 阻塞握手完成帧同步。
+/// 后端与宿主均为 Rendering 契约（IRenderBackend/IManagedLoop），不解析任何资产类型。
+/// </summary>
+public sealed class RenderSystem : IDisposable
+{
+    private readonly IRenderBackend _backend;
+    private readonly RenderThreadHost _renderThread;
+    private readonly IRenderPipeline _pipeline;
+
+    /// <summary>
+    /// 创建渲染系统：装配 RenderThreadHost 并登记进 ThreadRuntime 受管循环。
+    /// 构造不注册全局服务（Host 兼容阶段集中注册）。
+    /// </summary>
+    /// <param name="backend">渲染后端（窗口/上下文/绘制执行）</param>
+    /// <param name="runtime">线程运行时（受管循环登记与关闭协议）</param>
+    /// <param name="pipeline">渲染管线（缺省 ForwardPipeline）</param>
+    public RenderSystem(IRenderBackend backend, ThreadRuntime runtime, IRenderPipeline? pipeline = null)
+    {
+        _backend = backend;
+        _renderThread = new RenderThreadHost(runtime, backend);
+        runtime.RegisterManagedLoop(_renderThread);
+        _pipeline = pipeline ?? new ForwardPipeline();
+    }
+
+    /// <summary>渲染后端实例（Rendering 契约）</summary>
+    public IRenderBackend Backend => _backend;
+
+    /// <summary>窗口表面（后端实现 <see cref="IWindowSurface"/> 时提供；无窗口后端为 null）</summary>
+    public IWindowSurface? Surface => _backend as IWindowSurface;
+
+    /// <summary>渲染线程宿主（内部；release-request 队列排空器接线点）</summary>
+    internal RenderThreadHost RenderHost => _renderThread;
+
+    private readonly RenderCollector _collector = new();
+
+    /// <summary>渲染线程最近一次执行回传的资源创建结果批次（Main 域按 RequestId 应用发布）。</summary>
+    public RenderResourceCreateResultBatch LastCreateResults => _renderThread.LastCreateResults;
+
+    /// <summary>渲染线程托管 ID（日志展示用；未启动为 -1）。</summary>
+    public int RenderThreadId => _renderThread.Thread?.ManagedThreadId ?? -1;
+
+    /// <summary>
+    /// 接线释放请求排空回调（Host 组合根接线：委托接收渲染线程帧首传入的 backend.Release 回调，
+    /// 负责排空主域资产侧的待释放队列；Rendering 域不感知队列来源）。
+    /// </summary>
+    /// <param name="drain">排空委托（null 解除接线）</param>
+    public void SetUnloadQueueDrain(Action<Action<RenderResourceReleaseRequest>>? drain)
+        => _renderThread.DrainUnloadQueue = drain;
+
+    /// <summary>启动渲染线程（backend.Initialize 在渲染线程执行）。</summary>
+    public void Initialize() => _renderThread.Start();
+
+    /// <summary>处理窗口事件（主线程调用；无窗口后端 no-op）。</summary>
+    public void PumpEvents() => Surface?.PumpWindowEvents();
+
+    /// <summary>窗口是否已请求关闭（无窗口后端恒 false）。</summary>
+    public bool ShouldClose => Surface?.ShouldClose ?? false;
+
+    /// <summary>
+    /// 主线程帧渲染入口：更新相机矩阵（View/Projection 随命令上传，不突变材质）
+    /// → 管线构建 RenderPacket 列表 → SubmitFrame 阻塞等渲染线程执行完毕。
+    /// </summary>
+    /// <param name="aspect">视口宽高比（宽/高）</param>
+    /// <param name="camera">当前相机视图（null 时跳过本帧渲染）</param>
+    /// <param name="batches">渲染批次（EngineLoop 经 RenderCollector 组装）</param>
+    public void Render(float aspect, ICameraView? camera, IReadOnlyList<RenderBatch> batches, RenderResourceCreateBatch? creates = null)
+    {
+        if (camera == null)
+            return;
+        camera.UpdateMatrices(aspect);
+        var packets = _pipeline.Build(camera, batches);
+        var submission = new RenderSubmission(
+            new FrameCameraBlock(camera.ViewMatrix, camera.ProjectionMatrix),
+            packets,
+            creates ?? RenderResourceCreateBatch.Empty);
+        _renderThread.SubmitFrame(submission);
+    }
+
+    /// <summary>
+    /// 主线程帧渲染入口（快照重载）：经内部收集器从渲染源快照组装批次
+    /// （收集缓冲帧间复用，仅帧内有效）后按相机重载提交。
+    /// </summary>
+    /// <param name="aspect">视口宽高比（宽/高）</param>
+    /// <param name="source">渲染源快照（Scene 域构建；Cameras 恒非空）</param>
+    /// <param name="creates">资源创建批次（资产管理器排空）</param>
+    public void Render(float aspect, RenderSourceSnapshot source, RenderResourceCreateBatch? creates = null)
+    {
+        _collector.Collect(source, out var camera, out var batches);
+        Render(aspect, camera, batches, creates);
+    }
+
+    /// <summary>释放渲染线程宿主（幂等；backend 由渲染线程 finally 释放）。</summary>
+    public void Dispose() => _renderThread.Dispose();
+}

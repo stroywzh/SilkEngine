@@ -5,13 +5,19 @@ namespace SilkEngine.Tests.Render;
 
 public class RenderNamespacePurityTests
 {
-    private static readonly string RootDir = Path.GetFullPath(
-        Path.Combine(AppContext.BaseDirectory, "../../../../../src/SilkEngine")
+    // SilkEngine.Render 命名空间文件分布在 Assets 项目（Material*/MeshFactory/DefaultTextures）
+    // 与 Rendering.OpenGL 项目（DefaultWindowOption）；命名空间与物理目录解耦是既有约定
+    private static readonly string AssetsDir = Path.GetFullPath(
+        Path.Combine(AppContext.BaseDirectory, "../../../../../src/SilkEngine.Assets")
     );
-    private static readonly string RenderDir = Path.Combine(RootDir, "Render");
+    private static readonly string OpenGLDir = Path.GetFullPath(
+        Path.Combine(AppContext.BaseDirectory, "../../../../../src/SilkEngine.Rendering.OpenGL")
+    );
 
     private static IEnumerable<string> RenderFiles() =>
-        Directory.GetFiles(RenderDir, "*.cs", SearchOption.AllDirectories);
+        Directory.GetFiles(AssetsDir, "*.cs", SearchOption.AllDirectories)
+            .Concat(Directory.GetFiles(OpenGLDir, "*.cs", SearchOption.AllDirectories))
+            .Where(f => File.ReadAllText(f).Contains("namespace SilkEngine.Render;", StringComparison.Ordinal));
 
     [Fact]
     public void RenderFiles_DoNotReference_SceneNamespace()

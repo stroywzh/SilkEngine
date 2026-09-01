@@ -19,7 +19,7 @@ public sealed class ServiceRegistrationGenerator : IIncrementalGenerator
     private static readonly DiagnosticDescriptor Serv001 = new(
         id: "SERV001",
         title: "Service 禁止外部使用",
-        messageFormat: "特性 [Service] 仅允许在 SilkEngine 程序集内使用（当前程序集 '{0}'）",
+        messageFormat: "特性 [Service] 仅允许在引擎（SilkEngine*）程序集内使用（当前程序集 '{0}'）",
         category: "SilkEngine.Core",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
@@ -76,7 +76,7 @@ public sealed class ServiceRegistrationGenerator : IIncrementalGenerator
             foreach (var info in list)
             {
                 var loc = info.Symbol.Locations.FirstOrDefault() ?? Location.None;
-                if (info.Symbol.ContainingAssembly?.Name != "SilkEngine")
+                if (!IsEngineAssembly(info.Symbol.ContainingAssembly?.Name))
                 {
                     spc.ReportDiagnostic(Diagnostic.Create(Serv001, loc, info.Symbol.ContainingAssembly?.Name ?? "?"));
                     continue;
@@ -89,7 +89,7 @@ public sealed class ServiceRegistrationGenerator : IIncrementalGenerator
                 }
             }
             var valid = list
-                .Where(i => i.Symbol.ContainingAssembly?.Name == "SilkEngine"
+                .Where(i => IsEngineAssembly(i.Symbol.ContainingAssembly?.Name)
                     && !i.Symbol.IsAbstract
                     && HasPublicParameterlessCtor(i.Symbol))
                 .ToList();
@@ -121,6 +121,11 @@ public sealed class ServiceRegistrationGenerator : IIncrementalGenerator
     /// <summary>公共无参构造判定（生成的 new T() 需同程序集可解析；约定仅接受 public 可见性）。</summary>
     private static bool HasPublicParameterlessCtor(INamedTypeSymbol symbol) =>
         symbol.InstanceConstructors.Any(c => c.Parameters.Length == 0 && c.DeclaredAccessibility == Accessibility.Public);
+
+    /// <summary>引擎程序集判定：SilkEngine 主程序集或 SilkEngine.* 拆分程序集（SERV001 把关范围）。</summary>
+    private static bool IsEngineAssembly(string? assemblyName) =>
+        assemblyName is not null
+        && (assemblyName == "SilkEngine" || assemblyName.StartsWith("SilkEngine.", StringComparison.Ordinal));
 
     /// <summary>SERV002 可见性明细（供诊断消息展示类型实际状态）。</summary>
     private static string CtorVisibilityDetail(INamedTypeSymbol symbol)
