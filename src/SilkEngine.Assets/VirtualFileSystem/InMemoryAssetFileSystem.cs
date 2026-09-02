@@ -68,6 +68,18 @@ public sealed class InMemoryAssetFileSystem : IAssetFileSystem
     /// <exception cref="ArgumentException">path 为 null/空白、绝对路径或 .. 越出根目录时抛出</exception>
     public bool Exists(string path) => _files.ContainsKey(Normalize(path));
 
+    /// <summary>启动扫描：枚举已写入的全部文件条目（内存实现无目录节点）</summary>
+    /// <returns>本次扫描观察到的全部条目</returns>
+    public ScanResult Scan()
+    {
+        var files = new List<ScanFile>(_files.Count);
+        foreach (var (path, entry) in _files)
+        {
+            files.Add(ScanFile.File(path, entry.Version, sourceFingerprint: null));
+        }
+        return ScanResult.FromFiles(files);
+    }
+
     /// <summary>异步读取文件内容</summary>
     /// <param name="path">逻辑路径（相对根目录）</param>
     /// <returns>文件内容的只读内存视图</returns>

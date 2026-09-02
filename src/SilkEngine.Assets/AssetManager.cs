@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using SilkEngine.Assets.Binding;
+using SilkEngine.Assets.Database;
 using SilkEngine.Assets.Importer;
 using SilkEngine.Assets.Serialization;
 using SilkEngine.Assets.VirtualFileSystem;
@@ -29,6 +30,7 @@ public sealed class AssetManager : IDisposable
     private readonly AssetGpuResourceCache _gpuCache = new();
     private readonly List<RenderResourceCreateItem> _pendingCreates = [];
     private readonly AssetRenderBridge _bridge;
+    private IAssetDatabase? _database;
     private ulong _nextRequestId;
 
     /// <summary>最近一次 GPU 句柄发布时的线程域（测试断言用；未发布为 Unknown）。</summary>
@@ -69,30 +71,52 @@ public sealed class AssetManager : IDisposable
 
     /// <summary>
     /// 创建磁盘目录驱动的资产管理器（Host 组合根入口）：构造资产管线（VFS 索引 + 启动扫描 +
-    /// 导入器注册表）并注入线程运行时；管线保持内部类型，公开面不外泄。
+    /// 导入器注册表 + SQLite AssetDB）并注入线程运行时；管线保持内部类型，公开面不外泄。
+    /// AssetDB 位于 libraryRoot 目录（默认 assetRoot/Library），持久化依赖边与构建元数据。
     /// </summary>
     /// <param name="assetRoot">资产根目录（null 时缺省 "Assets"）</param>
     /// <param name="runtime">线程运行时（Worker 池与主线程派发器来源）</param>
+    /// <param name="files">文件服务（null 时按 assetRoot 构造磁盘文件服务；测试注入读取门控等包装用）</param>
+    /// <param name="projectNamespace">项目命名空间（磁盘资产身份输入之一；null 时缺省 "sandbox"）</param>
+    /// <param name="libraryRoot">资产库目录（AssetDB 存储位置；null 时缺省 assetRoot/Library）</param>
     /// <returns>已完成启动扫描的资产管理器</returns>
-    public static AssetManager CreateDiskBacked(string? assetRoot, ThreadRuntime runtime)
+    public static AssetManager CreateDiskBacked(
+        string? assetRoot,
+        ThreadRuntime runtime,
+        IAssetFileSystem? files = null,
+        string? projectNamespace = null,
+        string? libraryRoot = null)
     {
-        var files = new DiskAssetFileSystem(assetRoot ?? "Assets");
+        ArgumentNullException.ThrowIfNull(runtime);
+        projectNamespace ??= "sandbox";
+        var fileService = files ?? new DiskAssetFileSystem(assetRoot ?? "Assets");
+        var index = new InMemoryVirtualFileIndex();
+        var databasePath = Path.Combine(
+            libraryRoot ?? Path.Combine(assetRoot ?? "Assets", "Library"), "assetdb.sqlite");
+        var databaseDirectory = Path.GetDirectoryName(databasePath);
+        if (!string.IsNullOrEmpty(databaseDirectory))
+            Directory.CreateDirectory(databaseDirectory);
+        var database = new SqliteAssetDatabase(databasePath);
+        database.InitializeAsync(CancellationToken.None).GetAwaiter().GetResult();
         var pipeline = new AssetPipeline(
-            files,
-            new InMemoryVirtualFileIndex(),
-            new AssetCatalog(),
+            fileService,
+            index,
+            new AssetCatalog(projectNamespace, index, database),
             new AssetImporterRegistry(),
             runtime.Background,
             runtime.MainThread,
-            runtime
+            runtime,
+            database
         );
-        pipeline.ApplyScan(files.Scan());
-        return new AssetManager(
+        pipeline.ApplyScan(fileService.Scan());
+        var manager = new AssetManager(
             pipeline,
             runtime.MainThread,
             runtime,
             new AssetSerializerRegistry()
         );
+        manager.AttachDatabase(database);
+        return manager;
     }
 
     /// <summary>注册序列化器（直通注册表；同类型重复注册抛 <see cref="InvalidOperationException"/>）</summary>
@@ -107,8 +131,23 @@ public sealed class AssetManager : IDisposable
     public IAssetSerializer ResolveSerializer(AssetTypeId typeId, int schemaVersion) =>
         _serializerRegistry.Resolve(typeId, schemaVersion);
 
-    /// <summary>释放：注销服务定位器中的自注册（幂等；框架生命周期仍由 Services.Shutdown 反序管理）</summary>
-    public void Dispose() => Services.Unregister<AssetManager>();
+    /// <summary>释放：注销服务定位器中的自注册并关闭 AssetDB（幂等；框架生命周期仍由 Services.Shutdown 反序管理）</summary>
+    public void Dispose()
+    {
+        Services.Unregister<AssetManager>();
+        if (_database is not null)
+        {
+            _database.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            _database = null;
+        }
+    }
+
+    /// <summary>挂接磁盘管线自建的资产数据库（CreateDiskBacked 调用；Dispose 时关闭）</summary>
+    /// <param name="database">资产数据库（可为 null）</param>
+    internal void AttachDatabase(IAssetDatabase? database) => _database = database;
+
+    /// <summary>测试断言用：底层管线实例（磁盘管线为 AssetPipeline；其他实现为 null）</summary>
+    internal AssetPipeline? PipelineForTests => _keyResolver as AssetPipeline;
 
     /// <summary>
     /// 将外部任务包装为业务安全操作：不改变外部 Task 执行域，只把完成发布纳入 Main 安全阶段；

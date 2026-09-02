@@ -63,6 +63,16 @@ internal interface IAssetDatabase : IAsyncDisposable
     /// <param name="cancellationToken">取消令牌</param>
     ValueTask ReconcileAsync(AssetDbFileNodeRecord fileNode, AssetDbAssetRecord asset, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// 单事务替换指定资产的依赖边：先清空既有边，再逐条插入依赖路径（路径须已规范化）。
+    /// Dependencies 表的 DependsOnPath 以逻辑路径持久化，路径→AssetId 经 <see cref="CaptureSnapshotAsync"/>
+    /// 的 Assets/FileNodes 视图对账。
+    /// </summary>
+    /// <param name="assetId">依赖方资产标识</param>
+    /// <param name="dependencyLogicalPaths">被依赖资产的逻辑路径（已规范化）</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    ValueTask WriteDependencyEdgesAsync(AssetId assetId, IReadOnlyList<string> dependencyLogicalPaths, CancellationToken cancellationToken);
+
     /// <summary>捕获全部资产、文件节点、依赖边与构建记录的不可变快照</summary>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>当前数据库内容的整体快照</returns>

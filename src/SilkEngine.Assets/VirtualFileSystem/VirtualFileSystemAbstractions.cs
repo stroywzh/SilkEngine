@@ -33,6 +33,10 @@ public interface IAssetFileSystem
     /// <returns>文件元数据（长度/版本/最后写入时间）</returns>
     /// <exception cref="FileNotFoundException">文件不存在时抛出</exception>
     ValueTask<FileMetadata> GetMetadataAsync(string path);
+
+    /// <summary>启动扫描：一次性枚举服务根目录下全部逻辑路径（含目录），供索引装配</summary>
+    /// <returns>本次扫描观察到的全部条目</returns>
+    ScanResult Scan();
 }
 
 /// <summary>扫描条目：一次扫描中观察到的单个文件或目录</summary>

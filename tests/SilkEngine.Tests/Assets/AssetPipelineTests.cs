@@ -18,10 +18,10 @@ public class AssetPipelineTests
     internal static readonly AssetTypeId TestType = new("test");
 
     private static AssetBuildKey TestIndexedTextureKey() =>
-        new(TextureAssetId, AssetImporterRegistry.TextureAssetTypeId, SourceRevision: 0, ImporterRevision: 1, "");
+        new(TextureAssetId, AssetImporterRegistry.TextureAssetTypeId, SourceRevision: 0, ImporterRevision: 1, "", "");
 
     private static AssetBuildKey TestKey(string name) =>
-        new(name == "A" ? AssetA : AssetB, TestType, SourceRevision: 0, ImporterRevision: 1, "");
+        new(name == "A" ? AssetA : AssetB, TestType, SourceRevision: 0, ImporterRevision: 1, "", "");
 
     private static byte[] TestPngBytes() => PngFixtures.RedPng;
 
@@ -91,24 +91,39 @@ public class AssetPipelineTests
     }
 
     [Fact]
-    public void Request_CarriesLogicalPathDependenciesForTask5Resolution()
+    public void Request_DependencyChain_BuildsDependenciesThroughPipeline()
     {
-        var pipeline = CreatePipelineWithDependencies(out var pipelineRuntime, ("A", "B"), ("B", "A"));
+        var pipeline = CreatePipelineWithDependencies(out var pipelineRuntime, ("A", "B"));
         using var runtime = pipelineRuntime;
         var captured = new List<AssetPipelineResult>();
         pipeline.ResultSink = captured.Add;
 
         var payload = pipeline.Request<TestPayload>(TestKey("A")).AsTask().GetAwaiter().GetResult();
-        for (var i = 0; i < 100 && captured.Count == 0; i++)
+        for (var i = 0; i < 100 && captured.Count < 2; i++)
         {
             runtime.Drain(MainThreadPhase.FrameCommit);
             Thread.Sleep(5);
         }
 
         Assert.Equal("A", payload.Name);
-        // TODO(task 5): 依赖路径→构建键解析恢复后，此处恢复循环检测断言（依赖 A→B、B→A 构成环）
-        Assert.Single(captured);
-        Assert.Equal([new AssetImportDependency("B.png", TestType)], captured[0].Dependencies);
+        // 依赖作业（B）与父作业（A）均经 FrameCommit 投递，A 的结果携带 B 的路径依赖
+        Assert.Equal(2, captured.Count);
+        var aResult = Assert.Single(captured, result => result.Key.AssetId == AssetA);
+        Assert.Equal([new AssetImportDependency("B.png", TestType)], aResult.Dependencies);
+    }
+
+    [Fact]
+    public void Request_DependencyCycle_FailsWithFullPathChain()
+    {
+        var pipeline = CreatePipelineWithDependencies(out var pipelineRuntime, ("A", "B"), ("B", "A"));
+        using var runtime = pipelineRuntime;
+
+        var exception = Assert.Throws<InvalidDataException>(
+            () => pipeline.Request<TestPayload>(TestKey("A")).AsTask().GetAwaiter().GetResult());
+
+        // 链上每个节点的 LogicalPath 都要在消息里（任务 5 恢复 DFS 循环检测）
+        Assert.Contains("A.png", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("B.png", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -144,6 +159,8 @@ internal sealed class CountingAssetFileSystem : IAssetFileSystem
     }
 
     public ValueTask<FileMetadata> GetMetadataAsync(string path) => _inner.GetMetadataAsync(path);
+
+    public ScanResult Scan() => _inner.Scan();
 }
 
 /// <summary>按导入次数计数的纹理导入器夹具（测试夹具）</summary>

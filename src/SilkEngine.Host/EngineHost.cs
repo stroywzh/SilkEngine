@@ -108,7 +108,8 @@ public sealed class EngineHost : IDisposable
             ? new HeadlessRenderBackend()
             : new OpenGLRenderBackend();
         var runtime = new ThreadRuntime();
-        var assets = AssetManager.CreateDiskBacked(_options.AssetRoot, runtime);
+        // LibraryRoot 为 AssetDB 存储目录（默认 "Library"；任务 5 起接线到磁盘资产管线）
+        var assets = AssetManager.CreateDiskBacked(_options.AssetRoot, runtime, libraryRoot: _options.LibraryRoot);
         var loop = new EngineLoop(
             backend,
             assets,

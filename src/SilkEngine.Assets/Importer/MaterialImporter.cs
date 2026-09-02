@@ -6,7 +6,7 @@ namespace SilkEngine.Assets.Importer;
 
 /// <summary>
 /// 材质 .asset 导入器：解析 JSON 定义（shader/texture/mesh 引用 + 默认参数），
-/// 输出不可变 <see cref="MaterialAsset"/>；依赖以逻辑路径声明，由 Pipeline 在任务 5 解析为句柄。
+/// 输出不可变 <see cref="MaterialAsset"/>；依赖以逻辑路径声明，由 Pipeline 解析后在 FrameCommit 前水合真实句柄。
 /// </summary>
 public sealed class MaterialImporter : IAssetImporter
 {
@@ -66,7 +66,7 @@ public sealed class MaterialImporter : IAssetImporter
             if (meshPath is not null)
                 dependencies.Add(new AssetImportDependency(meshPath, AssetImporterRegistry.MeshAssetTypeId));
 
-            // TODO(task 5): Pipeline 解析依赖路径→句柄后，此处以解析结果构造真实句柄（当前占位 default）
+            // 句柄占位 default：Pipeline 依赖解析后以真实句柄水合载荷（构建期间不可见解析结果）
             var material = new MaterialAsset(name, default, default, default, defaults);
             return new AssetImportResult(material, dependencies, Revision);
         }

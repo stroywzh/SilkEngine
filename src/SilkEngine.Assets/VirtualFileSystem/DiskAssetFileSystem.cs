@@ -99,6 +99,8 @@ public sealed class DiskAssetFileSystem : IAssetFileSystem
     /// <summary>
     /// 启动扫描：递归枚举根目录下全部文件与目录，生成扫描结果（逻辑路径相对根目录，分隔符统一 '/'）；
     /// 文件条目携带源内容 SHA-256 指纹（流式读取，不缓存完整字节），目录条目不计算内容哈希。
+    /// 根目录下的引擎资产库目录（"Library"）不属于资产内容，跳过不索引（AssetDB 文件常驻其中，Windows 下被
+    /// 打开的 SQLite 句柄无法再次以读共享打开）。
     /// 根目录不存在时返回空扫描结果。
     /// </summary>
     /// <returns>本次扫描观察到的全部条目</returns>
@@ -106,16 +108,18 @@ public sealed class DiskAssetFileSystem : IAssetFileSystem
     {
         var files = new List<ScanFile>();
         if (Directory.Exists(_root))
-            ScanDirectory(_root, files);
+            ScanDirectory(_root, files, isRoot: true);
         return ScanResult.FromFiles(files);
     }
 
-    private void ScanDirectory(string physicalDir, List<ScanFile> files)
+    private void ScanDirectory(string physicalDir, List<ScanFile> files, bool isRoot)
     {
         foreach (var dir in Directory.GetDirectories(physicalDir))
         {
+            if (isRoot && string.Equals(Path.GetFileName(dir), "Library", StringComparison.OrdinalIgnoreCase))
+                continue;
             files.Add(ScanFile.Directory(ToLogical(dir)));
-            ScanDirectory(dir, files);
+            ScanDirectory(dir, files, isRoot: false);
         }
         foreach (var file in Directory.GetFiles(physicalDir))
         {

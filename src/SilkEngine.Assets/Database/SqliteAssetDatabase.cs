@@ -191,6 +191,28 @@ internal sealed class SqliteAssetDatabase : IAssetDatabase
     }
 
     /// <inheritdoc/>
+    public async ValueTask WriteDependencyEdgesAsync(AssetId assetId, IReadOnlyList<string> dependencyLogicalPaths, CancellationToken cancellationToken)
+    {
+        await using var transaction = await _connection.BeginTransactionAsync(cancellationToken);
+
+        await _connection.ExecuteAsync(new CommandDefinition(
+            "DELETE FROM Dependencies WHERE AssetId = @AssetId;",
+            new { AssetId = assetId.Value.ToString() },
+            transaction,
+            cancellationToken: cancellationToken));
+        foreach (var path in dependencyLogicalPaths)
+        {
+            await _connection.ExecuteAsync(new CommandDefinition(
+                "INSERT INTO Dependencies (AssetId, DependsOnPath) VALUES (@AssetId, @DependsOnPath);",
+                new { AssetId = assetId.Value.ToString(), DependsOnPath = path },
+                transaction,
+                cancellationToken: cancellationToken));
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    /// <inheritdoc/>
     public async ValueTask<AssetDatabaseSnapshot> CaptureSnapshotAsync(CancellationToken cancellationToken)
     {
         var assetRows = await _connection.QueryAsync<AssetRow>(new CommandDefinition(
