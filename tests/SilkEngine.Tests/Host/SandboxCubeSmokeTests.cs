@@ -50,7 +50,7 @@ public class SandboxCubeSmokeTests : IDisposable
         var scene = new Scene("Cube");
         var cube = new GameObject("Cube");
         var renderer = cube.AddComponent<MeshRenderer>();
-        renderer.Shader = DemoAssetsExt.CreateLitShader(_host);
+        renderer.Material = DemoAssetsExt.CreateLitMaterial(_host);
         renderer.Mesh = DemoAssetsExt.CreateCubeMesh(_host);
         scene.AddRootObject(cube);
         _host.SceneManager.LoadScene(scene);

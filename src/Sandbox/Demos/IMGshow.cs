@@ -15,7 +15,7 @@ public static class IMGShow
         var quad = new GameObject("UIRenderQuad");
         var ui = quad.AddComponent<UIRenderer>();
         // TODO(task 11): 重写为 Assets.Load + 真实 HLSL 资产
-        ui.Shader = DemoAssetsExt.CreateShader(host, "PngShader", ShaderSources.PngVertex);
+        ui.Material = DemoAssetsExt.CreateMaterial(host, "PngShader", ShaderSources.PngVertex, ShaderSources.PngFragment);
         ui.Mesh = DemoAssetsExt.CreateQuadMesh(host, 1f, 1f);
         ui.Texture = DemoAssetsExt.CreateTexture(host, "Resources/" + PictureName);
         scene.AddRootObject(quad);

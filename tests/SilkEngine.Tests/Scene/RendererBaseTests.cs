@@ -1,6 +1,7 @@
 using SilkEngine.Assets;
 using SilkEngine.Core;
 using SilkEngine.Math;
+using SilkEngine.Render;
 using SilkEngine.Rendering.Abstraction;
 using SilkEngine.Scene;
 using SilkEngine.Tests.Core.Assets;
@@ -8,8 +9,9 @@ using SilkEngine.Tests.Core.Assets;
 namespace SilkEngine.Tests.Scene;
 
 /// <summary>
-/// RendererBase 新契约测试：内部经 AssetSlot 驻留资产（SetMesh/SetShader），
-/// 经资产管理器 GPU 句柄缓存解析已发布 Render Handle；OnDestroy 释放驻留。
+/// RendererBase 契约测试：内部经 AssetSlot 驻留资产（Mesh/材质/Texture），
+/// 经资产管理器 GPU 句柄缓存解析已发布 Render Handle；着色器经材质绑定解析；
+/// OnDestroy 释放驻留。
 /// </summary>
 [Collection("Assets")]
 public class RendererBaseTests : IDisposable
@@ -21,14 +23,22 @@ public class RendererBaseTests : IDisposable
 
     public void Dispose() => Services.Unregister<AssetManager>();
 
-    private AssetId RegisterReady(IAssetPayload payload)
+    private AssetId RegisterReady(IAssetPayload payload, AssetId? id = null)
     {
-        var id = new AssetId(Guid.NewGuid());
-        var entry = _am.Cache.GetOrAdd(id);
+        var assetId = id ?? new AssetId(Guid.NewGuid());
+        var entry = _am.Cache.GetOrAdd(assetId);
         entry.Payload = payload;
         entry.State = AssetState.Ready;
-        return id;
+        return assetId;
     }
+
+    private static MaterialAsset CreateColorMaterial(AssetId id, AssetHandle<ShaderAsset> shader)
+        => new(
+            id,
+            shader,
+            null,
+            new MaterialParameterSnapshot([("BaseColor", MaterialValue.Vector3(new Vector3(1, 1, 1)))]),
+            0);
 
     [Fact]
     public void Defaults_AllHandlesDefault()
@@ -54,15 +64,17 @@ public class RendererBaseTests : IDisposable
     }
 
     [Fact]
-    public void SetShader_CreatesSlot_AddsResidency()
+    public void MaterialProperty_CreatesSlot_AddsMaterialResidency()
     {
-        var id = RegisterReady(new ShaderAsset("S", "vs"));
+        var shaderId = RegisterReady(new ShaderAsset("S", "vs"));
+        var id = new AssetId(Guid.NewGuid());
+        RegisterReady(CreateColorMaterial(id, new AssetHandle<ShaderAsset>(shaderId)), id);
         var mr = NewRenderer();
-        mr.SetShader(new AssetHandle<ShaderAsset>(id));
+        mr.Material = new Material(new MaterialReference(id));
 
         _am.UnloadUnused();
 
-        Assert.True(_am.TryResolve<ShaderAsset>(id) is not null);
+        Assert.True(_am.TryResolve<MaterialAsset>(id) is not null);
     }
 
     [Fact]
@@ -70,15 +82,17 @@ public class RendererBaseTests : IDisposable
     {
         var meshId = RegisterReady(new MeshAsset("M", [0, 0, 0], [3], null));
         var shaderId = RegisterReady(new ShaderAsset("S", "vs"));
+        var materialId = new AssetId(Guid.NewGuid());
+        RegisterReady(CreateColorMaterial(materialId, new AssetHandle<ShaderAsset>(shaderId)), materialId);
         var mr = NewRenderer();
         mr.SetMesh(new AssetHandle<MeshAsset>(meshId));
-        mr.SetShader(new AssetHandle<ShaderAsset>(shaderId));
+        mr.Material = new Material(new MaterialReference(materialId));
 
         mr.OnDestroy();
         _am.UnloadUnused();
 
         Assert.False(_am.TryResolve<MeshAsset>(meshId) is not null);
-        Assert.False(_am.TryResolve<ShaderAsset>(shaderId) is not null);
+        Assert.False(_am.TryResolve<MaterialAsset>(materialId) is not null);
     }
 
     [Fact]
@@ -93,12 +107,14 @@ public class RendererBaseTests : IDisposable
     }
 
     [Fact]
-    public void SetShader_ResolvesPublishedHandle()
+    public void Material_ResolvesPublishedShaderHandle()
     {
-        var id = RegisterReady(new ShaderAsset("S", "vs"));
-        _am.PublishRenderShader(id, new RenderShaderHandle(9));
+        var shaderId = RegisterReady(new ShaderAsset("S", "vs"));
+        _am.PublishRenderShader(shaderId, new RenderShaderHandle(9));
+        var id = new AssetId(Guid.NewGuid());
+        RegisterReady(CreateColorMaterial(id, new AssetHandle<ShaderAsset>(shaderId)), id);
         var mr = NewRenderer();
-        mr.SetShader(new AssetHandle<ShaderAsset>(id));
+        mr.Material = new Material(new MaterialReference(id));
 
         Assert.Equal(9UL, mr.ShaderHandle.Value);
     }
@@ -164,4 +180,3 @@ public class RendererBaseTests : IDisposable
         Assert.Equal(mr.WorldMatrix, r.WorldMatrix);
     }
 }
-

@@ -13,7 +13,7 @@ public static class TestSingleCube
 
         var cube = new GameObject("Cube");
         var mr = cube.AddComponent<MeshRenderer>();
-        mr.Shader = DemoAssetsExt.CreateLitShader(host);
+        mr.Material = DemoAssetsExt.CreateLitMaterial(host);
         mr.Mesh = DemoAssetsExt.CreateCubeMesh(host);
         scene.AddRootObject(cube);
 

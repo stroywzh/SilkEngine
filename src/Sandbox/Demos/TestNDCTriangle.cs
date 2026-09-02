@@ -12,7 +12,7 @@ public static class TestNDCTriangle
         host.SceneManager.LoadScene(scene);
 
         // TODO(task 11): 重写为 Assets.Load + 真实 HLSL 资产
-        var shader = DemoAssetsExt.CreateShader(host, "NDC", ShaderSources.NdcColorVertex);
+        var material = DemoAssetsExt.CreateMaterial(host, "NDC", ShaderSources.NdcColorVertex, ShaderSources.NdcColorFragment);
         var mesh = DemoAssetsExt.CreateMesh(host, new MeshAsset(
             "Triangle",
             [
@@ -25,7 +25,7 @@ public static class TestNDCTriangle
 
         var go = new GameObject("TriangleObj");
         var mr = go.AddComponent<MeshRenderer>();
-        mr.Shader = shader;
+        mr.Material = material;
         mr.Mesh = mesh;
         host.SceneManager.AddObjectToScene(go);
     }

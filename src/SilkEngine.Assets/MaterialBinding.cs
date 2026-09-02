@@ -1,4 +1,7 @@
+using System.Collections.Generic;
 using SilkEngine.Assets;
+using SilkEngine.Assets.Binding;
+using SilkEngine.Rendering.Abstraction;
 
 namespace SilkEngine.Render;
 
@@ -60,18 +63,22 @@ public sealed class BoundMaterial
     /// <summary>就绪载荷（State 为 Ready 或 Stale 时非空，否则为 null）</summary>
     public BoundMaterialValue? Value { get; }
 
-    internal BoundMaterial(MaterialBindingState state, BoundMaterialValue? value)
+    /// <summary>失败原因（State 为 Failed 时非空；含参数名与类型信息的诊断消息）</summary>
+    public string? Error { get; }
+
+    internal BoundMaterial(MaterialBindingState state, BoundMaterialValue? value, string? error = null)
     {
         State = state;
         Value = value;
+        Error = error;
     }
 }
 
-/// <summary>绑定就绪载荷：合并后的只读参数 + 依赖句柄 + 源/依赖修订号（发布后不可变）</summary>
+/// <summary>绑定就绪载荷：合并后的只读渲染参数 + 依赖句柄 + 源/依赖修订号（发布后不可变）</summary>
 public sealed class BoundMaterialValue
 {
-    /// <summary>合并后的只读参数快照（资产默认值被实例覆盖后）</summary>
-    public MaterialParameterSnapshot Parameters { get; }
+    /// <summary>合并后的无资产语义渲染参数快照（资产默认值被实例覆盖后；仅支持 Float/Vector3）</summary>
+    public RenderMaterialParameters Parameters { get; }
 
     /// <summary>着色器依赖句柄</summary>
     public AssetHandle<ShaderAsset> Shader { get; }
@@ -86,7 +93,7 @@ public sealed class BoundMaterialValue
     public ulong DependencyRevision { get; }
 
     internal BoundMaterialValue(
-        MaterialParameterSnapshot parameters,
+        RenderMaterialParameters parameters,
         AssetHandle<ShaderAsset> shader,
         AssetHandle<TextureAsset>? mainTexture,
         ulong sourceRevision,
@@ -161,7 +168,10 @@ public sealed class MaterialBinding
         if (dependencyState != MaterialBindingState.Ready)
             return new BoundMaterial(dependencyState, null);
 
-        var parameters = new MaterialParameterSnapshot(asset.Defaults.Concat(material.Overrides.Snapshot()));
+        if (TryValidateParameters(asset, material, out var validationError))
+            return new BoundMaterial(MaterialBindingState.Failed, null, validationError);
+
+        var parameters = MaterialResolver.ResolveForRender(material, asset.Defaults);
         var dependencyRevision = ComputeDependencyRevision(asset);
         var value = new BoundMaterialValue(parameters, asset.Shader, asset.MainTexture, asset.Revision, dependencyRevision);
         var readyResult = new BoundMaterial(MaterialBindingState.Ready, value);
@@ -175,6 +185,40 @@ public sealed class MaterialBinding
             readyResult);
 
         return result;
+    }
+
+    /// <summary>
+    /// 参数类型校验：同名 defaults/overrides 类型不一致、或合并后存在渲染不支持的参数类型
+    /// （非 Float/Vector3）时返回诊断错误消息；不写回任何输入。
+    /// </summary>
+    /// <param name="asset">源材质资产</param>
+    /// <param name="material">运行时材质实例</param>
+    /// <param name="error">校验失败时的错误消息（通过时为空）</param>
+    /// <returns>true 表示校验失败</returns>
+    private bool TryValidateParameters(MaterialAsset asset, Material material, out string? error)
+    {
+        var merged = new Dictionary<string, MaterialValue>();
+        foreach (var (name, value) in asset.Defaults)
+            merged[name] = value;
+        foreach (var (name, value) in material.Overrides.Snapshot())
+        {
+            if (merged.TryGetValue(name, out var defaultValue) && defaultValue.Kind != value.Kind)
+            {
+                error = $"Material parameter '{name}' has conflicting value types: defaults={defaultValue.Kind}, overrides={value.Kind}";
+                return true;
+            }
+            merged[name] = value;
+        }
+        foreach (var (name, value) in merged)
+        {
+            if (!MaterialResolver.IsConvertibleToRenderValue(value))
+            {
+                error = $"Material parameter '{name}' has unsupported type '{value.Kind}' for render (supported: Float, Vector3)";
+                return true;
+            }
+        }
+        error = null;
+        return false;
     }
 
     private MaterialBindingState ResolveDependencies(MaterialAsset asset)

@@ -5,6 +5,7 @@ using SilkEngine.Assets.Importer;
 using SilkEngine.Assets.Serialization;
 using SilkEngine.Assets.VirtualFileSystem;
 using SilkEngine.Core;
+using SilkEngine.Render;
 using SilkEngine.Rendering.Abstraction;
 using SilkEngine.Threading;
 
@@ -17,7 +18,7 @@ namespace SilkEngine.Assets;
 /// 本类不持有 Importer、不创建线程、不调度 Worker；结果经 Pipeline 的 FrameCommit 投递由
 /// <see cref="ApplyPipelineResult"/> 应用到缓存。
 /// </summary>
-public sealed class AssetManager : IDisposable
+public sealed class AssetManager : IDisposable, IMaterialAssetResolver
 {
     private readonly IAssetPipeline _pipeline;
     private readonly IAssetKeyResolver _keyResolver;
@@ -556,6 +557,43 @@ public sealed class AssetManager : IDisposable
         if (_keyResolver.CurrentSourceRevision(assetId) != entry.SourceRevision)
             return null;
         return data;
+    }
+
+    // ---- IMaterialAssetResolver（材质绑定解析边界）：绑定层唯一的资产访问入口 ----
+
+    /// <summary>材质绑定：按资产 ID 解析材质资产；失败条目（AssetState.Failed）视为不存在。</summary>
+    /// <param name="id">资产 ID</param>
+    /// <param name="isMissing">条目存在但加载失败时为 true（未登记/未加载为 false）</param>
+    /// <returns>已就绪材质资产；未加载或不存在时为 null</returns>
+    MaterialAsset? IMaterialAssetResolver.TryResolveMaterial(AssetId id, out bool isMissing) =>
+        TryResolveBinding<MaterialAsset>(id, out isMissing);
+
+    /// <summary>材质绑定：按资产 ID 解析着色器资产（依赖门控）。</summary>
+    /// <param name="id">资产 ID</param>
+    /// <param name="isMissing">条目存在但加载失败时为 true（未登记/未加载为 false）</param>
+    /// <returns>已就绪着色器资产；未加载或不存在时为 null</returns>
+    ShaderAsset? IMaterialAssetResolver.TryResolveShader(AssetId id, out bool isMissing) =>
+        TryResolveBinding<ShaderAsset>(id, out isMissing);
+
+    /// <summary>材质绑定：按资产 ID 解析纹理资产（依赖门控）。</summary>
+    /// <param name="id">资产 ID</param>
+    /// <param name="isMissing">条目存在但加载失败时为 true（未登记/未加载为 false）</param>
+    /// <returns>已就绪纹理资产；未加载或不存在时为 null</returns>
+    TextureAsset? IMaterialAssetResolver.TryResolveTexture(AssetId id, out bool isMissing) =>
+        TryResolveBinding<TextureAsset>(id, out isMissing);
+
+    /// <summary>材质绑定：查询资产当前修订号（依赖变更检测；无修订信息返回 0）。</summary>
+    /// <param name="id">资产 ID</param>
+    /// <returns>资产当前源修订号</returns>
+    ulong IMaterialAssetResolver.ResolveRevision(AssetId id) =>
+        _cache.Find(id)?.SourceRevision ?? 0UL;
+
+    private T? TryResolveBinding<T>(AssetId id, out bool isMissing)
+        where T : class, IAssetPayload
+    {
+        var entry = _cache.Find(id);
+        isMissing = entry is { State: AssetState.Failed };
+        return entry is { State: AssetState.Ready, Payload: T payload } ? payload : null;
     }
 
     /// <summary>取出下一个待渲染释放请求（Main 域驱逐后入队；渲染线程帧首消费）。</summary>

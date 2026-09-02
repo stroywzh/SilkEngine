@@ -36,6 +36,12 @@ public static class MaterialResolver
         return new RenderMaterialParameters(entries);
     }
 
+    /// <summary>判断材质参数值是否可转换为渲染参数值（仅 Float/Vector3；Matrix4x4/Texture 不支持）。</summary>
+    /// <param name="value">材质参数值</param>
+    /// <returns>可转换为渲染参数值为 true</returns>
+    public static bool IsConvertibleToRenderValue(MaterialValue value)
+        => value.TryGetFloat(out _) || value.TryGetVector3(out _);
+
     private static bool TryConvert(MaterialValue value, out RenderParameterValue result)
     {
         if (value.TryGetFloat(out var f))

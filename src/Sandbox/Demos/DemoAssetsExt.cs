@@ -23,6 +23,37 @@ public static class DemoAssetsExt
         // TODO(task 11): 重写为 Assets.Load + 真实 HLSL 资产
         => host.AssetManager.RegisterTransient(new ShaderAsset("PerspCheck", ShaderSources.LitVertex));
 
+    /// <summary>程序生成 Lit 材质运行时实例（着色器 + 空默认参数；顶点/片段源拼接为单源 ShaderAsset）。</summary>
+    /// <param name="host">引擎宿主</param>
+    /// <returns>材质运行时实例</returns>
+    public static Material CreateLitMaterial(EngineHost host)
+        // TODO(task 11): 重写为 Assets.Load + 真实 HLSL 资产
+        => CreateMaterial(host, "Lit", ShaderSources.LitVertex, ShaderSources.LitFragment);
+
+    /// <summary>程序生成材质运行时实例（瞬态 ShaderAsset → 瞬态 MaterialAsset → 独立实例）。</summary>
+    /// <param name="host">引擎宿主</param>
+    /// <param name="name">材质/着色器名称</param>
+    /// <param name="vertex">顶点着色器源</param>
+    /// <param name="fragment">片段着色器源</param>
+    /// <returns>材质运行时实例</returns>
+    public static Material CreateMaterial(EngineHost host, string name, string vertex, string fragment)
+    {
+        // TODO(task 11): 重写为 Assets.Load + 真实 HLSL 资产
+        ArgumentNullException.ThrowIfNull(host);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentNullException.ThrowIfNull(vertex);
+        ArgumentNullException.ThrowIfNull(fragment);
+        var shader = CreateShader(host, name, string.Concat(vertex, "\n", fragment));
+        var asset = new MaterialAsset(
+            "Material",
+            default,
+            shader,
+            null,
+            new MaterialParameterSnapshot([]));
+        var handle = host.AssetManager.RegisterTransient(asset);
+        return new Material(new MaterialReference(handle.Id));
+    }
+
     /// <summary>按名称与源码构造着色器瞬态资产 Handle。</summary>
     /// <param name="host">引擎宿主</param>
     /// <param name="name">资产名</param>

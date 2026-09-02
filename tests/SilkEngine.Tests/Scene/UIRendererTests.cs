@@ -21,7 +21,6 @@ public class UIRendererTests
         var ui = new GameObject().AddComponent<UIRenderer>();
 
         ui.SetMesh(new AssetHandle<MeshAsset>(new AssetId(Guid.NewGuid())));
-        ui.SetShader(new AssetHandle<ShaderAsset>(new AssetId(Guid.NewGuid())));
         ui.TextureHandle = new RenderTextureHandle(3);
         ui.MaterialParameters = new RenderMaterialParameters(
             [("Roughness", RenderParameterValue.Float(0.5f))]);
