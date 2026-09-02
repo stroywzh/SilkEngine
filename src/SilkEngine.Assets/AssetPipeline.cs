@@ -123,6 +123,95 @@ internal sealed class AssetPipeline : IAssetPipeline, IAssetKeyResolver
     public void ApplyScan(ScanResult scan) => _index.Apply(scan);
 
     /// <summary>
+    /// 应用一次变更源结果（Main 域，EngineLoop 低频槽驱动，<see cref="AssetManager.ApplyAssetChanges"/> 转发）：
+    /// 以重新扫描为准对账虚拟文件索引（内容指纹变化识别修改/新增/删除）→ 在 Main/FramCommit 事务中按变更
+    /// 递增目录修订（<see cref="Invalidate"/>）、更新 AssetDB 文件节点（<see cref="AssetCatalog.ReconcileDatabase"/>）
+    /// → 沿 <see cref="AssetDependencyIndex.InvalidateCascade"/> 级联失效受影响的依赖方（任务 5 遗留接线点）。
+    /// 不启动任何缓存重建：重建决策归 <see cref="AssetManager"/>（按缓存条目存在性调用 <see cref="StartRebuild"/>）。
+    /// 变更事件可重复/合并，本方法幂等（重复对账无新增量即返回空）。
+    /// </summary>
+    /// <param name="changes">变更源快照（仅作触发信号；权威变更集以重扫得到的索引增量为准）</param>
+    /// <returns>受影响资产（含级联）与源已删除的资产集合</returns>
+    internal AssetChangeApplyResult ApplyAssetChanges(ChangeSourceResult changes)
+    {
+        ArgumentNullException.ThrowIfNull(changes);
+
+        var apply = _index.Apply(_files.Scan());
+        if (apply.Changes.Count == 0)
+            return AssetChangeApplyResult.Empty;
+
+        var affected = new List<AssetId>();
+        var removed = new List<AssetId>();
+        foreach (var change in apply.Changes)
+        {
+            switch (change.Kind)
+            {
+                case VirtualChangeKind.Added:
+                case VirtualChangeKind.Modified:
+                    foreach (var record in _catalog.GetForSourceNode(change.NodeId))
+                    {
+                        Invalidate(record.AssetId); // 目录修订递增 + 清理已完成缓存作业
+                        if (!affected.Contains(record.AssetId))
+                            affected.Add(record.AssetId);
+                        _catalog.ReconcileDatabase(record); // 单事务更新 FileNodes/Assets（新指纹与新修订）
+                    }
+                    break;
+                case VirtualChangeKind.Removed:
+                    foreach (var record in _catalog.GetForSourceNode(change.NodeId))
+                    {
+                        if (!affected.Contains(record.AssetId))
+                        {
+                            affected.Add(record.AssetId);
+                            removed.Add(record.AssetId);
+                        }
+                    }
+                    break;
+            }
+        }
+
+        // 级联失效：被失效依赖的依赖方（传递闭包）目录修订同步递增，等待 AssetManager 按其缓存条目重建
+        for (var i = 0; i < affected.Count; i++)
+        {
+            var seed = affected[i];
+            foreach (var dependent in DependencyIndex.InvalidateCascade(seed))
+            {
+                if (affected.Contains(dependent))
+                    continue;
+                affected.Add(dependent);
+                Invalidate(dependent);
+            }
+        }
+
+        return new AssetChangeApplyResult(affected, removed);
+    }
+
+    /// <summary>
+    /// 立即按目录当前修订重建指定资产（Hot Reload 消费端；作业无外部消费者）。
+    /// 成功/失败结果均经 FrameCommit 投递；与普通<see cref="Request{T}"/> 同键去重合并。
+    /// </summary>
+    /// <param name="assetId">资产标识（目录记录必须存在）</param>
+    internal void StartRebuild(AssetId assetId)
+    {
+        if (!_catalog.TryGet(assetId, out var record) || record is null)
+            return;
+        if (!_index.TryGet(record.SourceNodeId, out var node) || node is null)
+            return;
+        var settings = new ImportSettings { Path = node.LogicalPath };
+        var key = AssetBuildKey.Create(
+            record.AssetId, record.AssetTypeId, record.SourceRevision,
+            DefaultImporterRevision, "", settings.ComputeFingerprint());
+        lock (_inflight)
+        {
+            if (_inflight.ContainsKey(key))
+                return;
+            var job = new SharedJob(key) { Consumers = 0 };
+            _inflight[key] = job;
+            Interlocked.Increment(ref _executionCount);
+            StartWorker(job, [key]);
+        }
+    }
+
+    /// <summary>
     /// 解析逻辑路径为构建键：规范化 → 索引查询（未命中/目录抛详细异常）→ 目录登记 → 键（含导入设置指纹）。
     /// </summary>
     /// <param name="path">资产逻辑路径（相对文件服务根目录）</param>
@@ -161,6 +250,21 @@ internal sealed class AssetPipeline : IAssetPipeline, IAssetKeyResolver
                     job.Cancel.Dispose(); // 已完成作业不再被取消路径触碰（DetachConsumer 门控）→ 安全释放
             }
         }
+    }
+
+    /// <summary>按资产查询其源逻辑路径（目录/索引未命中返回 null；错误诊断消息用）。</summary>
+    /// <param name="assetId">资产标识</param>
+    /// <returns>源逻辑路径；未命中为 null</returns>
+    public string? TryGetLogicalPath(AssetId assetId)
+    {
+        if (_catalog.TryGet(assetId, out var record)
+            && record is not null
+            && _index.TryGet(record.SourceNodeId, out var node)
+            && node is not null)
+        {
+            return node.LogicalPath;
+        }
+        return null;
     }
 
     /// <summary>
@@ -232,12 +336,7 @@ internal sealed class AssetPipeline : IAssetPipeline, IAssetKeyResolver
                 // 不投递过期 ResultBatch（不复活已驱逐条目、不触发未提交 GPU 创建）
                 if (!job.Completion.TrySetResult(result))
                     return;
-                // FrameCommit 阶段（Main 域）：先回写依赖边（单事务 DB + 内存反向索引），再投递结果
-                _mainThread.Post(MainThreadPhase.FrameCommit, () =>
-                {
-                    PersistDependencies(result);
-                    ResultSink?.Invoke(result);
-                });
+                PostFrameCommit(result);
             }
             catch (OperationCanceledException)
             {
@@ -246,7 +345,21 @@ internal sealed class AssetPipeline : IAssetPipeline, IAssetKeyResolver
             catch (Exception ex)
             {
                 job.Completion.TrySetException(ex);
+                // 失败结果同样经 FrameCommit 投递：无人消费的重载/变更检测构建依赖此通道暴露失败
+                // （消费方按状态与源修订决定落账/保留上一版载荷），普通加载方仍经作业异常观察失败
+                PostFrameCommit(new AssetPipelineResult(
+                    job.Key, null, [], AssetPipelineResultState.Failed, ex));
             }
+        });
+    }
+
+    /// <summary>FrameCommit 阶段（Main 域）：先持久化成功结果的依赖边，再把结果投递给 <see cref="ResultSink"/>。</summary>
+    private void PostFrameCommit(AssetPipelineResult result)
+    {
+        _mainThread.Post(MainThreadPhase.FrameCommit, () =>
+        {
+            PersistDependencies(result);
+            ResultSink?.Invoke(result);
         });
     }
 
@@ -633,6 +746,17 @@ internal sealed class AssetPipeline : IAssetPipeline, IAssetKeyResolver
 
     /// <summary>依赖解析结果：声明 + 解析后的资产身份（Pipeline 内部）</summary>
     private sealed record ResolvedDependency(AssetImportDependency Declared, AssetId AssetId, AssetTypeId Type);
+
+    /// <summary>变更对账结果：受影响资产（含级联依赖方）与源已删除的资产（Pipeline 内部）</summary>
+    /// <param name="AffectedAssets">需要失效/重建的资产（含级联依赖方；不含未受影响资产）</param>
+    /// <param name="RemovedAssets">源文件已删除的资产（由 AssetManager 标记 Missing）</param>
+    internal sealed record AssetChangeApplyResult(
+        IReadOnlyList<AssetId> AffectedAssets,
+        IReadOnlyList<AssetId> RemovedAssets)
+    {
+        /// <summary>无变更的空结果（单例）</summary>
+        public static AssetChangeApplyResult Empty { get; } = new([], []);
+    }
 
     private sealed class SharedJob(AssetBuildKey key)
     {

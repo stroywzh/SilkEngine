@@ -1,5 +1,6 @@
 using System.Threading;
 using SilkEngine.Assets;
+using SilkEngine.Assets.VirtualFileSystem;
 using SilkEngine.Core;
 using SilkEngine.Rendering;
 using SilkEngine.Rendering.OpenGL;
@@ -117,12 +118,18 @@ public sealed class EngineHost : IDisposable
         var runtime = new ThreadRuntime();
         // LibraryRoot 为 AssetDB 存储目录（默认 "Library"；任务 5 起接线到磁盘资产管线）
         var assets = AssetManager.CreateDiskBacked(_options.AssetRoot, runtime, libraryRoot: _options.LibraryRoot);
+        // 资产变更源：测试可注入内存源；默认磁盘轮询变更源按 AssetChangeScanInterval 低频扫描
+        var changeSource = _options.AssetChangeSourceOverride
+            ?? new DiskAssetFileSystem(_options.AssetRoot).CreatePollingChangeSource(
+                _options.AssetChangeScanInterval);
         var loop = new EngineLoop(
             backend,
             assets,
             runtime,
             new ComponentRegistry(),
-            new FrameSnapshotManager())
+            new FrameSnapshotManager(),
+            changeSource,
+            _options.AssetChangeScanInterval)
         {
             Embedded = _options.Embedded,
         };

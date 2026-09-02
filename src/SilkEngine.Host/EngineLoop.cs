@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Linq;
 using SilkEngine.Assets;
+using SilkEngine.Assets.VirtualFileSystem;
 using SilkEngine.InputSystem;
 using SilkEngine.Rendering;
 using SilkEngine.Rendering.Abstraction;
@@ -27,6 +28,9 @@ internal sealed class EngineLoop : IDisposable
     private AssetManager? _assetManager;
     private RenderSystem _renderSystem = null!;
     private SceneRenderWorld _sceneRenderWorld = null!;
+    private readonly IAssetChangeSource? _assetChangeSource;
+    private readonly TimeSpan _assetChangeScanInterval;
+    private DateTime _lastAssetChangeScanUtc = DateTime.MinValue;
     private volatile bool _stopRequested, _paused, _disposed, _canStart;
 
     public bool Embedded { get; set; } = false;
@@ -65,18 +69,24 @@ internal sealed class EngineLoop : IDisposable
     /// <param name="threadRuntime">线程运行时（线程资源唯一属主）</param>
     /// <param name="registry">组件注册表（帧原子性核心）</param>
     /// <param name="snapshotManager">帧快照管理器（双缓冲）</param>
+    /// <param name="assetChangeSource">资产变更源（null 时不启用热重载扫描）</param>
+    /// <param name="assetChangeScanInterval">低频扫描槽间隔（EngineHost 传入 EngineOptions.AssetChangeScanInterval）</param>
     internal EngineLoop(
         IRenderBackend backend,
         AssetManager assetManager,
         ThreadRuntime threadRuntime,
         ComponentRegistry registry,
-        FrameSnapshotManager snapshotManager)
+        FrameSnapshotManager snapshotManager,
+        IAssetChangeSource? assetChangeSource = null,
+        TimeSpan assetChangeScanInterval = default)
     {
         _backend = backend;
         _assetManager = assetManager;
         _threadRuntime = threadRuntime;
         _registry = registry;
         _snapshotManager = snapshotManager;
+        _assetChangeSource = assetChangeSource;
+        _assetChangeScanInterval = assetChangeScanInterval;
         _renderSystem = new RenderSystem(_backend, _threadRuntime);
         var rendererProvider = new SceneRendererProvider(snapshotManager);
         _sceneRenderWorld = new SceneRenderWorld(snapshotManager, [rendererProvider]);
@@ -142,6 +152,7 @@ internal sealed class EngineLoop : IDisposable
         }
         _clock.Tick();
         Input.Update();
+        CheckAssetChanges();
         _frameScheduler.Tick(Time.DeltaTime, fdt => _sceneManager.FixedTick(_snapshotManager.Current, fdt), d => _sceneManager.Tick(_snapshotManager.Current, d), () => _sceneManager.LateTick(_snapshotManager.Current));
         _threadRuntime.Drain(MainThreadPhase.PreRender);
         OnRender();
@@ -168,6 +179,25 @@ internal sealed class EngineLoop : IDisposable
     }
 
     public void Stop() => _stopRequested = true;
+
+    /// <summary>
+    /// 低频资产变更扫描槽（Main 域）：间隔未到直接返回；到点后调用变更源收敛快照，
+    /// 有变更时交给 <see cref="AssetManager.ApplyAssetChanges"/> 消费（扫描对账/失效/重建收在 Assets 域，
+    /// 本类不做资产类型识别、不引入 importer/渲染逻辑）。
+    /// </summary>
+    private void CheckAssetChanges()
+    {
+        if (_assetChangeSource is null || _assetManager is null)
+            return;
+        var now = DateTime.UtcNow;
+        if (now - _lastAssetChangeScanUtc < _assetChangeScanInterval)
+            return;
+        _lastAssetChangeScanUtc = now;
+        var changes = _assetChangeSource.Poll();
+        if (changes.HasChanges)
+            _assetManager.ApplyAssetChanges(changes);
+    }
+
     public void Dispose()
     {
         if (_disposed)

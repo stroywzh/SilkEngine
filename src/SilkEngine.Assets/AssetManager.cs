@@ -44,6 +44,9 @@ public sealed class AssetManager : IDisposable, IMaterialAssetResolver
     /// <summary>最近一次 GPU 创建/编译失败的详情消息（测试断言用；未失败为 null）。</summary>
     internal string? LastFailureMessageForTests { get; private set; }
 
+    /// <summary>最近一次资产构建/重载失败的消息（含失败逻辑路径；未失败为 null；测试断言用）。</summary>
+    internal string? LastAssetErrorForTests { get; private set; }
+
     /// <summary>
     /// 受控引用解析器视图：按 AssetId 从本管理器缓存解析已加载载荷（序列化层唯一资产访问边界，无全局服务定位）。
     /// 本管理器不持有序列化记录，<see cref="IAssetReferenceResolver.TryGetRecord"/> 恒返回 null。
@@ -580,6 +583,44 @@ public sealed class AssetManager : IDisposable, IMaterialAssetResolver
             owner._renderReleases.Enqueue(request);
     }
 
+    /// <summary>
+    /// 应用变更源快照（Main 域，EngineLoop 低频扫描槽调用）：转发给管线做扫描对账（索引增量 + 目录修订
+    /// 递增 + 级联失效 + AssetDB 文件节点更新），随后按缓存条目存在性启动受影响资产重建；
+    /// 源已删除的资产缓存条目标记 <see cref="AssetState.Missing"/>。重复/合并的变更可幂等吞并。
+    /// </summary>
+    /// <param name="changes">变更源收敛快照（空结果直接返回）</param>
+    public void ApplyAssetChanges(ChangeSourceResult changes)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(changes);
+        ((IThreadGuard)_runtime).Assert(ThreadDomain.Main, "AssetManager.ApplyAssetChanges");
+        if (!changes.HasChanges || _keyResolver is not AssetPipeline pipeline)
+            return;
+        var applied = pipeline.ApplyAssetChanges(changes);
+        foreach (var removed in applied.RemovedAssets)
+            MarkMissing(removed);
+        foreach (var affected in applied.AffectedAssets)
+        {
+            if (applied.RemovedAssets.Contains(affected))
+                continue;
+            if (_cache.Find(affected) is null)
+                continue;
+            pipeline.StartRebuild(affected);
+        }
+    }
+
+    /// <summary>源文件已删除：缓存条目标记 <see cref="AssetState.Missing"/>（保留载荷与 GPU 句柄，持有者仍可展示最后已知版本）。</summary>
+    /// <param name="assetId">资产标识</param>
+    private void MarkMissing(AssetId assetId)
+    {
+        var entry = _cache.Find(assetId);
+        if (entry is null)
+            return;
+        entry.State = AssetState.Missing;
+        if (LogConfig.Assets)
+            Log.Warning($"[AssetManager] 源文件已删除，标记 Missing: {assetId}");
+    }
+
     /// <summary>帧末结果应用（Pipeline 经 FrameCommit 投递；Main 域）：更新 AssetEntry.Payload 与状态。</summary>
     /// <param name="result">管线结果</param>
     internal void ApplyPipelineResult(AssetPipelineResult result)
@@ -587,20 +628,50 @@ public sealed class AssetManager : IDisposable, IMaterialAssetResolver
         var entry = _cache.GetOrAdd(result.Key.AssetId);
         if (result.State == AssetPipelineResultState.Succeeded && result.Payload is not null)
         {
+            // 新版本发布语义：替换载荷前把上一版本的 GPU 句柄进入 release 队列（渲染线程帧首排空）
+            var previousRevision = entry.SourceRevision;
+            if (previousRevision != 0UL && previousRevision != result.Key.SourceRevision)
+            {
+                foreach (var release in _gpuCache.EvictAll(entry.AssetId, previousRevision))
+                    _renderReleases.Enqueue(release);
+            }
             entry.State = AssetState.Ready;
             entry.SourceRevision = result.Key.SourceRevision;
             _cache.SetPayload(entry, result.Payload);
             QueueGpuCreation(entry.AssetId, entry.SourceRevision, result.Payload);
+            LastAssetErrorForTests = null;
         }
         else
         {
-            entry.State = AssetState.Failed;
-            _cache.SetPayload(entry, null);
-            if (result.Error is not null)
-                Log.Error(
-                    $"[AssetManager] 资产构建失败 ({result.Key.AssetId}): {result.Error.Message}"
-                );
+            // 过期失败结果（源修订已再次前进）不落账：由在途新构建接续
+            if (_keyResolver.CurrentSourceRevision(result.Key.AssetId) != result.Key.SourceRevision)
+                return;
+            if (entry is { State: AssetState.Ready, Payload: { } })
+            {
+                // 重载失败：保留上一版就绪载荷并把修订对齐到当前源修订（解析/句柄查询持续可用），记录错误
+                entry.SourceRevision = result.Key.SourceRevision;
+                LastAssetErrorForTests = BuildAssetError(result);
+                Log.Error($"[AssetManager] 资产重载失败 ({result.Key.AssetId}): {result.Error?.Message}");
+            }
+            else
+            {
+                entry.State = AssetState.Failed;
+                _cache.SetPayload(entry, null);
+                LastAssetErrorForTests = BuildAssetError(result);
+                if (result.Error is not null)
+                    Log.Error($"[AssetManager] 资产构建失败 ({result.Key.AssetId}): {result.Error.Message}");
+            }
         }
+    }
+
+    /// <summary>构建失败消息：携带失败资产的逻辑路径 + 异常消息（路径未命中时回退 AssetId）。</summary>
+    /// <param name="result">失败结果</param>
+    /// <returns>错误消息</returns>
+    private string BuildAssetError(AssetPipelineResult result)
+    {
+        var path = (_keyResolver as AssetPipeline)?.TryGetLogicalPath(result.Key.AssetId)
+            ?? result.Key.AssetId.Value.ToString();
+        return $"[{path}] {result.Error?.Message ?? "未知构建失败"}";
     }
 
     /// <summary>测试断言用：当前缓存</summary>
@@ -678,7 +749,7 @@ public sealed class AssetManager : IDisposable, IMaterialAssetResolver
         where T : class, IAssetPayload
     {
         var entry = _cache.Find(id);
-        isMissing = entry is { State: AssetState.Failed };
+        isMissing = entry is { State: AssetState.Failed or AssetState.Missing };
         return entry is { State: AssetState.Ready, Payload: T payload } ? payload : null;
     }
 
