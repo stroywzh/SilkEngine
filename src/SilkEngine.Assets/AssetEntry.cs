@@ -14,6 +14,9 @@ public enum AssetState
 
     /// <summary>已卸载（无持有者帧末驱逐；重新引用可恢复 Ready）</summary>
     Unloaded,
+
+    /// <summary>源文件已删除（Hot Reload 变更检测标记；保留上一版载荷与句柄供持有者展示，重建/恢复后接续）</summary>
+    Missing,
 }
 
 /// <summary>资产缓存条目：AssetId 键 + Payload + 状态 + 源修订</summary>

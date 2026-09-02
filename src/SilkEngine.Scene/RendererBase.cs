@@ -155,6 +155,7 @@ public abstract class RendererBase : Component, IRenderable
     {
         if (_material is { } material && ResolveAssetService() is { } assets)
         {
+            EnsureMaterialSlot(assets);
             var bound = EnsureMaterialBinding(assets).Resolve(material);
             if (bound is { State: MaterialBindingState.Ready or MaterialBindingState.Stale, Value.Shader.Id: var shaderId }
                 && shaderId != default
@@ -186,6 +187,33 @@ public abstract class RendererBase : Component, IRenderable
     private MaterialBinding EnsureMaterialBinding(AssetManager assets)
         => _materialBinding ??= new MaterialBinding(assets);
 
+    /// <summary>
+    /// 惰性建材质驻留槽：材质在资产服务可解析后才可能建槽（GO 未入场景时的赋值先记录句柄）；
+    /// 首次解析时补建驻留，保证帧末驱逐不误伤仍被本渲染器绑定的材质及其依赖（Mesh/Texture 同款惰性路径）。
+    /// </summary>
+    /// <param name="assets">资产管理器</param>
+    /// <returns>已绑定的材质驻留槽（无材质为 null）</returns>
+    private AssetSlot<MaterialAsset>? EnsureMaterialSlot(AssetManager assets)
+    {
+        if (_materialSlot is null && _material is { } material)
+            _materialSlot = assets.CreateSlot(new AssetHandle<MaterialAsset>(material.Source.AssetId));
+        return _materialSlot;
+    }
+
+    /// <summary>
+    /// 物化驻留槽（SceneManager 场景绑定时调用）：对象进入场景获得资产服务后立即建立
+    /// Mesh/Texture/材质驻留，先于帧末驱逐（早于首帧快照收集到的按需解析）。
+    /// </summary>
+    internal void MaterializeSlots()
+    {
+        if (ResolveAssetService() is not { } assets)
+            return;
+        EnsureMeshSlot();
+        EnsureTextureSlot();
+        if (_material is not null)
+            EnsureMaterialSlot(assets);
+    }
+
     private AssetSlot<MeshAsset>? EnsureMeshSlot()
     {
         if (_meshSlot is null && _meshHandle != default && ResolveAssetService() is { } assets)
@@ -208,6 +236,7 @@ public abstract class RendererBase : Component, IRenderable
 
         if (ResolveAssetService() is { } assets)
         {
+            EnsureMaterialSlot(assets);
             var bound = EnsureMaterialBinding(assets).Resolve(material);
             if (bound is { State: MaterialBindingState.Ready or MaterialBindingState.Stale, Value: { } value })
                 return _materialParamsCache = value.Parameters;

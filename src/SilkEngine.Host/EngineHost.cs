@@ -1,5 +1,6 @@
 using System.Threading;
 using SilkEngine.Assets;
+using SilkEngine.Assets.VirtualFileSystem;
 using SilkEngine.Core;
 using SilkEngine.Rendering;
 using SilkEngine.Rendering.OpenGL;
@@ -86,14 +87,19 @@ public sealed class EngineHost : IDisposable
             _loop?.Stop();
     }
 
-    /// <summary>释放引擎（幂等；反序释放运行时资源、解绑静态 Assets 门面并关闭全局服务）。</summary>
+    /// <summary>
+    /// 释放引擎（幂等）：关闭运行时对象图 —— AssetManager.Dispose 先停新请求/取消 Worker/丢弃过期
+    /// ResultBatch，最后才解绑静态 Assets 门面（业务关门面访问在管理器关闭之后，顺序契约）。
+    /// </summary>
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _state, 2) == 2)
             return;
         if (_loop is { } loop)
-            Assets.Unbind(loop.AssetManager);
-        _loop?.Dispose();
+        {
+            loop.Dispose();
+            Assets.Unbind(loop.AssetManager); // 最后一步：解绑静态门面
+        }
         _loop = null;
     }
 
@@ -112,12 +118,18 @@ public sealed class EngineHost : IDisposable
         var runtime = new ThreadRuntime();
         // LibraryRoot 为 AssetDB 存储目录（默认 "Library"；任务 5 起接线到磁盘资产管线）
         var assets = AssetManager.CreateDiskBacked(_options.AssetRoot, runtime, libraryRoot: _options.LibraryRoot);
+        // 资产变更源：测试可注入内存源；默认磁盘轮询变更源按 AssetChangeScanInterval 低频扫描
+        var changeSource = _options.AssetChangeSourceOverride
+            ?? new DiskAssetFileSystem(_options.AssetRoot).CreatePollingChangeSource(
+                _options.AssetChangeScanInterval);
         var loop = new EngineLoop(
             backend,
             assets,
             runtime,
             new ComponentRegistry(),
-            new FrameSnapshotManager())
+            new FrameSnapshotManager(),
+            changeSource,
+            _options.AssetChangeScanInterval)
         {
             Embedded = _options.Embedded,
         };

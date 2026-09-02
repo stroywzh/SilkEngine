@@ -33,6 +33,7 @@ public sealed class AssetManager : IDisposable, IMaterialAssetResolver
     private readonly AssetRenderBridge _bridge;
     private IAssetDatabase? _database;
     private ulong _nextRequestId;
+    private int _disposed;
 
     /// <summary>最近一次 GPU 句柄发布时的线程域（测试断言用；未发布为 Unknown）。</summary>
     internal ThreadDomain LastPublishDomainForTests { get; private set; } = ThreadDomain.Unknown;
@@ -42,6 +43,9 @@ public sealed class AssetManager : IDisposable, IMaterialAssetResolver
 
     /// <summary>最近一次 GPU 创建/编译失败的详情消息（测试断言用；未失败为 null）。</summary>
     internal string? LastFailureMessageForTests { get; private set; }
+
+    /// <summary>最近一次资产构建/重载失败的消息（含失败逻辑路径；未失败为 null；测试断言用）。</summary>
+    internal string? LastAssetErrorForTests { get; private set; }
 
     /// <summary>
     /// 受控引用解析器视图：按 AssetId 从本管理器缓存解析已加载载荷（序列化层唯一资产访问边界，无全局服务定位）。
@@ -155,15 +159,32 @@ public sealed class AssetManager : IDisposable, IMaterialAssetResolver
     public IAssetSerializer ResolveSerializer(AssetTypeId typeId, int schemaVersion) =>
         _serializerRegistry.Resolve(typeId, schemaVersion);
 
-    /// <summary>释放：注销服务定位器中的自注册并关闭 AssetDB（幂等；框架生命周期仍由 Services.Shutdown 反序管理）</summary>
+    /// <summary>
+    /// 释放（幂等）：停止接收新请求 → 取消管线在途作业 → 丢弃过期 ResultBatch（断开结果投递）
+    /// → 关闭 AssetDB。静态 Assets 门面由 EngineHost.Dispose 在本方法返回后解绑（最后一步）。
+    /// </summary>
     public void Dispose()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+            return;
         Services.Unregister<AssetManager>();
+        // 丢弃过期 ResultBatch：不再投递管线结果；取消在途 Worker 使其观察取消后不再产生新结果
+        _keyResolver.ResultSink = null;
+        if (_keyResolver is AssetPipeline pipeline)
+            pipeline.CancelPendingJobs();
         if (_database is not null)
         {
             _database.DisposeAsync().AsTask().GetAwaiter().GetResult();
             _database = null;
         }
+    }
+
+    /// <summary>关闭后拒绝一切新请求（fail-fast）</summary>
+    /// <exception cref="ObjectDisposedException">管理器已释放</exception>
+    private void ThrowIfDisposed()
+    {
+        if (Volatile.Read(ref _disposed) != 0)
+            throw new ObjectDisposedException(nameof(AssetManager));
     }
 
     /// <summary>挂接磁盘管线自建的资产数据库（CreateDiskBacked 调用；Dispose 时关闭）</summary>
@@ -196,6 +217,7 @@ public sealed class AssetManager : IDisposable, IMaterialAssetResolver
     public T Load<T>(string path)
         where T : class, IAssetPayload
     {
+        ThrowIfDisposed();
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         var key = _keyResolver.ResolveKey(path);
         return _pipeline.Request<T>(key).AsTask().GetAwaiter().GetResult();
@@ -218,6 +240,7 @@ public sealed class AssetManager : IDisposable, IMaterialAssetResolver
     )
         where T : class, IAssetPayload
     {
+        ThrowIfDisposed();
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         var key = _keyResolver.ResolveKey(path);
         return _pipeline.Request<T>(key, cancellationToken);
@@ -235,6 +258,7 @@ public sealed class AssetManager : IDisposable, IMaterialAssetResolver
     public AssetHandle<T> GetHandle<T>(string path)
         where T : class, IAssetPayload
     {
+        ThrowIfDisposed();
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         var key = _keyResolver.ResolveKey(path);
         return new AssetHandle<T>(key.AssetId);
@@ -246,6 +270,7 @@ public sealed class AssetManager : IDisposable, IMaterialAssetResolver
     /// <exception cref="InvalidOperationException">路径未进入 VFS 索引或解析到目录</exception>
     public void Invalidate(string path)
     {
+        ThrowIfDisposed();
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         _keyResolver.Invalidate(_keyResolver.ResolveKey(path).AssetId);
     }
@@ -293,21 +318,84 @@ public sealed class AssetManager : IDisposable, IMaterialAssetResolver
     }
 
     /// <summary>
-    /// 帧末驱逐（Main 域）：移除无 Slot/Lease/Pin 持有的 Ready Payload；
-    /// 已发布 GPU 句柄的条目经 <see cref="RenderResourceReleaseRequest"/> 入队（渲染线程帧首消费）。
+    /// 帧末驱逐（Main 域）：仅保留有 Slot/Lease/Pin 持有，或仍被驻留资产引用的依赖项
+    /// （材质 → 着色器/纹理/网格；依赖级驻留由缓存引用自然保护，避免误驱逐仍被绑定的依赖）。
+    /// 首次 GPU 创建尚未被渲染帧消费的条目不驱逐（加载同帧生效；创建未物化即驱逐等于加载即被压回收）。
+    /// 其余 Ready Payload 出缓存（状态转 Unloaded）：未提交 GPU 创建请求取消，已发布 GPU 句柄
+    /// 经 <see cref="RenderResourceReleaseRequest"/> 入队（渲染线程帧首消费）。
     /// </summary>
     public void UnloadUnused()
     {
+        var protectedIds = CollectProtectedDependencies();
         foreach (var entry in _cache.All().ToArray())
         {
             if (entry.State != AssetState.Ready || entry.Payload is null)
                 continue;
-            if (_residency.GetValueOrDefault(entry.AssetId) > 0)
+            var stillMaterializing =
+                !_gpuCache.HasPublished(entry.AssetId, entry.SourceRevision)
+                && HasPendingCreate(entry.AssetId);
+            if (_residency.GetValueOrDefault(entry.AssetId) > 0
+                || protectedIds.Contains(entry.AssetId)
+                || stillMaterializing)
                 continue;
             entry.State = AssetState.Unloaded;
             _cache.SetPayload(entry, null);
+            RemovePendingCreatesFor(entry.AssetId);
             foreach (var release in _gpuCache.EvictAll(entry.AssetId, entry.SourceRevision))
                 _renderReleases.Enqueue(release);
+        }
+    }
+
+    /// <summary>收集驻留资产的依赖句柄（缓存引用保护集）：驻留材质资产引用的 shader/texture/其余依赖均视为受保护</summary>
+    private HashSet<AssetId> CollectProtectedDependencies()
+    {
+        var protectedIds = new HashSet<AssetId>();
+        foreach (var entry in _cache.All())
+        {
+            if (entry.State != AssetState.Ready || entry.Payload is not MaterialAsset material)
+                continue;
+            if (_residency.GetValueOrDefault(entry.AssetId) <= 0)
+                continue;
+            if (material.Shader.Id != default)
+                protectedIds.Add(material.Shader.Id);
+            if (material.MainTexture is { } texture && texture.Id != default)
+                protectedIds.Add(texture.Id);
+            foreach (var dependency in material.Dependencies)
+                if (dependency.Id != default)
+                    protectedIds.Add(dependency.Id);
+        }
+        return protectedIds;
+    }
+
+    /// <summary>指定资产是否存在尚未提交/未被渲染帧消费的 GPU 创建请求（Main 域查询）</summary>
+    /// <param name="assetId">资产标识</param>
+    /// <returns>存在待消费创建请求为 true</returns>
+    private bool HasPendingCreate(AssetId assetId)
+    {
+        foreach (var item in _pendingCreates)
+        {
+            if (_gpuCache.TryResolveRequest(item.RequestId, out var tracked)
+                && tracked is not null
+                && tracked.AssetId == assetId)
+                return true;
+        }
+        return false;
+    }
+
+    /// <summary>移除指定资产尚未提交的 GPU 创建请求（驱逐/取消出口共用；创建请求关联一并清除）</summary>
+    /// <param name="assetId">资产标识</param>
+    private void RemovePendingCreatesFor(AssetId assetId)
+    {
+        for (var i = _pendingCreates.Count - 1; i >= 0; i--)
+        {
+            var item = _pendingCreates[i];
+            if (_gpuCache.TryResolveRequest(item.RequestId, out var tracked)
+                && tracked is not null
+                && tracked.AssetId == assetId)
+            {
+                _gpuCache.RemoveRequest(item.RequestId);
+                _pendingCreates.RemoveAt(i);
+            }
         }
     }
 
@@ -360,6 +448,7 @@ public sealed class AssetManager : IDisposable, IMaterialAssetResolver
     public AssetHandle<T> RegisterTransient<T>(T payload)
         where T : class, IAssetPayload
     {
+        ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(payload);
         ((IThreadGuard)_runtime).Assert(ThreadDomain.Main, "AssetManager.RegisterTransient");
         var id = new AssetId(Guid.NewGuid());
@@ -494,6 +583,44 @@ public sealed class AssetManager : IDisposable, IMaterialAssetResolver
             owner._renderReleases.Enqueue(request);
     }
 
+    /// <summary>
+    /// 应用变更源快照（Main 域，EngineLoop 低频扫描槽调用）：转发给管线做扫描对账（索引增量 + 目录修订
+    /// 递增 + 级联失效 + AssetDB 文件节点更新），随后按缓存条目存在性启动受影响资产重建；
+    /// 源已删除的资产缓存条目标记 <see cref="AssetState.Missing"/>。重复/合并的变更可幂等吞并。
+    /// </summary>
+    /// <param name="changes">变更源收敛快照（空结果直接返回）</param>
+    public void ApplyAssetChanges(ChangeSourceResult changes)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(changes);
+        ((IThreadGuard)_runtime).Assert(ThreadDomain.Main, "AssetManager.ApplyAssetChanges");
+        if (!changes.HasChanges || _keyResolver is not AssetPipeline pipeline)
+            return;
+        var applied = pipeline.ApplyAssetChanges(changes);
+        foreach (var removed in applied.RemovedAssets)
+            MarkMissing(removed);
+        foreach (var affected in applied.AffectedAssets)
+        {
+            if (applied.RemovedAssets.Contains(affected))
+                continue;
+            if (_cache.Find(affected) is null)
+                continue;
+            pipeline.StartRebuild(affected);
+        }
+    }
+
+    /// <summary>源文件已删除：缓存条目标记 <see cref="AssetState.Missing"/>（保留载荷与 GPU 句柄，持有者仍可展示最后已知版本）。</summary>
+    /// <param name="assetId">资产标识</param>
+    private void MarkMissing(AssetId assetId)
+    {
+        var entry = _cache.Find(assetId);
+        if (entry is null)
+            return;
+        entry.State = AssetState.Missing;
+        if (LogConfig.Assets)
+            Log.Warning($"[AssetManager] 源文件已删除，标记 Missing: {assetId}");
+    }
+
     /// <summary>帧末结果应用（Pipeline 经 FrameCommit 投递；Main 域）：更新 AssetEntry.Payload 与状态。</summary>
     /// <param name="result">管线结果</param>
     internal void ApplyPipelineResult(AssetPipelineResult result)
@@ -501,20 +628,50 @@ public sealed class AssetManager : IDisposable, IMaterialAssetResolver
         var entry = _cache.GetOrAdd(result.Key.AssetId);
         if (result.State == AssetPipelineResultState.Succeeded && result.Payload is not null)
         {
+            // 新版本发布语义：替换载荷前把上一版本的 GPU 句柄进入 release 队列（渲染线程帧首排空）
+            var previousRevision = entry.SourceRevision;
+            if (previousRevision != 0UL && previousRevision != result.Key.SourceRevision)
+            {
+                foreach (var release in _gpuCache.EvictAll(entry.AssetId, previousRevision))
+                    _renderReleases.Enqueue(release);
+            }
             entry.State = AssetState.Ready;
             entry.SourceRevision = result.Key.SourceRevision;
             _cache.SetPayload(entry, result.Payload);
             QueueGpuCreation(entry.AssetId, entry.SourceRevision, result.Payload);
+            LastAssetErrorForTests = null;
         }
         else
         {
-            entry.State = AssetState.Failed;
-            _cache.SetPayload(entry, null);
-            if (result.Error is not null)
-                Log.Error(
-                    $"[AssetManager] 资产构建失败 ({result.Key.AssetId}): {result.Error.Message}"
-                );
+            // 过期失败结果（源修订已再次前进）不落账：由在途新构建接续
+            if (_keyResolver.CurrentSourceRevision(result.Key.AssetId) != result.Key.SourceRevision)
+                return;
+            if (entry is { State: AssetState.Ready, Payload: { } })
+            {
+                // 重载失败：保留上一版就绪载荷并把修订对齐到当前源修订（解析/句柄查询持续可用），记录错误
+                entry.SourceRevision = result.Key.SourceRevision;
+                LastAssetErrorForTests = BuildAssetError(result);
+                Log.Error($"[AssetManager] 资产重载失败 ({result.Key.AssetId}): {result.Error?.Message}");
+            }
+            else
+            {
+                entry.State = AssetState.Failed;
+                _cache.SetPayload(entry, null);
+                LastAssetErrorForTests = BuildAssetError(result);
+                if (result.Error is not null)
+                    Log.Error($"[AssetManager] 资产构建失败 ({result.Key.AssetId}): {result.Error.Message}");
+            }
         }
+    }
+
+    /// <summary>构建失败消息：携带失败资产的逻辑路径 + 异常消息（路径未命中时回退 AssetId）。</summary>
+    /// <param name="result">失败结果</param>
+    /// <returns>错误消息</returns>
+    private string BuildAssetError(AssetPipelineResult result)
+    {
+        var path = (_keyResolver as AssetPipeline)?.TryGetLogicalPath(result.Key.AssetId)
+            ?? result.Key.AssetId.Value.ToString();
+        return $"[{path}] {result.Error?.Message ?? "未知构建失败"}";
     }
 
     /// <summary>测试断言用：当前缓存</summary>
@@ -592,7 +749,7 @@ public sealed class AssetManager : IDisposable, IMaterialAssetResolver
         where T : class, IAssetPayload
     {
         var entry = _cache.Find(id);
-        isMissing = entry is { State: AssetState.Failed };
+        isMissing = entry is { State: AssetState.Failed or AssetState.Missing };
         return entry is { State: AssetState.Ready, Payload: T payload } ? payload : null;
     }
 
@@ -601,6 +758,16 @@ public sealed class AssetManager : IDisposable, IMaterialAssetResolver
     /// <returns>有请求时为 true</returns>
     internal bool TryDequeueRenderRelease(out RenderResourceReleaseRequest request) =>
         _renderReleases.TryDequeue(out request);
+
+    /// <summary>测试断言用：排空当前待释放的 GPU 释放请求（队列清空后返回历史请求列表）</summary>
+    /// <returns>本次排空的释放请求列表</returns>
+    internal IReadOnlyList<RenderResourceReleaseRequest> DrainReleaseRequestsForTests()
+    {
+        var requests = new List<RenderResourceReleaseRequest>();
+        while (_renderReleases.TryDequeue(out var request))
+            requests.Add(request);
+        return requests;
+    }
 
     /// <summary>渲染线程帧首调用：排空待释放请求队列；consume 为 null 时维持占位行为（Log + 丢弃）。</summary>
     /// <param name="consume">释放请求消费回调（渲染侧接入后提供）</param>

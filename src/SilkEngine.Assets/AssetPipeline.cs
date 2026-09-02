@@ -123,6 +123,95 @@ internal sealed class AssetPipeline : IAssetPipeline, IAssetKeyResolver
     public void ApplyScan(ScanResult scan) => _index.Apply(scan);
 
     /// <summary>
+    /// 应用一次变更源结果（Main 域，EngineLoop 低频槽驱动，<see cref="AssetManager.ApplyAssetChanges"/> 转发）：
+    /// 以重新扫描为准对账虚拟文件索引（内容指纹变化识别修改/新增/删除）→ 在 Main/FramCommit 事务中按变更
+    /// 递增目录修订（<see cref="Invalidate"/>）、更新 AssetDB 文件节点（<see cref="AssetCatalog.ReconcileDatabase"/>）
+    /// → 沿 <see cref="AssetDependencyIndex.InvalidateCascade"/> 级联失效受影响的依赖方（任务 5 遗留接线点）。
+    /// 不启动任何缓存重建：重建决策归 <see cref="AssetManager"/>（按缓存条目存在性调用 <see cref="StartRebuild"/>）。
+    /// 变更事件可重复/合并，本方法幂等（重复对账无新增量即返回空）。
+    /// </summary>
+    /// <param name="changes">变更源快照（仅作触发信号；权威变更集以重扫得到的索引增量为准）</param>
+    /// <returns>受影响资产（含级联）与源已删除的资产集合</returns>
+    internal AssetChangeApplyResult ApplyAssetChanges(ChangeSourceResult changes)
+    {
+        ArgumentNullException.ThrowIfNull(changes);
+
+        var apply = _index.Apply(_files.Scan());
+        if (apply.Changes.Count == 0)
+            return AssetChangeApplyResult.Empty;
+
+        var affected = new List<AssetId>();
+        var removed = new List<AssetId>();
+        foreach (var change in apply.Changes)
+        {
+            switch (change.Kind)
+            {
+                case VirtualChangeKind.Added:
+                case VirtualChangeKind.Modified:
+                    foreach (var record in _catalog.GetForSourceNode(change.NodeId))
+                    {
+                        Invalidate(record.AssetId); // 目录修订递增 + 清理已完成缓存作业
+                        if (!affected.Contains(record.AssetId))
+                            affected.Add(record.AssetId);
+                        _catalog.ReconcileDatabase(record); // 单事务更新 FileNodes/Assets（新指纹与新修订）
+                    }
+                    break;
+                case VirtualChangeKind.Removed:
+                    foreach (var record in _catalog.GetForSourceNode(change.NodeId))
+                    {
+                        if (!affected.Contains(record.AssetId))
+                        {
+                            affected.Add(record.AssetId);
+                            removed.Add(record.AssetId);
+                        }
+                    }
+                    break;
+            }
+        }
+
+        // 级联失效：被失效依赖的依赖方（传递闭包）目录修订同步递增，等待 AssetManager 按其缓存条目重建
+        for (var i = 0; i < affected.Count; i++)
+        {
+            var seed = affected[i];
+            foreach (var dependent in DependencyIndex.InvalidateCascade(seed))
+            {
+                if (affected.Contains(dependent))
+                    continue;
+                affected.Add(dependent);
+                Invalidate(dependent);
+            }
+        }
+
+        return new AssetChangeApplyResult(affected, removed);
+    }
+
+    /// <summary>
+    /// 立即按目录当前修订重建指定资产（Hot Reload 消费端；作业无外部消费者）。
+    /// 成功/失败结果均经 FrameCommit 投递；与普通<see cref="Request{T}"/> 同键去重合并。
+    /// </summary>
+    /// <param name="assetId">资产标识（目录记录必须存在）</param>
+    internal void StartRebuild(AssetId assetId)
+    {
+        if (!_catalog.TryGet(assetId, out var record) || record is null)
+            return;
+        if (!_index.TryGet(record.SourceNodeId, out var node) || node is null)
+            return;
+        var settings = new ImportSettings { Path = node.LogicalPath };
+        var key = AssetBuildKey.Create(
+            record.AssetId, record.AssetTypeId, record.SourceRevision,
+            DefaultImporterRevision, "", settings.ComputeFingerprint());
+        lock (_inflight)
+        {
+            if (_inflight.ContainsKey(key))
+                return;
+            var job = new SharedJob(key) { Consumers = 0 };
+            _inflight[key] = job;
+            Interlocked.Increment(ref _executionCount);
+            StartWorker(job, [key]);
+        }
+    }
+
+    /// <summary>
     /// 解析逻辑路径为构建键：规范化 → 索引查询（未命中/目录抛详细异常）→ 目录登记 → 键（含导入设置指纹）。
     /// </summary>
     /// <param name="path">资产逻辑路径（相对文件服务根目录）</param>
@@ -156,7 +245,43 @@ internal sealed class AssetPipeline : IAssetPipeline, IAssetKeyResolver
                 .Select(kv => kv.Key)
                 .ToList();
             foreach (var key in completed)
-                _inflight.Remove(key);
+            {
+                if (_inflight.Remove(key, out var job))
+                    job.Cancel.Dispose(); // 已完成作业不再被取消路径触碰（DetachConsumer 门控）→ 安全释放
+            }
+        }
+    }
+
+    /// <summary>按资产查询其源逻辑路径（目录/索引未命中返回 null；错误诊断消息用）。</summary>
+    /// <param name="assetId">资产标识</param>
+    /// <returns>源逻辑路径；未命中为 null</returns>
+    public string? TryGetLogicalPath(AssetId assetId)
+    {
+        if (_catalog.TryGet(assetId, out var record)
+            && record is not null
+            && _index.TryGet(record.SourceNodeId, out var node)
+            && node is not null)
+        {
+            return node.LogicalPath;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// 关闭：取消全部在途作业并清空 in-flight 表（AssetManager.Dispose 调用）。
+    /// 在途结果因取消不再投递 FrameCommit（过期 ResultBatch 丢弃）；持锁保证与取消/驱逐无竞态。
+    /// </summary>
+    internal void CancelPendingJobs()
+    {
+        lock (_inflight)
+        {
+            foreach (var job in _inflight.Values)
+            {
+                job.Cancel.Cancel();
+                job.Completion.TrySetCanceled();
+                job.Cancel.Dispose();
+            }
+            _inflight.Clear();
         }
     }
 
@@ -164,28 +289,11 @@ internal sealed class AssetPipeline : IAssetPipeline, IAssetKeyResolver
     public AssetOperation<T> Request<T>(AssetBuildKey key, CancellationToken cancellationToken = default)
         where T : class, IAssetPayload
     {
-        var job = GetOrStartJob(key, null);
+        var gate = new ConsumerGate<T>(this, GetOrStartJob(key, null));
         if (cancellationToken.CanBeCanceled)
-            cancellationToken.Register(() => DetachConsumer(job));
-        var mapped = MapJob<T>(job);
-        return new AssetOperation<T>(key.AssetId, mapped, () => DetachConsumer(job), _mainThread, _runtime);
+            cancellationToken.Register(gate.Cancel);
+        return new AssetOperation<T>(key.AssetId, gate.Task, gate.Cancel, _mainThread, _runtime);
     }
-
-    private Task<T> MapJob<T>(SharedJob job)
-        where T : class, IAssetPayload
-        => job.Completion.Task.ContinueWith(
-            static (t, _) =>
-            {
-                if (t.IsFaulted)
-                    throw t.Exception!.GetBaseException();
-                if (t.IsCanceled)
-                    throw new OperationCanceledException();
-                return (T)t.Result.Payload!;
-            },
-            null,
-            CancellationToken.None,
-            TaskContinuationOptions.ExecuteSynchronously,
-            TaskScheduler.Default);
 
     private SharedJob GetOrStartJob(AssetBuildKey key, List<AssetBuildKey>? chain)
     {
@@ -198,7 +306,10 @@ internal sealed class AssetPipeline : IAssetPipeline, IAssetKeyResolver
                 existing.Consumers++;
                 return existing;
             }
-            var job = new SharedJob(key);
+            var job = new SharedJob(key)
+            {
+                Consumers = 1, // 新作业由首个消费者持有（共享构建跨消费者合并的计数基准）
+            };
             _inflight[key] = job;
             Interlocked.Increment(ref _executionCount);
             var childChain = chain is null
@@ -211,23 +322,44 @@ internal sealed class AssetPipeline : IAssetPipeline, IAssetKeyResolver
 
     private void StartWorker(SharedJob job, List<AssetBuildKey> chain)
     {
+        // 调用方持有 _inflight 锁：全部取消/关闭路径（DetachConsumer/Invalidate/CancelPendingJobs）也须持锁，
+        // 故此处创建取消链接源时 job.Cancel 不可能已被 Dispose；Worker 捕获 token 后即使源被释放仍可取消。
+        var linked = CancellationTokenSource.CreateLinkedTokenSource(job.Cancel.Token);
+        var cancellation = linked.Token;
         _background.Run(async ct =>
         {
+            using var _ = linked;
             try
             {
-                var result = await BuildResultAsync(job, chain, ct).ConfigureAwait(false);
-                job.Completion.TrySetResult(result);
-                // FrameCommit 阶段（Main 域）：先回写依赖边（单事务 DB + 内存反向索引），再投递结果
-                _mainThread.Post(MainThreadPhase.FrameCommit, () =>
-                {
-                    PersistDependencies(result);
-                    ResultSink?.Invoke(result);
-                });
+                var result = await BuildResultAsync(job, chain, cancellation).ConfigureAwait(false);
+                // 结果只在仍被接受的条件下回写；已取消（全部分调用方取消或关闭）时连同 FrameCommit 整体丢弃，
+                // 不投递过期 ResultBatch（不复活已驱逐条目、不触发未提交 GPU 创建）
+                if (!job.Completion.TrySetResult(result))
+                    return;
+                PostFrameCommit(result);
+            }
+            catch (OperationCanceledException)
+            {
+                job.Completion.TrySetCanceled();
             }
             catch (Exception ex)
             {
                 job.Completion.TrySetException(ex);
+                // 失败结果同样经 FrameCommit 投递：无人消费的重载/变更检测构建依赖此通道暴露失败
+                // （消费方按状态与源修订决定落账/保留上一版载荷），普通加载方仍经作业异常观察失败
+                PostFrameCommit(new AssetPipelineResult(
+                    job.Key, null, [], AssetPipelineResultState.Failed, ex));
             }
+        });
+    }
+
+    /// <summary>FrameCommit 阶段（Main 域）：先持久化成功结果的依赖边，再把结果投递给 <see cref="ResultSink"/>。</summary>
+    private void PostFrameCommit(AssetPipelineResult result)
+    {
+        _mainThread.Post(MainThreadPhase.FrameCommit, () =>
+        {
+            PersistDependencies(result);
+            ResultSink?.Invoke(result);
         });
     }
 
@@ -549,8 +681,11 @@ internal sealed class AssetPipeline : IAssetPipeline, IAssetKeyResolver
         lock (_inflight)
         {
             job.Consumers--;
+            // 最后一个消费者离开且作业未完成：取消 Worker（连同临时缓存写入的 ct）并整体移除
             if (job.Consumers <= 0 && !job.Completion.Task.IsCompleted)
             {
+                job.Cancel.Cancel();
+                job.Cancel.Dispose(); // worker 已捕获 token（StartWorker 持锁创建），释放源不影响其取消
                 job.Completion.TrySetCanceled();
                 _inflight.Remove(job.Key);
             }
@@ -612,6 +747,17 @@ internal sealed class AssetPipeline : IAssetPipeline, IAssetKeyResolver
     /// <summary>依赖解析结果：声明 + 解析后的资产身份（Pipeline 内部）</summary>
     private sealed record ResolvedDependency(AssetImportDependency Declared, AssetId AssetId, AssetTypeId Type);
 
+    /// <summary>变更对账结果：受影响资产（含级联依赖方）与源已删除的资产（Pipeline 内部）</summary>
+    /// <param name="AffectedAssets">需要失效/重建的资产（含级联依赖方；不含未受影响资产）</param>
+    /// <param name="RemovedAssets">源文件已删除的资产（由 AssetManager 标记 Missing）</param>
+    internal sealed record AssetChangeApplyResult(
+        IReadOnlyList<AssetId> AffectedAssets,
+        IReadOnlyList<AssetId> RemovedAssets)
+    {
+        /// <summary>无变更的空结果（单例）</summary>
+        public static AssetChangeApplyResult Empty { get; } = new([], []);
+    }
+
     private sealed class SharedJob(AssetBuildKey key)
     {
         public AssetBuildKey Key { get; } = key;
@@ -619,6 +765,57 @@ internal sealed class AssetPipeline : IAssetPipeline, IAssetKeyResolver
         public TaskCompletionSource<AssetPipelineResult> Completion { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
+        /// <summary>作业级取消源：全部消费者离开或关闭时取消（Worker 经链接 token 观察；持 _inflight 锁创建/取消/释放）</summary>
+        public CancellationTokenSource Cancel { get; } = new();
+
         public int Consumers;
+    }
+
+    /// <summary>
+    /// 单消费者门：把共享作业完成发布到本消费者独立任务；<see cref="Cancel"/> 只完成当前操作，
+    /// 并回调管线把共享作业的消费者计数递减（最后一个消费者取消时才取消 Worker）。
+    /// </summary>
+    private sealed class ConsumerGate<T>
+        where T : class, IAssetPayload
+    {
+        private readonly AssetPipeline _pipeline;
+        private readonly SharedJob _job;
+        private readonly TaskCompletionSource<T> _completion;
+        private int _cancelRequested;
+
+        public ConsumerGate(AssetPipeline pipeline, SharedJob job)
+        {
+            _pipeline = pipeline;
+            _job = job;
+            _completion = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
+            job.Completion.Task.ContinueWith(
+                static (completed, state) => ((ConsumerGate<T>)state!).Propagate(completed),
+                this,
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
+        }
+
+        /// <summary>本消费者视角的完成任务（取消/异常/结果均落在其上）</summary>
+        public Task<T> Task => _completion.Task;
+
+        /// <summary>取消当前操作：释放共享作业上的消费者 + 完成本操作（幂等）</summary>
+        public void Cancel()
+        {
+            if (Interlocked.Exchange(ref _cancelRequested, 1) != 0)
+                return;
+            _pipeline.DetachConsumer(_job);
+            _completion.TrySetCanceled();
+        }
+
+        private void Propagate(Task<AssetPipelineResult> completed)
+        {
+            if (completed.IsFaulted)
+                _completion.TrySetException(completed.Exception!.GetBaseException());
+            else if (completed.IsCanceled)
+                _completion.TrySetCanceled();
+            else
+                _completion.TrySetResult((T)completed.Result.Payload!);
+        }
     }
 }

@@ -75,7 +75,8 @@ public sealed class AssetCatalog
     /// 登记对账：接入数据库时按规范化逻辑路径与类型单事务更新 FileNodes 与 Assets（内容指纹取自节点元数据）。
     /// 同步等待安全：Microsoft.Data.Sqlite 的异步 API 同步完成（本地库无真正异步 IO），不会跨线程死锁。
     /// </summary>
-    private void ReconcileDatabase(AssetRecord record)
+    /// <param name="record">待对账的资产记录（登记新资产与源变更后的文件指纹/修订更新共用）</param>
+    internal void ReconcileDatabase(AssetRecord record)
     {
         if (_database is null || _index is null
             || !_index.TryGet(record.SourceNodeId, out var node) || node is null)
@@ -138,5 +139,17 @@ public sealed class AssetCatalog
         foreach (var record in _bySourceAndType.Values)
             if (record.SourceNodeId == sourceNodeId)
                 record.SourceRevision++;
+    }
+
+    /// <summary>枚举指定源节点的全部已登记资产记录（未登记返回空列表；不新建记录，供变更对账使用）</summary>
+    /// <param name="sourceNodeId">源虚拟文件系统节点</param>
+    /// <returns>该源节点下的资产记录列表</returns>
+    internal IReadOnlyList<AssetRecord> GetForSourceNode(VirtualNodeId sourceNodeId)
+    {
+        var records = new List<AssetRecord>();
+        foreach (var (key, record) in _bySourceAndType)
+            if (key.Source == sourceNodeId)
+                records.Add(record);
+        return records;
     }
 }

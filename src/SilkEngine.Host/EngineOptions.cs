@@ -1,4 +1,5 @@
 using System;
+using SilkEngine.Assets.VirtualFileSystem;
 using SilkEngine.Rendering.Backend;
 
 namespace SilkEngine.Host;
@@ -29,6 +30,12 @@ public sealed class EngineOptions
 
     /// <summary>是否嵌入宿主循环（由宿主驱动帧而非内部 Run 循环）。</summary>
     public bool Embedded { get; internal set; }
+
+    /// <summary>资产变更扫描间隔（EngineLoop 低频扫描槽；默认低频值，测试可缩小至 TimeSpan.Zero 逐帧探测）。</summary>
+    public TimeSpan AssetChangeScanInterval { get; internal set; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>测试注入的资产变更源（替代默认磁盘轮询变更源；仅 EngineBuilder 内部装配使用）。</summary>
+    internal IAssetChangeSource? AssetChangeSourceOverride { get; set; }
 
     /// <summary>DXC（HLSL→SPIR-V）编译器可执行文件路径（文件或所在目录；留空按 PATH 探测）。</summary>
     public string? DxcPath { get; internal set; }

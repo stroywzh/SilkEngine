@@ -167,6 +167,11 @@ public sealed class DiskAssetFileSystem : IAssetFileSystem
         }
     }
 
+    /// <summary>创建基于本磁盘文件服务的低频轮询变更源（Host 组合根装配默认变更源；测试可用内存源覆盖）。</summary>
+    /// <param name="interval">固定探测间隔（EngineOptions.AssetChangeScanInterval）</param>
+    /// <returns>轮询变更源</returns>
+    public PollingAssetChangeSource CreatePollingChangeSource(TimeSpan interval) => new(this, interval);
+
     private string ToLogical(string physical)
     {
         var relative = Path.GetRelativePath(_root, physical);

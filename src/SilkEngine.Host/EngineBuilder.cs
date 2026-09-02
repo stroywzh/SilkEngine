@@ -1,3 +1,4 @@
+using SilkEngine.Assets.VirtualFileSystem;
 using SilkEngine.Rendering.Backend;
 
 namespace SilkEngine.Host;
@@ -80,6 +81,24 @@ public sealed class EngineBuilder
     internal EngineBuilder UseHeadlessForTests()
     {
         _options.Headless = true;
+        return this;
+    }
+
+    /// <summary>设置资产变更扫描间隔（测试专用：缩小低频槽以在有限帧内驱动热重载）。</summary>
+    /// <param name="interval">扫描间隔（TimeSpan.Zero 为逐帧探测）</param>
+    /// <returns>构建器自身（链式调用）。</returns>
+    internal EngineBuilder UseAssetChangeScanIntervalForTests(TimeSpan interval)
+    {
+        _options.AssetChangeScanInterval = interval;
+        return this;
+    }
+
+    /// <summary>注入资产变更源（测试专用：替代默认磁盘轮询变更源，用确定性事件驱动热重载）。</summary>
+    /// <param name="source">变更源实例</param>
+    /// <returns>构建器自身（链式调用）。</returns>
+    internal EngineBuilder UseAssetChangeSourceForTests(IAssetChangeSource source)
+    {
+        _options.AssetChangeSourceOverride = source;
         return this;
     }
 
