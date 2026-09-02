@@ -18,6 +18,7 @@
     </ItemGroup>
     <ItemGroup>
       <InternalsVisibleTo Include="SilkEngine.Tests" />
+      <InternalsVisibleTo Include="SilkEngine.Host" />
     </ItemGroup>
     <ItemGroup>
       <ProjectReference Include="..\SilkEngine.Runtime\SilkEngine.Runtime.csproj" />

@@ -9,6 +9,10 @@ using IRenderBackend = SilkEngine.Rendering.Backend.IRenderBackend;
 
 namespace SilkEngine.Host;
 
+// 类名与命名空间末段同名（Unity 式门面）：裸标识符 Assets 会按外层命名空间成员解析为命名空间；
+// 编译单元级别名在查找顺序上晚于外层命名空间成员，故别名须置于文件范围命名空间声明之后
+using Assets = SilkEngine.Assets.Assets;
+
 /// <summary>
 /// 引擎唯一宿主入口：Create 只装配配置（不启动运行时、不访问全局服务），
 /// Initialize 完成运行时对象图装配与握手（单次生效），Run/Stop/Dispose 驱动与关闭。
@@ -82,11 +86,13 @@ public sealed class EngineHost : IDisposable
             _loop?.Stop();
     }
 
-    /// <summary>释放引擎（幂等；反序释放运行时资源并关闭全局服务）。</summary>
+    /// <summary>释放引擎（幂等；反序释放运行时资源、解绑静态 Assets 门面并关闭全局服务）。</summary>
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _state, 2) == 2)
             return;
+        if (_loop is { } loop)
+            Assets.Unbind(loop.AssetManager);
         _loop?.Dispose();
         _loop = null;
     }
@@ -118,5 +124,7 @@ public sealed class EngineHost : IDisposable
         Services.Register(loop.AssetManager);
         Services.Register(loop.SceneManager);
         _loop = loop;
+        // 静态 Assets 门面绑定（AssetManager 构建并完成启动扫描后；Dispose 时解绑）
+        Assets.Bind(assets);
     }
 }

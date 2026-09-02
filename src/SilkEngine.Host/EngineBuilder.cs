@@ -29,6 +29,15 @@ public sealed class EngineBuilder
         return this;
     }
 
+    /// <summary>设置资产库根目录（AssetDB 存储；本阶段仅保存路径配置）。</summary>
+    /// <param name="path">库根目录（相对工作目录或绝对路径）。</param>
+    /// <returns>构建器自身（链式调用）。</returns>
+    public EngineBuilder UseLibraryRoot(string path)
+    {
+        _options.LibraryRoot = path;
+        return this;
+    }
+
     /// <summary>启用嵌入宿主循环模式（由宿主驱动帧而非内部 Run 循环）。</summary>
     /// <returns>构建器自身（链式调用）。</returns>
     public EngineBuilder UseEmbedded()

@@ -17,6 +17,9 @@ public sealed class EngineOptions
     /// <summary>资产根目录（相对工作目录或绝对路径）。</summary>
     public string AssetRoot { get; internal set; } = "Assets";
 
+    /// <summary>资产库根目录（AssetDB 存储位置；本阶段仅保存路径配置，接线由后续任务完成）。</summary>
+    public string LibraryRoot { get; internal set; } = "Library";
+
     /// <summary>无头模式：不打开真实窗口，供测试装配使用。</summary>
     public bool Headless { get; internal set; }
 
@@ -30,6 +33,8 @@ public sealed class EngineOptions
     {
         if (string.IsNullOrWhiteSpace(AssetRoot))
             throw new ArgumentException("AssetRoot 不能为空白", nameof(AssetRoot));
+        if (string.IsNullOrWhiteSpace(LibraryRoot))
+            throw new ArgumentException("LibraryRoot 不能为空白", nameof(LibraryRoot));
         if(!Directory.Exists(AssetRoot))
         {
             SilkEngine.Core.Log.Warning($"AssetRoot {AssetRoot} 不存在");
