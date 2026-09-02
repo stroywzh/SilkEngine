@@ -86,14 +86,19 @@ public sealed class EngineHost : IDisposable
             _loop?.Stop();
     }
 
-    /// <summary>释放引擎（幂等；反序释放运行时资源、解绑静态 Assets 门面并关闭全局服务）。</summary>
+    /// <summary>
+    /// 释放引擎（幂等）：关闭运行时对象图 —— AssetManager.Dispose 先停新请求/取消 Worker/丢弃过期
+    /// ResultBatch，最后才解绑静态 Assets 门面（业务关门面访问在管理器关闭之后，顺序契约）。
+    /// </summary>
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _state, 2) == 2)
             return;
         if (_loop is { } loop)
-            Assets.Unbind(loop.AssetManager);
-        _loop?.Dispose();
+        {
+            loop.Dispose();
+            Assets.Unbind(loop.AssetManager); // 最后一步：解绑静态门面
+        }
         _loop = null;
     }
 

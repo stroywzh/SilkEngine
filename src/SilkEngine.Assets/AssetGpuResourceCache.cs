@@ -67,6 +67,15 @@ public sealed class AssetGpuResourceCache
     public bool TryGet(AssetId assetId, ulong revision, RenderResourceKind kind, out ulong handle)
         => _handles.TryGetValue((assetId, revision, kind), out handle);
 
+    /// <summary>指定 (AssetId, Revision) 是否已发布至少一种 GPU 句柄（驱逐判定用：句柄已物化即视为可收回）。</summary>
+    /// <param name="assetId">资产标识</param>
+    /// <param name="revision">源修订</param>
+    /// <returns>已发布任一 GPU 句柄为 true</returns>
+    public bool HasPublished(AssetId assetId, ulong revision) =>
+        _handles.ContainsKey((assetId, revision, RenderResourceKind.Texture))
+        || _handles.ContainsKey((assetId, revision, RenderResourceKind.Shader))
+        || _handles.ContainsKey((assetId, revision, RenderResourceKind.Mesh));
+
     /// <summary>驱逐指定 (AssetId, Revision) 的纹理句柄并生成释放请求；未登记返回零句柄 no-op 请求。</summary>
     /// <param name="assetId">资产标识</param>
     /// <param name="revision">源修订</param>

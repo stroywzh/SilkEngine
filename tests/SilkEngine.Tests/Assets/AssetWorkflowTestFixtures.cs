@@ -2,7 +2,11 @@ using System.Text;
 using SilkEngine.Assets;
 using SilkEngine.Assets.Importer;
 using SilkEngine.Assets.VirtualFileSystem;
+using SilkEngine.Rendering;
+using SilkEngine.Rendering.Abstraction;
 using SilkEngine.Threading;
+using SilkEngine.Tests.Core;
+using SilkEngine.Tests.Core.Assets;
 
 namespace SilkEngine.Tests.Assets;
 
@@ -300,5 +304,61 @@ internal sealed class GatedAssetFileSystem : IAssetFileSystem
         if (_inner.Normalize(path) == _gatedLogicalPath)
             await _gate.Task.ConfigureAwait(false);
         return await _inner.ReadAsync(path);
+    }
+}
+
+/// <summary>
+/// 资产生命周期测试夹具：场上已就绪一个真实 GPU 句柄的纹理资产
+/// （内存文件 → 同步管线加载 → Headless 渲染线程创建 → ApplyCreateResults 发布句柄）。
+/// 供帧末驱逐（UnloadUnused → GPU release 入队）与关闭顺序测试使用。
+/// </summary>
+public sealed class AssetManagerTestFixture : IDisposable
+{
+    private readonly ThreadRuntime _runtime;
+
+    private AssetManagerTestFixture(AssetManager manager, ThreadRuntime runtime, AssetHandle<TextureAsset> handle)
+    {
+        Manager = manager;
+        _runtime = runtime;
+        Handle = handle;
+    }
+
+    /// <summary>资产管理器（内建内存文件系统 + 同步管线 + Headless 渲染句柄）</summary>
+    public AssetManager Manager { get; }
+
+    /// <summary>场上已加载纹理资产的稳定句柄（Ready + GPU 句柄已发布）</summary>
+    public AssetHandle<TextureAsset> Handle { get; }
+
+    /// <summary>
+    /// 创建就绪纹理夹具：加载 → FrameCommit 应用（Ready + 排队 GPU 创建）
+    /// → Headless 渲染线程消费创建批次 → Main 域发布 GPU 句柄。
+    /// </summary>
+    /// <returns>已就绪的资产管理器夹具</returns>
+    public static AssetManagerTestFixture ReadyTexture()
+    {
+        var runtime = new ThreadRuntime();
+        runtime.RegisterMainThread();
+        var files = new InMemoryAssetFileSystem("Assets");
+        files.Add("T.png", PngFixtures.RedPng);
+        var context = TestAssetPipeline.CreateContext(files, index =>
+            index.Apply(ScanResult.FromFiles([ScanFile.File("T.png", 1)])));
+        context.Manager.Load<TextureAsset>("T.png");
+        context.Runtime.Drain(MainThreadPhase.FrameCommit);
+        var entry = context.Manager.Cache.All().Single(e => e.State == AssetState.Ready);
+        var handle = new AssetHandle<TextureAsset>(entry.AssetId);
+        var renderHost = new RenderThreadHost(runtime, new HeadlessRenderBackend());
+        runtime.RegisterManagedLoop(renderHost);
+        renderHost.Start();
+        renderHost.SubmitFrame(new RenderSubmission(
+            FrameCameraBlock.Identity, [], context.Manager.DrainCreateBatch()));
+        context.Manager.ApplyCreateResults(renderHost.LastCreateResults);
+        return new AssetManagerTestFixture(context.Manager, runtime, handle);
+    }
+
+    /// <summary>释放：关闭管理器（取消在途作业、丢弃结果、注销服务）→ 停止渲染线程与运行时</summary>
+    public void Dispose()
+    {
+        Manager.Dispose();
+        _runtime.Dispose();
     }
 }

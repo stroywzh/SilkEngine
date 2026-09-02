@@ -147,6 +147,8 @@ internal sealed class EngineLoop : IDisposable
         OnRender();
         _sceneManager.PostRender(_snapshotManager.Current);
         _frameCommitter.Commit(_snapshotManager, _registry, _sceneManager, _threadRuntime);
+        // 帧末驱逐：应用管线结果（FrameCommit 已排空）后驱逐无持有者 Payload，GPU 释放请求于下帧渲染帧首排空
+        _assetManager?.UnloadUnused();
         _threadRuntime.Drain(MainThreadPhase.Continuation);
     }
 
