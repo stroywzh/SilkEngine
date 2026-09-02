@@ -51,6 +51,21 @@ public class SandboxPublicApiTests
     }
 
     [Fact]
+    public void SandboxSource_DoesNotReferenceRenderMachineryOrAssetDatabase()
+    {
+        var program = File.ReadAllText(FindSource("src/Sandbox/Program.cs"));
+        var gameplay = File.ReadAllText(FindSource("src/Sandbox/Gameplay.cs"));
+        var sources = string.Join("\n", program, gameplay, ReadDemoSources());
+
+        // Rendering 域机制（OpenGL 后端/渲染线程/渲染域命名空间）与 AssetDB 类型名
+        // 不得直接出现在 Sandbox 源码：业务只经 Host 公开 API 与静态门面消费
+        Assert.DoesNotContain("SilkEngine.Rendering", sources, StringComparison.Ordinal);
+        Assert.DoesNotContain("RenderThreadHost", sources, StringComparison.Ordinal);
+        Assert.DoesNotContain("SqliteAssetDatabase", sources, StringComparison.Ordinal);
+        Assert.DoesNotContain("IAssetDatabase", sources, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Builder_StoresBackendAssetRootAndExtensionRegistrations()
     {
         var host = EngineHost.Create(builder =>
