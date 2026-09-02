@@ -9,6 +9,6 @@
       <ProjectReference Include="..\SilkEngine.Host\SilkEngine.Host.csproj" />
     </ItemGroup>
     <ItemGroup>
-      <None Update="Resources\**" CopyToOutputDirectory="PreserveNewest" />
+      <None Update="Assets\**" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
 </Project>

@@ -1,0 +1,8 @@
+{
+  "schema": 1,
+  "type": "material",
+  "shader": "Shaders/Unlit.hlsl",
+  "mesh": "Meshes/Cube.obj",
+  "texture": "Textures/ShoreKeeper1.png",
+  "parameters": { "BaseColor": [1.0, 1.0, 1.0] }
+}

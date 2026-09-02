@@ -15,10 +15,10 @@ public static class TestPNGQuad
         var quad = new GameObject("PNGQuad");
         quad.Transform.LocalScale = new Vector3(4, 3, 1);
         var mr = quad.AddComponent<MeshRenderer>();
-        // TODO(task 11): 重写为 Assets.Load + 真实 HLSL 资产
-        mr.Material = DemoAssetsExt.CreateMaterial(host, "PNG", ShaderSources.PngVertex, ShaderSources.PngFragment);
+        // 正式磁盘资产：材质经静态 Assets 门面解析（Cube.asset 声明 shader+texture 依赖）
+        mr.Material = Assets.Load<MaterialAsset>("Materials/Cube.asset").ToInstance();
         mr.Mesh = DemoAssetsExt.CreateQuadMesh(host, 1, 1);
-        mr.Texture = DemoAssetsExt.CreateTexture(host, "Resources/test.png");
+        mr.Texture = Assets.GetHandle<TextureAsset>("Textures/ShoreKeeper1.png");
         scene.AddRootObject(quad);
 
         var camObj = new GameObject("Cam");

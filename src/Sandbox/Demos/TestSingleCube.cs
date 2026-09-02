@@ -1,3 +1,4 @@
+using SilkEngine.Assets;
 using SilkEngine.Host;
 using SilkEngine.Math;
 using SilkEngine.Scene;
@@ -13,8 +14,9 @@ public static class TestSingleCube
 
         var cube = new GameObject("Cube");
         var mr = cube.AddComponent<MeshRenderer>();
-        mr.Material = DemoAssetsExt.CreateLitMaterial(host);
-        mr.Mesh = DemoAssetsExt.CreateCubeMesh(host);
+        // 正式磁盘资产：材质经静态 Assets 门面解析（Cube.asset 声明 shader+texture+mesh 依赖）
+        mr.Material = Assets.Load<MaterialAsset>("Materials/Cube.asset").ToInstance();
+        mr.Mesh = Assets.GetHandle<MeshAsset>("Meshes/Cube.obj");
         scene.AddRootObject(cube);
 
         var camObj = new GameObject("Cam");

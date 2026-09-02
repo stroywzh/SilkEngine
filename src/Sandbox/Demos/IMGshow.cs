@@ -1,3 +1,4 @@
+using SilkEngine.Assets;
 using SilkEngine.Host;
 using SilkEngine.Scene;
 
@@ -14,10 +15,10 @@ public static class IMGShow
 
         var quad = new GameObject("UIRenderQuad");
         var ui = quad.AddComponent<UIRenderer>();
-        // TODO(task 11): 重写为 Assets.Load + 真实 HLSL 资产
-        ui.Material = DemoAssetsExt.CreateMaterial(host, "PngShader", ShaderSources.PngVertex, ShaderSources.PngFragment);
+        // 正式磁盘资产：材质经静态 Assets 门面解析（Cube.asset 声明 shader+texture 依赖）
+        ui.Material = Assets.Load<MaterialAsset>("Materials/Cube.asset").ToInstance();
         ui.Mesh = DemoAssetsExt.CreateQuadMesh(host, 1f, 1f);
-        ui.Texture = DemoAssetsExt.CreateTexture(host, "Resources/" + PictureName);
+        ui.Texture = Assets.GetHandle<TextureAsset>("Textures/" + PictureName);
         scene.AddRootObject(quad);
     }
 }
