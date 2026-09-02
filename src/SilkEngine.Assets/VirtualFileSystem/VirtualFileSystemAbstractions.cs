@@ -33,6 +33,10 @@ public interface IAssetFileSystem
     /// <returns>文件元数据（长度/版本/最后写入时间）</returns>
     /// <exception cref="FileNotFoundException">文件不存在时抛出</exception>
     ValueTask<FileMetadata> GetMetadataAsync(string path);
+
+    /// <summary>启动扫描：一次性枚举服务根目录下全部逻辑路径（含目录），供索引装配</summary>
+    /// <returns>本次扫描观察到的全部条目</returns>
+    ScanResult Scan();
 }
 
 /// <summary>扫描条目：一次扫描中观察到的单个文件或目录</summary>
@@ -46,6 +50,9 @@ public sealed record ScanFile
 
     /// <summary>源版本/长度标量；仅文件使用，用于识别内容变化</summary>
     public ulong Version { get; init; }
+
+    /// <summary>源内容指纹（SHA-256 十六进制）；仅文件携带，目录为 null</summary>
+    public string? SourceFingerprint { get; init; }
 
     /// <summary>移动身份提示：上一位置逻辑路径；为 null 时扫描不携带旧身份</summary>
     public string? PreviousPath { get; init; }
@@ -63,13 +70,15 @@ public sealed record ScanFile
     /// <param name="logicalPath">文件逻辑路径</param>
     /// <param name="version">源版本/长度标量</param>
     /// <param name="previousPath">移动身份提示：上一位置逻辑路径，可为 null</param>
+    /// <param name="sourceFingerprint">源内容指纹（SHA-256 十六进制），可为 null</param>
     /// <returns>文件扫描条目</returns>
-    public static ScanFile File(string logicalPath, ulong version, string? previousPath = null) => new()
+    public static ScanFile File(string logicalPath, ulong version, string? previousPath = null, string? sourceFingerprint = null) => new()
     {
         LogicalPath = logicalPath,
         NodeType = VirtualNodeType.File,
         Version = version,
         PreviousPath = previousPath,
+        SourceFingerprint = sourceFingerprint,
     };
 }
 

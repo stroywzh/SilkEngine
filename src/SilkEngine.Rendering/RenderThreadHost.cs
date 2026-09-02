@@ -171,8 +171,9 @@ internal sealed class RenderThreadHost : IManagedLoop, IDisposable
             catch (Exception ex)
             {
                 Log.Error($"[RenderThread] resource create failed: {ex.Message}");
+                var stage = ex is ShaderCompilationException compilation ? compilation.Stage : null;
                 results.Add(new RenderResourceCreateResult(
-                    item.RequestId, RenderResourceCreateResultState.Failed, default, ex));
+                    item.RequestId, RenderResourceCreateResultState.Failed, default, ex, stage));
             }
         }
         LastCreateResults = new RenderResourceCreateResultBatch(results);

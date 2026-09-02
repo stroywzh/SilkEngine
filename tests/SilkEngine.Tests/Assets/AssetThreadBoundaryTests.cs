@@ -15,7 +15,7 @@ public class AssetThreadBoundaryTests
     private static readonly AssetId TextureAssetId = new(new Guid("11111111-1111-1111-1111-111111111111"));
 
     private static AssetBuildKey TextureKey() =>
-        new(TextureAssetId, AssetImporterRegistry.TextureAssetTypeId, SourceRevision: 0, ImporterRevision: 1, "");
+        new(TextureAssetId, AssetImporterRegistry.TextureAssetTypeId, SourceRevision: 0, ImporterRevision: 1, "", "");
 
     private static AssetPipeline CreatePipeline(IAssetFileSystem files, IAssetImporter importer, ThreadRuntime runtime)
     {

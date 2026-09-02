@@ -8,7 +8,8 @@ namespace SilkEngine.Tests.Assets;
 
 /// <summary>
 /// 瞬态资产契约：RegisterTransient 不经 VFS/目录（无目录记录），Payload 立即就绪并返回稳定句柄；
-/// Sandbox Demo 只经 DemoAssetsExt 构造 Handle，禁止自造随机 ID 或直接构造配置 Handle。
+/// Sandbox Demo 正式展示路径经静态 Assets 门面访问磁盘资产，瞬态构造（DemoAssetsExt）保留给程序化辅助，
+/// 均禁止自造随机 ID 或直接构造配置 Handle。
 /// </summary>
 [Collection("Assets")]
 public class TransientAssetTests : IDisposable
@@ -37,11 +38,13 @@ public class TransientAssetTests : IDisposable
     }
 
     [Fact]
-    public void SandboxSource_UsesDemoAssetsExtAndNeverCreatesRandomHandle()
+    public void SandboxSource_UsesStaticFacadeAndNeverCreatesRandomHandle()
     {
         var source = File.ReadAllText(FindSource("TestSingleCube.cs"));
 
-        Assert.Contains("DemoAssetsExt", source);
+        // 任务 11：正式展示路径迁移到静态 Assets 门面（磁盘资产），瞬态构造退出主链路
+        Assert.Contains("Assets.Load", source);
+        Assert.Contains("Materials/Cube.asset", source);
         Assert.DoesNotContain("Guid.NewGuid", source);
         Assert.DoesNotContain("new AssetHandle", source);
         Assert.DoesNotContain("IRenderDevice", source);

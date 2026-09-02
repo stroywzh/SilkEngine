@@ -83,6 +83,7 @@ public class SceneManager : IDisposable
         if (_registry is null)
             return;
         InvokeRecursive(go, c => _registry.Register(c));
+        MaterializeRenderers(go); // 对象入场景即获得资产服务 → 渲染器先建立驻留槽（先于帧末驱逐）
         _registry.ApplyPending();
     }
 
@@ -115,6 +116,8 @@ public class SceneManager : IDisposable
         {
             foreach (var go in scene._rootObjects)
                 InvokeRecursive(go, c => reg.Register(c));
+            foreach (var go in scene._rootObjects)
+                MaterializeRenderers(go); // 渲染器驻留槽随场景绑定立即物化（帧末驱逐值班后先于首帧收集）
             reg.ApplyPending();
         }
         if (LogConfig.Scene)
@@ -128,6 +131,8 @@ public class SceneManager : IDisposable
             return;
         foreach (var go in ActiveScene._rootObjects)
             InvokeRecursive(go, c => _registry.Register(c));
+        foreach (var go in ActiveScene._rootObjects)
+            MaterializeRenderers(go);
         _registry.ApplyPending();
     }
 
@@ -217,8 +222,19 @@ public class SceneManager : IDisposable
         }
         ActiveScene.AddRootObject(go);
         InvokeRecursive(go, c => _registry?.Register(c));
+        MaterializeRenderers(go); // 运行时入场景：渲染器驻留槽随上下文（若有）立即物化
         if (LogConfig.Scene)
             Log.Info($"[Scene] Added object '{go.Name}'");
         return true;
+    }
+
+    /// <summary>递归物化渲染器驻留槽：对象进入场景获得资产服务后立即建立 Mesh/Texture/材质驻留（幂等）</summary>
+    /// <param name="go">要处理的根对象</param>
+    private static void MaterializeRenderers(GameObject go)
+    {
+        foreach (var c in go._components)
+            (c as RendererBase)?.MaterializeSlots();
+        foreach (var child in go.Transform.Children)
+            MaterializeRenderers(child.GameObject!);
     }
 }

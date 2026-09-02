@@ -33,9 +33,9 @@ public class PublicApiBoundaryTests
     private static string FindSourceRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !Directory.Exists(Path.Combine(dir.FullName, "src", "SilkEngine")))
+        while (dir is not null && !Directory.Exists(Path.Combine(dir.FullName, "src", "SilkEngine.Runtime")))
             dir = dir.Parent;
         Assert.NotNull(dir);
-        return Path.Combine(dir.FullName, "src", "SilkEngine");
+        return Path.Combine(dir.FullName, "src");
     }
 }

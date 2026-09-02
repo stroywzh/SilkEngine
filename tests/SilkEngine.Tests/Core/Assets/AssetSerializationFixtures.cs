@@ -90,7 +90,7 @@ public static class Fixtures
         var materialId = new AssetId(Guid.NewGuid());
 
         var shader = new ShaderAssetSerializer().Serialize(
-            new ShaderAsset("lit", "#version 330 core", "void main(){}")) with
+            new ShaderAsset("lit", "#version 330 core")) with
         {
             AssetId = shaderId,
         };

@@ -12,6 +12,9 @@ public record AssetSerializationRecord
     private readonly VirtualNodeId? _sourceNodeId;
     private readonly IReadOnlyList<UntypedAssetHandle> _dependencies;
     private readonly string _data;
+    private readonly string? _buildKey;
+    private readonly string? _sourceFingerprint;
+    private readonly ulong? _importerRevision;
 
     /// <summary>记录 schema 版本（非负）；序列化器声明支持的版本范围必须覆盖该值</summary>
     /// <exception cref="ArgumentOutOfRangeException">版本为负时抛出</exception>
@@ -68,7 +71,28 @@ public record AssetSerializationRecord
         init => _data = value ?? throw new ArgumentNullException(nameof(Data));
     }
 
-    /// <summary>按内容比较两条记录（schema 版本、类型、资产 ID、源节点、依赖序列、数据均一致）</summary>
+    /// <summary>构建键（可选；记录来源构建的缓存键，命中校验用）</summary>
+    public string? BuildKey
+    {
+        get => _buildKey;
+        init => _buildKey = value;
+    }
+
+    /// <summary>源内容指纹（可选；构建时源文件 SHA-256，命中校验用）</summary>
+    public string? SourceFingerprint
+    {
+        get => _sourceFingerprint;
+        init => _sourceFingerprint = value;
+    }
+
+    /// <summary>导入器修订号（可选；构建时导入器修订，命中校验用）</summary>
+    public ulong? ImporterRevision
+    {
+        get => _importerRevision;
+        init => _importerRevision = value;
+    }
+
+    /// <summary>按内容比较两条记录（schema 版本、类型、资产 ID、源节点、依赖序列、数据及构建键语义字段均一致）</summary>
     /// <param name="other">待比较记录</param>
     /// <returns>内容完全一致时为 true</returns>
     public virtual bool Equals(AssetSerializationRecord? other)
@@ -83,6 +107,9 @@ public record AssetSerializationRecord
             && _assetId == other._assetId
             && _sourceNodeId == other._sourceNodeId
             && _data == other._data
+            && _buildKey == other._buildKey
+            && _sourceFingerprint == other._sourceFingerprint
+            && _importerRevision == other._importerRevision
             && DependenciesEqual(_dependencies, other._dependencies);
     }
 
@@ -95,6 +122,9 @@ public record AssetSerializationRecord
         hash.Add(_assetId);
         hash.Add(_sourceNodeId);
         hash.Add(_data);
+        hash.Add(_buildKey);
+        hash.Add(_sourceFingerprint);
+        hash.Add(_importerRevision);
         foreach (var dependency in _dependencies)
             hash.Add(dependency);
         return hash.ToHashCode();

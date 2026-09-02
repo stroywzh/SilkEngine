@@ -43,6 +43,9 @@ public sealed record MetaDataModel
     /// <summary>源文件 MD5；目录节点为 null</summary>
     public string? SourceMD5 { get; init; }
 
+    /// <summary>源内容指纹（SHA-256 十六进制，来自扫描）；目录节点为 null</summary>
+    public string? SourceFingerprint { get; init; }
+
     /// <summary>节点逻辑路径；根级节点为 string.Empty</summary>
     public string LogicPath { get; init; } = string.Empty;
 }

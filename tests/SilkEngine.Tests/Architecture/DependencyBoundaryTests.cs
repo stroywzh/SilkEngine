@@ -1,5 +1,7 @@
 using System;
 using System.IO;
+using System.Linq;
+using System.Reflection;
 
 namespace SilkEngine.Tests.Architecture;
 
@@ -25,6 +27,9 @@ public class DependencyBoundaryTests
         AssertProjectReferences("SilkEngine.Host", "SilkEngine.Runtime");
         AssertProjectReferences("Sandbox", "SilkEngine.Host");
 
+        AssertProjectDoesNotReference("SilkEngine.Runtime", "SilkEngine.Assets");
+        AssertProjectDoesNotReference("SilkEngine.Runtime", "SilkEngine.Rendering");
+        AssertProjectDoesNotReference("SilkEngine.Runtime", "SilkEngine.Rendering.Abstraction");
         AssertProjectDoesNotReference("SilkEngine.Rendering", "SilkEngine.Assets");
         AssertProjectDoesNotReference("SilkEngine.Rendering", "SilkEngine.Scene");
         AssertProjectDoesNotReference("SilkEngine.Threading", "SilkEngine.Rendering");
@@ -40,6 +45,26 @@ public class DependencyBoundaryTests
         AssertProjectDoesNotReference("Sandbox", "SilkEngine.Rendering.Abstraction");
         AssertProjectDoesNotReference("Sandbox", "SilkEngine.Rendering.Backend");
         AssertProjectDoesNotReference("Sandbox", "SilkEngine.Rendering.OpenGL");
+    }
+
+    /// <summary>
+    /// Sandbox 只直接引用 Host；本断言为 Spec 中"只引用 Host/Runtime 公开 API 的 Sandbox，
+    /// 不因内部类型/程序集/测试专用 API 产生依赖"的可执行形式——Sandbox 程序集不得直接引用
+    /// Rendering 域机制程序集（Rendering/Abstraction/Backend/OpenGL 均属引擎内部渲染机制，
+    /// 业务层不得触达）；Runtime/Assets/Scene 属公开消费面（全局门面 Input/Math 等按架构存在于 Runtime）。
+    /// </summary>
+    [Fact]
+    public void Sandbox_DoesNotReferenceRenderMachineryAssemblyNames()
+    {
+        var references = Assembly.Load("Sandbox").GetReferencedAssemblies()
+            .Select(reference => reference.Name)
+            .Where(name => name?.StartsWith("SilkEngine.", StringComparison.Ordinal) == true)
+            .ToList();
+
+        Assert.DoesNotContain("SilkEngine.Rendering", references);
+        Assert.DoesNotContain("SilkEngine.Rendering.Abstraction", references);
+        Assert.DoesNotContain("SilkEngine.Rendering.Backend", references);
+        Assert.DoesNotContain("SilkEngine.Rendering.OpenGL", references);
     }
 
     private static void AssertProjectReferences(string project, string referenced)

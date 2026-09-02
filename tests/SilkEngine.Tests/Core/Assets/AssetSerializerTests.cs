@@ -83,17 +83,19 @@ public class AssetSerializerTests
     }
 
     [Fact]
-    public void ShaderSerializer_RoundTripsSources()
+    public void ShaderSerializer_RoundTripsFields()
     {
-        var shader = new ShaderAsset("lit", "#version 330 core\nvoid main(){}", "#version 330 core\nvoid main(){}");
+        var shader = new ShaderAsset("lit", "#version 330 core\nvoid main(){}");
         var serializer = new ShaderAssetSerializer();
 
         var record = serializer.Serialize(shader);
         var restored = Assert.IsType<ShaderAsset>(serializer.Deserialize(record, new NoopReferenceResolver()));
 
         Assert.Equal("lit", restored.Name);
-        Assert.Equal(shader.VertexSource, restored.VertexSource);
-        Assert.Equal(shader.FragmentSource, restored.FragmentSource);
+        Assert.Equal(shader.Source, restored.Source);
+        Assert.Equal(shader.VertexEntryPoint, restored.VertexEntryPoint);
+        Assert.Equal(shader.FragmentEntryPoint, restored.FragmentEntryPoint);
+        Assert.Equal(shader.Profile, restored.Profile);
     }
 
     [Fact]
@@ -101,7 +103,7 @@ public class AssetSerializerTests
     {
         var serializer = new TextureAssetSerializer();
 
-        Assert.Throws<ArgumentException>(() => serializer.Serialize(new ShaderAsset("s", "v", "f")));
+        Assert.Throws<ArgumentException>(() => serializer.Serialize(new ShaderAsset("s", "v")));
     }
 
     [Fact]

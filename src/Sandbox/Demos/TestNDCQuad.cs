@@ -12,7 +12,8 @@ public static class TestNDCQuad
 
         var go = new GameObject("QuadObj");
         var mr = go.AddComponent<MeshRenderer>();
-        mr.Shader = DemoAssetsExt.CreateShader(host, "NDC_Quad", ShaderSources.NdcUvVertex, ShaderSources.NdcUvFragment);
+        // TODO(task 11): 重写为 Assets.Load + 真实 HLSL 资产
+        mr.Material = DemoAssetsExt.CreateMaterial(host, "NDC_Quad", ShaderSources.NdcUvVertex, ShaderSources.NdcUvFragment);
         mr.Mesh = DemoAssetsExt.CreateQuadMesh(host, 1.6f, 1.2f);
         scene.AddRootObject(go);
     }

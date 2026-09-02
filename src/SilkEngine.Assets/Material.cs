@@ -2,13 +2,19 @@ using SilkEngine.Math;
 
 namespace SilkEngine.Render;
 
-/// <summary>材质运行时实例：由源材质资产（<see cref="MaterialReference"/>）派生，携带实例私有覆盖参数</summary>
+/// <summary>
+/// 材质运行时实例：由源材质资产（<see cref="MaterialReference"/>）派生，携带实例私有覆盖参数。
+/// 默认参数不复制进实例：绑定解析时（MaterialBinding/MaterialResolver）将源资产 Defaults 与
+/// 本实例 Overrides 合并，覆盖只影响本实例，绝不写回共享资产。
+/// </summary>
 public sealed class Material
 {
     /// <summary>源材质资产引用（多个实例可共享同一来源）</summary>
     public MaterialReference Source { get; }
 
-    /// <summary>运行时覆盖参数（实例私有：同源实例互不影响）</summary>
+    /// <summary>
+    /// 运行时覆盖参数（实例私有：Set*/Overrides 仅影响本实例，同源实例与共享资产不受影响）。
+    /// </summary>
     public MaterialOverrides Overrides { get; } = new();
 
     /// <summary>创建材质运行时实例</summary>

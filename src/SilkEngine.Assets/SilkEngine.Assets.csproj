@@ -7,6 +7,8 @@
         <Nullable>enable</Nullable>
     </PropertyGroup>
     <ItemGroup>
+      <PackageReference Include="Dapper" Version="2.1.66" />
+      <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.0" />
       <PackageReference Include="StbImageSharp" Version="2.30.16" />
       <PackageReference Include="StbiSharp" Version="1.2.2" />
       <PackageReference Include="StyleCop.Analyzers" Version="1.1.118">
@@ -16,6 +18,7 @@
     </ItemGroup>
     <ItemGroup>
       <InternalsVisibleTo Include="SilkEngine.Tests" />
+      <InternalsVisibleTo Include="SilkEngine.Host" />
     </ItemGroup>
     <ItemGroup>
       <ProjectReference Include="..\SilkEngine.Runtime\SilkEngine.Runtime.csproj" />

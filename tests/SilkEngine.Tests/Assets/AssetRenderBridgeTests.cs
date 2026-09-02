@@ -24,15 +24,22 @@ public class AssetRenderBridgeTests
     }
 
     [Fact]
-    public void ShaderPayload_BecomesAssetFreeShaderRequest()
+    public void ShaderPayload_BecomesAssetFreeCompileRequest()
     {
         var bridge = new AssetRenderBridge(new FakeRenderRequestSink());
-        var payload = new ShaderAsset("lit", "vertex", "fragment");
+        // 任务 7：GLSL 双源码移除；桥接产出单 HLSL 源 + 入口/profile 的编译请求（backend="opengl"）
+        var payload = new ShaderAsset("lit", "hlsl-source");
 
         var request = bridge.CreateShaderRequest(payload);
 
-        Assert.Equal("vertex", request.Descriptor.VertexSource);
-        Assert.Equal("fragment", request.Descriptor.FragmentSource);
+        Assert.Equal("hlsl-source", request.HlslSource);
+        Assert.Equal("lit", request.SourcePath);
+        Assert.Equal("vert", request.VertexEntryPoint);
+        Assert.Equal("frag", request.FragmentEntryPoint);
+        Assert.Equal("sm_6_0", request.Profile);
+        Assert.Empty(request.Defines);
+        Assert.Equal("opengl", request.Backend);
+        Assert.Equal(RenderResourceKind.Shader, request.Kind);
         Assert.DoesNotContain("Asset", request.GetType().AssemblyQualifiedName!);
     }
 

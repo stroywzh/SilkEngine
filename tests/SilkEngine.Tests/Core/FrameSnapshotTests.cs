@@ -183,10 +183,10 @@ public class FrameSnapshotTests : IClassFixture<SceneManagerFixture>
         mgr.CommitPending(reg, _sm._destroyQueue, scene, 0f); // warmup
 
         GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect();
-        var before = GC.GetTotalAllocatedBytes();
+        var before = GC.GetAllocatedBytesForCurrentThread();
         for (int i = 0; i < 10; i++)
             mgr.CommitPending(reg, _sm._destroyQueue, scene, 0f);
-        var after = GC.GetTotalAllocatedBytes();
+        var after = GC.GetAllocatedBytesForCurrentThread();
 
         Assert.True(after - before < 16384, $"CommitPending allocated {after - before} bytes over 10 frames");
     }

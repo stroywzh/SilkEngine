@@ -38,11 +38,13 @@ public sealed record RenderResourceCreateBatch(IReadOnlyList<RenderResourceCreat
 /// <param name="State">创建结果状态</param>
 /// <param name="Handle">GPU 句柄（失败时为 0）</param>
 /// <param name="Error">失败异常（成功时为 null）</param>
+/// <param name="Stage">失败所在编译/加载阶段（如 "hlsl-compile"/"gl-specialize"；成功或未知分支为 null）</param>
 public sealed record RenderResourceCreateResult(
     RenderResourceRequestId RequestId,
     RenderResourceCreateResultState State,
     RenderResourceHandle Handle,
-    Exception? Error);
+    Exception? Error,
+    string? Stage = null);
 
 /// <summary>一帧内资源创建结果批次（Render → Main 单向交接，不可变）。</summary>
 /// <param name="Results">创建结果列表</param>

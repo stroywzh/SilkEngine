@@ -1,5 +1,6 @@
 using System.Threading;
 using SilkEngine.Assets;
+using SilkEngine.Assets.VirtualFileSystem;
 using SilkEngine.Core;
 using SilkEngine.Rendering;
 using SilkEngine.Rendering.OpenGL;
@@ -8,6 +9,10 @@ using SilkEngine.Threading;
 using IRenderBackend = SilkEngine.Rendering.Backend.IRenderBackend;
 
 namespace SilkEngine.Host;
+
+// 类名与命名空间末段同名（Unity 式门面）：裸标识符 Assets 会按外层命名空间成员解析为命名空间；
+// 编译单元级别名在查找顺序上晚于外层命名空间成员，故别名须置于文件范围命名空间声明之后
+using Assets = SilkEngine.Assets.Assets;
 
 /// <summary>
 /// 引擎唯一宿主入口：Create 只装配配置（不启动运行时、不访问全局服务），
@@ -82,12 +87,19 @@ public sealed class EngineHost : IDisposable
             _loop?.Stop();
     }
 
-    /// <summary>释放引擎（幂等；反序释放运行时资源并关闭全局服务）。</summary>
+    /// <summary>
+    /// 释放引擎（幂等）：关闭运行时对象图 —— AssetManager.Dispose 先停新请求/取消 Worker/丢弃过期
+    /// ResultBatch，最后才解绑静态 Assets 门面（业务关门面访问在管理器关闭之后，顺序契约）。
+    /// </summary>
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _state, 2) == 2)
             return;
-        _loop?.Dispose();
+        if (_loop is { } loop)
+        {
+            loop.Dispose();
+            Assets.Unbind(loop.AssetManager); // 最后一步：解绑静态门面
+        }
         _loop = null;
     }
 
@@ -98,17 +110,26 @@ public sealed class EngineHost : IDisposable
     /// </summary>
     private void BuildRuntime()
     {
-        IRenderBackend backend = _options.Headless
-            ? new HeadlessRenderBackend()
-            : new OpenGLRenderBackend();
+        IRenderBackend backend = _options.BackendOverrideForTests
+            ?? (_options.Headless
+                ? new HeadlessRenderBackend()
+                : new OpenGLRenderBackend(
+                    _options.ShaderCompilerOverride ?? new DxcHlslCompiler(_options.DxcPath)));
         var runtime = new ThreadRuntime();
-        var assets = AssetManager.CreateDiskBacked(_options.AssetRoot, runtime);
+        // LibraryRoot 为 AssetDB 存储目录（默认 "Library"；任务 5 起接线到磁盘资产管线）
+        var assets = AssetManager.CreateDiskBacked(_options.AssetRoot, runtime, libraryRoot: _options.LibraryRoot);
+        // 资产变更源：测试可注入内存源；默认磁盘轮询变更源按 AssetChangeScanInterval 低频扫描
+        var changeSource = _options.AssetChangeSourceOverride
+            ?? new DiskAssetFileSystem(_options.AssetRoot).CreatePollingChangeSource(
+                _options.AssetChangeScanInterval);
         var loop = new EngineLoop(
             backend,
             assets,
             runtime,
             new ComponentRegistry(),
-            new FrameSnapshotManager())
+            new FrameSnapshotManager(),
+            changeSource,
+            _options.AssetChangeScanInterval)
         {
             Embedded = _options.Embedded,
         };
@@ -118,5 +139,7 @@ public sealed class EngineHost : IDisposable
         Services.Register(loop.AssetManager);
         Services.Register(loop.SceneManager);
         _loop = loop;
+        // 静态 Assets 门面绑定（AssetManager 构建并完成启动扫描后；Dispose 时解绑）
+        Assets.Bind(assets);
     }
 }

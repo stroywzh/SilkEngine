@@ -24,10 +24,15 @@ public sealed class OpenGLRenderBackend : IRenderBackend, IRenderDevice, IRender
     private const string TextureUniform = "uMainTex";
 
     private readonly Dictionary<ulong, IDisposable> _resources = new();
+    private readonly IShaderCompiler? _shaderCompiler;
     private IWindow? _window;
     private GL? _gl;
     private IOpenGlFrameCalls? _frameCalls;
     private ulong _nextHandle = 1;
+
+    /// <summary>创建 OpenGL 渲染后端。</summary>
+    /// <param name="shaderCompiler">着色器编译器（HLSL→SPIR-V）；null 时按 PATH/DxcPath 探测默认 DXC。</param>
+    public OpenGLRenderBackend(IShaderCompiler? shaderCompiler = null) => _shaderCompiler = shaderCompiler;
 
     private float _clearR = 0.1f,
         _clearG = 0.1f,
@@ -84,11 +89,40 @@ public sealed class OpenGLRenderBackend : IRenderBackend, IRenderDevice, IRender
     public RenderTextureHandle CreateTexture(RenderTextureCreateRequest request)
         => new(Register(new OpenGLTexture(RequireGl(), request)));
 
-    /// <summary>创建着色器资源（渲染线程上下文内调用）。</summary>
-    /// <param name="request">无资产语义的着色器创建请求</param>
+    /// <summary>创建着色器资源（渲染线程上下文内调用）：HLSL → SPIR-V（DXC）→ glShaderBinary/glSpecializeShader 链接。</summary>
+    /// <param name="request">无资产语义的编译创建请求（单 HLSL 源 + 入口 + profile + 后端）</param>
     /// <returns>着色器 GPU 句柄</returns>
+    /// <exception cref="ShaderCompilationException">编译或 GL 加载失败（消息段含 source path/入口/profile/backend）</exception>
     public RenderShaderHandle CreateShader(RenderShaderCreateRequest request)
-        => new(Register(new OpenGLShader(RequireGl(), request)));
+    {
+        var gl = RequireGl();
+        var compileRequest = ToCompileRequest(request);
+        var compiled = CompileSpirv(compileRequest);
+        return new RenderShaderHandle(Register(OpenGLShaderCompiler.Create(gl, compileRequest, compiled)));
+    }
+
+    /// <summary>无资产语义编译请求形态转换（Abstraction 中性请求 → Rendering.Backend 编译器契约请求；字段一一对应）。</summary>
+    private static ShaderCompileRequest ToCompileRequest(RenderShaderCreateRequest request) => new(
+        request.SourcePath,
+        request.HlslSource,
+        request.VertexEntryPoint,
+        request.FragmentEntryPoint,
+        request.Profile,
+        request.Defines,
+        request.Backend);
+
+    /// <summary>渲染线程同步执行 DXC 编译；失败/不支持转为携带请求上下文与阶段的 <see cref="ShaderCompilationException"/>。</summary>
+    private IReadOnlyList<byte> CompileSpirv(ShaderCompileRequest request)
+    {
+        // 原型阶段渲染为同步阻塞（P0 已知）；渲染线程无同步上下文，GetResult 无死锁风险
+        var compiler = _shaderCompiler ?? new DxcHlslCompiler();
+        var result = compiler.CompileAsync(request, CancellationToken.None).GetAwaiter().GetResult();
+        if (result.State != ShaderCompileState.Succeeded || result.SpirV is null)
+            throw new ShaderCompilationException(
+                "hlsl-compile",
+                result.Error?.Message ?? $"[{request.Backend}] DXC 编译失败 '{request.SourcePath}'：无错误详情");
+        return result.SpirV;
+    }
 
     /// <summary>创建网格资源（渲染线程上下文内调用）。</summary>
     /// <param name="request">无资产语义的网格创建请求</param>

@@ -14,7 +14,8 @@ public static class TestCameraOrtho
         var quad = new GameObject("Quad");
         quad.Transform.LocalScale = new Vector3(4, 3, 1);
         var mr = quad.AddComponent<MeshRenderer>();
-        mr.Shader = DemoAssetsExt.CreateShader(host, "Cam", ShaderSources.CamUvVertex, ShaderSources.CamUvFragment);
+        // TODO(task 11): 重写为 Assets.Load + 真实 HLSL 资产
+        mr.Material = DemoAssetsExt.CreateMaterial(host, "Cam", ShaderSources.CamUvVertex, ShaderSources.CamUvFragment);
         mr.Mesh = DemoAssetsExt.CreateQuadMesh(host, 1, 1);
         scene.AddRootObject(quad);
 

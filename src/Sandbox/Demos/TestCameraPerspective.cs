@@ -14,7 +14,8 @@ public static class TestCameraPerspective
         var cube = new GameObject("Cube");
         cube.Transform.LocalPosition = new Vector3(0, 0, 3);
         var mr = cube.AddComponent<MeshRenderer>();
-        mr.Shader = DemoAssetsExt.CreateShader(host, "Persp", ShaderSources.LitVertex, ShaderSources.LitFragment);
+        // TODO(task 11): 重写为 Assets.Load + 真实 HLSL 资产
+        mr.Material = DemoAssetsExt.CreateMaterial(host, "Persp", ShaderSources.LitVertex, ShaderSources.LitFragment);
         mr.Mesh = DemoAssetsExt.CreateCubeMesh(host);
         scene.AddRootObject(cube);
 

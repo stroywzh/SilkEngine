@@ -301,7 +301,7 @@ public sealed class FakeAssetResolver : IMaterialAssetResolver
     public FakeAssetResolver AddMaterial(MaterialAsset asset)
     {
         _materials[asset.Id] = asset;
-        _shaders.TryAdd(asset.Shader.Id, new ShaderAsset($"shader-{asset.Shader.Id.Value}", "void main(){}", "void main(){}"));
+        _shaders.TryAdd(asset.Shader.Id, new ShaderAsset($"shader-{asset.Shader.Id.Value}", "void main(){}"));
         if (asset.MainTexture is { } texture)
             _textures.TryAdd(texture.Id, new TextureAsset($"texture-{texture.Id.Value}", new ImageData(1, 1, [255, 255, 255, 255])));
         return this;

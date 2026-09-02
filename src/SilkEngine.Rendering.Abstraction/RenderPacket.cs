@@ -73,6 +73,15 @@ public sealed class RenderMaterialParameters(IEnumerable<(string Name, RenderPar
         return v;
     }
 
+    /// <summary>按名称尝试读取 Vector3 参数；未定义或类型不匹配返回 false。</summary>
+    public bool TryGetVector3(string name, out Vector3 value)
+    {
+        if (_values.TryGetValue(name, out var v) && v.TryGetVector3(out value))
+            return true;
+        value = default;
+        return false;
+    }
+
     /// <summary>按名称尝试读取参数值（类型不区分；未命中返回 false）。</summary>
     public bool TryGet(string name, out RenderParameterValue value) => _values.TryGetValue(name, out value);
 
