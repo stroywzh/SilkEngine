@@ -20,17 +20,17 @@ public static class DemoAssetsExt
     /// <param name="host">引擎宿主</param>
     /// <returns>着色器资产句柄</returns>
     public static AssetHandle<ShaderAsset> CreateLitShader(EngineHost host)
-        => host.AssetManager.RegisterTransient(
-            new ShaderAsset("PerspCheck", ShaderSources.LitVertex, ShaderSources.LitFragment));
+        // TODO(task 11): 重写为 Assets.Load + 真实 HLSL 资产
+        => host.AssetManager.RegisterTransient(new ShaderAsset("PerspCheck", ShaderSources.LitVertex));
 
-    /// <summary>按名称与 GLSL 源码构造着色器瞬态资产 Handle。</summary>
+    /// <summary>按名称与源码构造着色器瞬态资产 Handle。</summary>
     /// <param name="host">引擎宿主</param>
     /// <param name="name">资产名</param>
-    /// <param name="vertex">顶点着色器源码</param>
-    /// <param name="fragment">片段着色器源码</param>
+    /// <param name="source">着色器源码（单 HLSL 源码形态占位，GLSL 双源码时代遗留）</param>
     /// <returns>着色器资产句柄</returns>
-    public static AssetHandle<ShaderAsset> CreateShader(EngineHost host, string name, string vertex, string fragment)
-        => host.AssetManager.RegisterTransient(new ShaderAsset(name, vertex, fragment));
+    public static AssetHandle<ShaderAsset> CreateShader(EngineHost host, string name, string source)
+        // TODO(task 11): 重写为 Assets.Load + 真实 HLSL 资产
+        => host.AssetManager.RegisterTransient(new ShaderAsset(name, source));
 
     /// <summary>把给定网格载荷登记为瞬态资产并返回句柄。</summary>
     /// <param name="host">引擎宿主</param>

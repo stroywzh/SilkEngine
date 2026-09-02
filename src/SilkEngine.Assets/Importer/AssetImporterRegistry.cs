@@ -1,16 +1,25 @@
 namespace SilkEngine.Assets.Importer;
 
-/// <summary>按扩展名与资产类型解析导入器的实例注册表：默认注册 .png/.jpg → 纹理导入器，新导入器经 <see cref="Register"/> 接入</summary>
+/// <summary>按扩展名与资产类型解析导入器的实例注册表：默认注册 .png/.jpg → 纹理、.hlsl → 着色器、.obj → 网格、.asset → 材质；新导入器经 <see cref="Register"/> 接入</summary>
 public sealed class AssetImporterRegistry
 {
     /// <summary>纹理资产类型标识（默认注册与兼容门面共用）</summary>
     public static readonly AssetTypeId TextureAssetTypeId = new("texture");
 
+    /// <summary>着色器资产类型标识</summary>
+    public static readonly AssetTypeId ShaderAssetTypeId = new("shader");
+
+    /// <summary>网格资产类型标识</summary>
+    public static readonly AssetTypeId MeshAssetTypeId = new("mesh");
+
+    /// <summary>材质资产类型标识</summary>
+    public static readonly AssetTypeId MaterialAssetTypeId = new("material");
+
     private readonly Dictionary<string, Entry> _importers = new(StringComparer.OrdinalIgnoreCase);
 
     private sealed record Entry(AssetTypeId TypeId, Func<ImportSettings?, IAssetImporter> Factory);
 
-    /// <summary>创建注册表并注册内置默认导入器（.png/.jpg → 纹理导入器）</summary>
+    /// <summary>创建注册表并注册内置默认导入器（纹理/着色器/网格/材质）</summary>
     public AssetImporterRegistry()
         : this(registerDefaults: true)
     {
@@ -24,6 +33,9 @@ public sealed class AssetImporterRegistry
             return;
         Register(TextureAssetTypeId, ".png", settings => new TextureImporter(Decoders.Default, settings));
         Register(TextureAssetTypeId, ".jpg", settings => new TextureImporter(Decoders.Default, settings));
+        Register(ShaderAssetTypeId, ".hlsl", _ => new ShaderImporter());
+        Register(MeshAssetTypeId, ".obj", _ => new ObjMeshImporter());
+        Register(MaterialAssetTypeId, ".asset", _ => new MaterialImporter());
     }
 
     /// <summary>注册扩展名对应的导入器工厂（扩展名大小写不敏感、含点处理）。</summary>

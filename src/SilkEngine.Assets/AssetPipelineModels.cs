@@ -34,27 +34,33 @@ public enum AssetPipelineResultState
 /// </summary>
 /// <param name="Key">构建键</param>
 /// <param name="Payload">导入生成的不可变载荷；失败为 null</param>
-/// <param name="Dependencies">依赖句柄列表</param>
+/// <param name="Dependencies">逻辑路径依赖列表（本任务不解析，任务 5 接入路径→句柄解析）</param>
 /// <param name="State">结果状态</param>
 /// <param name="Error">失败原因；成功为 null</param>
 public sealed record AssetPipelineResult(
     AssetBuildKey Key,
     IAssetPayload? Payload,
-    IReadOnlyList<UntypedAssetHandle> Dependencies,
+    IReadOnlyList<AssetImportDependency> Dependencies,
     AssetPipelineResultState State,
     Exception? Error);
 
 /// <summary>
-/// 导入结果：Payload + 依赖句柄 + 导入器修订号。
-/// 导入器只从源数据生成 <see cref="IAssetPayload"/>，不创建 GPU 对象、Scene 组件或运行时实例。
+/// 导入结果：Payload + 逻辑路径依赖 + 导入器修订号。
+/// 导入器只从源数据生成 <see cref="IAssetPayload"/>，不创建 GPU 对象、Scene 组件或运行时实例；
+/// 依赖以逻辑路径表达，由 Pipeline 在后续任务解析为构建键。
 /// </summary>
 /// <param name="Payload">导入生成的载荷</param>
-/// <param name="Dependencies">本次导入发现的依赖句柄</param>
+/// <param name="Dependencies">本次导入发现的逻辑路径依赖</param>
 /// <param name="ImporterRevision">导入器修订号（输出变化时递增，供过期校验）</param>
 public sealed record AssetImportResult(
     IAssetPayload Payload,
-    IReadOnlyList<UntypedAssetHandle> Dependencies,
+    IReadOnlyList<AssetImportDependency> Dependencies,
     ulong ImporterRevision);
+
+/// <summary>逻辑路径依赖：导入器声明所依赖资产的逻辑路径与期望类型（任务 5 由 Pipeline 解析路径→构建键/句柄）</summary>
+/// <param name="LogicalPath">依赖资产的逻辑路径（相对文件服务根目录）</param>
+/// <param name="ExpectedType">期望资产类型（可为 null，未声明的依赖不做类型校验）</param>
+public sealed record AssetImportDependency(string LogicalPath, AssetTypeId? ExpectedType);
 
 /// <summary>导入上下文：源路径与导入设置</summary>
 /// <param name="Path">源逻辑路径</param>

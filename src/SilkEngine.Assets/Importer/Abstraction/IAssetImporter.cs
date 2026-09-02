@@ -1,8 +1,9 @@
 namespace SilkEngine.Assets.Importer;
 
 /// <summary>
-/// 资产导入器：raw 字节 → <see cref="AssetImportResult"/>（Payload + 依赖 + 导入器修订）。
-/// 导入器只生成 <see cref="IAssetPayload"/>，不创建 GPU 对象、Scene 组件或运行时实例。
+/// 资产导入器：raw 字节 → <see cref="AssetImportResult"/>（Payload + 逻辑路径依赖 + 导入器修订）。
+/// 导入器只生成 <see cref="IAssetPayload"/>，不创建 GPU 对象、Scene 组件或运行时实例；
+/// 依赖以 <see cref="AssetImportDependency"/>（逻辑路径 + 期望类型）声明，由 Pipeline 在任务 5 解析。
 /// </summary>
 public interface IAssetImporter
 {

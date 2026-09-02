@@ -218,16 +218,8 @@ internal sealed class AssetPipeline : IAssetPipeline, IAssetKeyResolver
         ct.ThrowIfCancellationRequested();
         var import = importer.Import(source, new AssetImportContext(path, settings));
 
-        foreach (var dependency in import.Dependencies)
-        {
-            var depKey = DependencyKey(dependency, key.TargetProfile);
-            var depJob = GetOrStartJob(depKey, chain);
-            var depResult = await depJob.Completion.Task.ConfigureAwait(false);
-            if (depResult.Key != depKey)
-                throw new InvalidDataException(
-                    $"Dependency '{depKey.AssetId}' of '{key.AssetId}' resolved to a different build key.");
-        }
-
+        // TODO(task 5): 按 AssetImportDependency 逻辑路径解析依赖构建键（ResolveKey），
+        // 启动依赖作业并恢复 DFS 循环检测；本任务仅把路径依赖随结果携带，不做解析。
         ValidateFreshness(key, import.ImporterRevision);
         return new AssetPipelineResult(
             key,
@@ -235,12 +227,6 @@ internal sealed class AssetPipeline : IAssetPipeline, IAssetKeyResolver
             import.Dependencies,
             AssetPipelineResultState.Succeeded,
             null);
-    }
-
-    private AssetBuildKey DependencyKey(UntypedAssetHandle dependency, string targetProfile)
-    {
-        var sourceRevision = _catalog.TryGet(dependency.Id, out var record) ? record.SourceRevision : 0UL;
-        return new AssetBuildKey(dependency.Id, dependency.TypeId, sourceRevision, ImporterRevision: 1, targetProfile);
     }
 
     private void ValidateFreshness(AssetBuildKey key, ulong importerRevision)

@@ -2,7 +2,7 @@ using System.IO;
 
 namespace SilkEngine.Assets.Serialization;
 
-/// <summary>着色器资产序列化器：编码名称与顶点/片段 GLSL 源码（schema 版本 1）</summary>
+/// <summary>着色器资产序列化器：编码名称、HLSL 源码与入口/profile（schema 版本 1）</summary>
 public sealed class ShaderAssetSerializer : AssetSerializerBase
 {
     /// <summary>着色器资产类型标识</summary>
@@ -28,8 +28,10 @@ public sealed class ShaderAssetSerializer : AssetSerializerBase
         var dto = new ShaderDto
         {
             Name = shader.Name,
-            Vertex = shader.VertexSource,
-            Fragment = shader.FragmentSource,
+            Source = shader.Source,
+            VertexEntryPoint = shader.VertexEntryPoint,
+            FragmentEntryPoint = shader.FragmentEntryPoint,
+            Profile = shader.Profile,
         };
 
         return new AssetSerializationRecord
@@ -50,10 +52,15 @@ public sealed class ShaderAssetSerializer : AssetSerializerBase
         EnsureCompatible(record);
         var dto = ParseData<ShaderDto>(record);
 
-        if (dto.Vertex == null || dto.Fragment == null)
+        if (dto.Source == null)
             throw new InvalidDataException($"着色器记录缺少源码字段（资产 {record.AssetId.Value}）");
 
-        return new ShaderAsset(dto.Name ?? string.Empty, dto.Vertex, dto.Fragment);
+        return new ShaderAsset(
+            dto.Name ?? string.Empty,
+            dto.Source,
+            dto.VertexEntryPoint ?? "vert",
+            dto.FragmentEntryPoint ?? "frag",
+            dto.Profile ?? "sm_6_0");
     }
 
     /// <summary>着色器编码载体（显式字段，禁止反射推断）</summary>
@@ -62,10 +69,16 @@ public sealed class ShaderAssetSerializer : AssetSerializerBase
         /// <summary>着色器名称</summary>
         public string? Name { get; set; }
 
-        /// <summary>顶点着色器 GLSL 源码</summary>
-        public string? Vertex { get; set; }
+        /// <summary>HLSL 源码</summary>
+        public string? Source { get; set; }
 
-        /// <summary>片段着色器 GLSL 源码</summary>
-        public string? Fragment { get; set; }
+        /// <summary>顶点着色器入口函数名</summary>
+        public string? VertexEntryPoint { get; set; }
+
+        /// <summary>片段着色器入口函数名</summary>
+        public string? FragmentEntryPoint { get; set; }
+
+        /// <summary>着色模型配置文件</summary>
+        public string? Profile { get; set; }
     }
 }

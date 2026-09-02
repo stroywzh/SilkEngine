@@ -56,7 +56,7 @@ public class RendererBaseTests : IDisposable
     [Fact]
     public void SetShader_CreatesSlot_AddsResidency()
     {
-        var id = RegisterReady(new ShaderAsset("S", "vs", "fs"));
+        var id = RegisterReady(new ShaderAsset("S", "vs"));
         var mr = NewRenderer();
         mr.SetShader(new AssetHandle<ShaderAsset>(id));
 
@@ -69,7 +69,7 @@ public class RendererBaseTests : IDisposable
     public void OnDestroy_DisposesSlots_ReleasesResidency()
     {
         var meshId = RegisterReady(new MeshAsset("M", [0, 0, 0], [3], null));
-        var shaderId = RegisterReady(new ShaderAsset("S", "vs", "fs"));
+        var shaderId = RegisterReady(new ShaderAsset("S", "vs"));
         var mr = NewRenderer();
         mr.SetMesh(new AssetHandle<MeshAsset>(meshId));
         mr.SetShader(new AssetHandle<ShaderAsset>(shaderId));
@@ -95,7 +95,7 @@ public class RendererBaseTests : IDisposable
     [Fact]
     public void SetShader_ResolvesPublishedHandle()
     {
-        var id = RegisterReady(new ShaderAsset("S", "vs", "fs"));
+        var id = RegisterReady(new ShaderAsset("S", "vs"));
         _am.PublishRenderShader(id, new RenderShaderHandle(9));
         var mr = NewRenderer();
         mr.SetShader(new AssetHandle<ShaderAsset>(id));

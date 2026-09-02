@@ -27,12 +27,13 @@ public class AssetRenderBridgeTests
     public void ShaderPayload_BecomesAssetFreeShaderRequest()
     {
         var bridge = new AssetRenderBridge(new FakeRenderRequestSink());
-        var payload = new ShaderAsset("lit", "vertex", "fragment");
+        // TODO(task 7): ShaderCompileRequest 接入后按入口编译拆分，断言改为编译请求形态
+        var payload = new ShaderAsset("lit", "hlsl-source");
 
         var request = bridge.CreateShaderRequest(payload);
 
-        Assert.Equal("vertex", request.Descriptor.VertexSource);
-        Assert.Equal("fragment", request.Descriptor.FragmentSource);
+        Assert.Equal("hlsl-source", request.Descriptor.VertexSource);
+        Assert.Equal("hlsl-source", request.Descriptor.FragmentSource);
         Assert.DoesNotContain("Asset", request.GetType().AssemblyQualifiedName!);
     }
 

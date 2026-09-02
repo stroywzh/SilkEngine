@@ -1,11 +1,12 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using SilkEngine.Assets;
 using SilkEngine.Math;
 
 namespace SilkEngine.Render;
 
-/// <summary>材质参数值：受支持参数类型的判别联合（Float / Vector3 / Matrix4x4）</summary>
+/// <summary>材质参数值：受支持参数类型的判别联合（Float / Vector3 / Matrix4x4 / Texture）</summary>
 public readonly struct MaterialValue
 {
     /// <summary>参数值类型</summary>
@@ -19,6 +20,9 @@ public readonly struct MaterialValue
 
         /// <summary>4x4 矩阵（行主序 16 个 float）</summary>
         Matrix4x4,
+
+        /// <summary>纹理资产句柄</summary>
+        Texture,
     }
 
     /// <summary>参数值类型</summary>
@@ -27,13 +31,15 @@ public readonly struct MaterialValue
     private readonly float _float;
     private readonly Vector3 _vector3;
     private readonly Matrix4x4 _matrix4x4;
+    private readonly AssetHandle<TextureAsset> _texture;
 
-    private MaterialValue(ValueKind kind, float f, Vector3 v, Matrix4x4 m)
+    private MaterialValue(ValueKind kind, float f, Vector3 v, Matrix4x4 m, AssetHandle<TextureAsset> texture = default)
     {
         Kind = kind;
         _float = f;
         _vector3 = v;
         _matrix4x4 = m;
+        _texture = texture;
     }
 
     /// <summary>创建浮点参数值</summary>
@@ -50,6 +56,11 @@ public readonly struct MaterialValue
     /// <param name="value">矩阵（按行主序展开为 16 个连续 float）</param>
     /// <returns>Matrix4x4 类型参数值</returns>
     public static MaterialValue Matrix4x4(Matrix4x4 value) => new(ValueKind.Matrix4x4, 0f, default, value);
+
+    /// <summary>创建纹理参数值</summary>
+    /// <param name="value">纹理资产句柄</param>
+    /// <returns>Texture 类型参数值</returns>
+    public static MaterialValue Texture(AssetHandle<TextureAsset> value) => new(ValueKind.Texture, 0f, default, default, value);
 
     /// <summary>尝试读取浮点值；类型不匹配返回 false</summary>
     /// <param name="value">浮点值（类型不匹配时为默认值）</param>
@@ -76,6 +87,15 @@ public readonly struct MaterialValue
     {
         value = _matrix4x4;
         return Kind == ValueKind.Matrix4x4;
+    }
+
+    /// <summary>尝试读取纹理句柄值；类型不匹配返回 false</summary>
+    /// <param name="value">纹理资产句柄（类型不匹配时为默认值）</param>
+    /// <returns>是否为 Texture 类型</returns>
+    public bool TryGetTexture(out AssetHandle<TextureAsset> value)
+    {
+        value = _texture;
+        return Kind == ValueKind.Texture;
     }
 }
 

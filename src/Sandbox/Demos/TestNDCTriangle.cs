@@ -11,7 +11,8 @@ public static class TestNDCTriangle
         var scene = new Scene("NDC_Triangle");
         host.SceneManager.LoadScene(scene);
 
-        var shader = DemoAssetsExt.CreateShader(host, "NDC", ShaderSources.NdcColorVertex, ShaderSources.NdcColorFragment);
+        // TODO(task 11): 重写为 Assets.Load + 真实 HLSL 资产
+        var shader = DemoAssetsExt.CreateShader(host, "NDC", ShaderSources.NdcColorVertex);
         var mesh = DemoAssetsExt.CreateMesh(host, new MeshAsset(
             "Triangle",
             [

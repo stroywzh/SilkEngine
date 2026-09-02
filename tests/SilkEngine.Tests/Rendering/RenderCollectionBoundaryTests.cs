@@ -80,7 +80,7 @@ public class RenderCollectionBoundaryTests : IDisposable
     public void Renderer_AssetSlotProperties_BindAndResolveHandles()
     {
         var meshHandle = _am.RegisterTransient(new MeshAsset("M", new float[] { 0, 0, 0, 1, 0, 0 }, new[] { 3 }, null));
-        var shaderHandle = _am.RegisterTransient(new ShaderAsset("S", "vs", "fs"));
+        var shaderHandle = _am.RegisterTransient(new ShaderAsset("S", "vs"));
 
         var renderer = new GameObject("R").AddComponent<MeshRenderer>();
         renderer.BindAssetService(_am);
@@ -94,7 +94,7 @@ public class RenderCollectionBoundaryTests : IDisposable
     private MeshRenderer CreateRendererWithResolvedAssetSlots()
     {
         var meshId = RegisterReady(new MeshAsset("M", [0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0], [3], null));
-        var shaderId = RegisterReady(new ShaderAsset("S", "vs", "fs"));
+        var shaderId = RegisterReady(new ShaderAsset("S", "vs"));
         _am.PublishRenderMesh(meshId, new RenderMeshHandle(42));
         _am.PublishRenderShader(shaderId, new RenderShaderHandle(7));
 

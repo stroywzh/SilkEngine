@@ -37,11 +37,12 @@ internal sealed class AssetRenderBridge
         new RenderTextureDescriptor(payload.Data.Width, payload.Data.Height, 4),
         payload.Data.RawBytes);
 
-    /// <summary>着色器载荷 → 无资产语义着色器创建请求</summary>
+    /// <summary>着色器载荷 → 无资产语义着色器创建请求（GL 双源码时代占位：同源注入顶点/片段）</summary>
     /// <param name="payload">着色器载荷</param>
     /// <returns>创建请求</returns>
     internal RenderShaderCreateRequest CreateShaderRequest(ShaderAsset payload) => new(
-        new RenderShaderDescriptor(payload.VertexSource, payload.FragmentSource));
+        // TODO(task 7): ShaderCompileRequest 接入（单 HLSL 源码 + 入口编译）
+        new RenderShaderDescriptor(payload.Source, payload.Source));
 
     /// <summary>网格载荷 → 无资产语义网格创建请求</summary>
     /// <param name="payload">网格载荷</param>

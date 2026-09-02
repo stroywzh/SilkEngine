@@ -15,7 +15,8 @@ public static class TestPNGQuad
         var quad = new GameObject("PNGQuad");
         quad.Transform.LocalScale = new Vector3(4, 3, 1);
         var mr = quad.AddComponent<MeshRenderer>();
-        mr.Shader = DemoAssetsExt.CreateShader(host, "PNG", ShaderSources.PngVertex, ShaderSources.PngFragment);
+        // TODO(task 11): 重写为 Assets.Load + 真实 HLSL 资产
+        mr.Shader = DemoAssetsExt.CreateShader(host, "PNG", ShaderSources.PngVertex);
         mr.Mesh = DemoAssetsExt.CreateQuadMesh(host, 1, 1);
         mr.Texture = DemoAssetsExt.CreateTexture(host, "Resources/test.png");
         scene.AddRootObject(quad);
