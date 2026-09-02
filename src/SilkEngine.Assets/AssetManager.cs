@@ -72,7 +72,9 @@ public sealed class AssetManager : IDisposable
     /// <summary>
     /// 创建磁盘目录驱动的资产管理器（Host 组合根入口）：构造资产管线（VFS 索引 + 启动扫描 +
     /// 导入器注册表 + SQLite AssetDB）并注入线程运行时；管线保持内部类型，公开面不外泄。
-    /// AssetDB 位于 libraryRoot 目录（默认 assetRoot/Library），持久化依赖边与构建元数据。
+    /// AssetDB 位于 libraryRoot 目录（默认 assetRoot/Library），持久化依赖边与构建元数据；
+    /// 构建产物缓存（<see cref="BuildArtifactStore"/>）位于 libraryRoot/SilkEngine/AssetDB/cache，
+    /// 缓存保存序列化派生字节，JSON `.asset` 等源文件始终由导入器在资产根目录读取，缓存不保存源副本。
     /// </summary>
     /// <param name="assetRoot">资产根目录（null 时缺省 "Assets"）</param>
     /// <param name="runtime">线程运行时（Worker 池与主线程派发器来源）</param>
@@ -91,13 +93,16 @@ public sealed class AssetManager : IDisposable
         projectNamespace ??= "sandbox";
         var fileService = files ?? new DiskAssetFileSystem(assetRoot ?? "Assets");
         var index = new InMemoryVirtualFileIndex();
-        var databasePath = Path.Combine(
-            libraryRoot ?? Path.Combine(assetRoot ?? "Assets", "Library"), "assetdb.sqlite");
+        var libraryPath = libraryRoot ?? Path.Combine(assetRoot ?? "Assets", "Library");
+        var databasePath = Path.Combine(libraryPath, "assetdb.sqlite");
         var databaseDirectory = Path.GetDirectoryName(databasePath);
         if (!string.IsNullOrEmpty(databaseDirectory))
             Directory.CreateDirectory(databaseDirectory);
         var database = new SqliteAssetDatabase(databasePath);
         database.InitializeAsync(CancellationToken.None).GetAwaiter().GetResult();
+        var serializers = new AssetSerializerRegistry();
+        RegisterBuiltInSerializers(serializers);
+        var artifacts = new BuildArtifactStore(Path.Combine(libraryPath, "SilkEngine", "AssetDB", "cache"));
         var pipeline = new AssetPipeline(
             fileService,
             index,
@@ -106,17 +111,29 @@ public sealed class AssetManager : IDisposable
             runtime.Background,
             runtime.MainThread,
             runtime,
-            database
+            database,
+            artifacts,
+            serializers
         );
         pipeline.ApplyScan(fileService.Scan());
         var manager = new AssetManager(
             pipeline,
             runtime.MainThread,
             runtime,
-            new AssetSerializerRegistry()
+            serializers
         );
         manager.AttachDatabase(database);
         return manager;
+    }
+
+    /// <summary>注册内置资产序列化器（纹理/着色器/网格/材质；构建产物缓存与记录往返依赖）</summary>
+    /// <param name="registry">目标注册表</param>
+    private static void RegisterBuiltInSerializers(AssetSerializerRegistry registry)
+    {
+        registry.Register(new TextureAssetSerializer());
+        registry.Register(new ShaderAssetSerializer());
+        registry.Register(new MeshAssetSerializer());
+        registry.Register(new MaterialAssetSerializer());
     }
 
     /// <summary>注册序列化器（直通注册表；同类型重复注册抛 <see cref="InvalidOperationException"/>）</summary>

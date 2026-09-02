@@ -1,6 +1,8 @@
 using SilkEngine.Assets.Database;
 using SilkEngine.Assets.Importer;
+using SilkEngine.Assets.Serialization;
 using SilkEngine.Assets.VirtualFileSystem;
+using SilkEngine.Core;
 using SilkEngine.Threading;
 
 namespace SilkEngine.Assets;
@@ -27,12 +29,22 @@ internal interface IAssetKeyResolver
 /// 资产管线协调器：按 <see cref="AssetBuildKey"/> 在 in-flight 字典中合并请求（锁保护，兼容测试多线程）。
 /// Worker 执行 Read/Import/依赖解析/Validate：导入器返回的路径依赖被解析为依赖构建键并启动依赖作业
 /// （DFS active set 检测循环，失败携带完整路径链）；依赖作业完成后父作业产出最终结果。
+/// 构建产物缓存：接入 <see cref="BuildArtifactStore"/> 与序列化器时，Worker 构建前按键（含 fingerprint）查缓存——
+/// 命中 → 经 <see cref="AssetSerializationService"/> 反序列化直接发布（跳过导入；结果不携带依赖列表，
+/// 依赖边由最初导入的 FrameCommit 持久化，空列表使回写跳过，语义不变）；未命中 → 正常导入后序列化为
+/// 派生字节写入缓存（写入失败仅告警不阻断构建）。任何缓存读取/解码/反序列化失败均回退导入路径。
 /// 成功结果经 FrameCommit 阶段先持久化依赖边（Dependencies 表 + 内存 AssetDependencyIndex，单事务），
 /// 再投递给 <see cref="ResultSink"/>（AssetManager 应用）。
 /// 仅由 Host/AssetManager 内部使用（internal；业务经 AssetManager 门面）。
 /// </summary>
 internal sealed class AssetPipeline : IAssetPipeline, IAssetKeyResolver
 {
+    /// <summary>当前记录 schema 版本（内置序列化器统一 1；缓存写入与解析共用，演进时递增）</summary>
+    private const int CurrentRecordSchemaVersion = 1;
+
+    /// <summary>当前导入器修订号（内置导入器统一 1；导入器输出变化时递增）</summary>
+    private const ulong DefaultImporterRevision = 1;
+
     private readonly IAssetFileSystem _files;
     private readonly IVirtualFileIndex _index;
     private readonly AssetCatalog _catalog;
@@ -41,6 +53,9 @@ internal sealed class AssetPipeline : IAssetPipeline, IAssetKeyResolver
     private readonly IMainThreadDispatcher _mainThread;
     private readonly ThreadRuntime _runtime;
     private readonly IAssetDatabase? _database;
+    private readonly BuildArtifactStore? _artifactStore;
+    private readonly AssetSerializerRegistry? _serializers;
+    private readonly AssetSerializationService? _serialization;
     private readonly object _databaseGate = new();
     private readonly Dictionary<AssetBuildKey, SharedJob> _inflight = new();
     private int _executionCount;
@@ -54,6 +69,8 @@ internal sealed class AssetPipeline : IAssetPipeline, IAssetKeyResolver
     /// <param name="mainThread">主线程派发器（结果 FrameCommit 投递）</param>
     /// <param name="runtime">线程运行时（安全操作域判定）</param>
     /// <param name="database">资产数据库（可为 null：依赖边仅驻留内存反向索引）</param>
+    /// <param name="artifactStore">构建产物缓存存储（可为 null：禁用构建产物缓存）</param>
+    /// <param name="serializers">序列化器注册表（可为 null：禁用序列化缓存往返）</param>
     public AssetPipeline(
         IAssetFileSystem files,
         IVirtualFileIndex index,
@@ -62,7 +79,9 @@ internal sealed class AssetPipeline : IAssetPipeline, IAssetKeyResolver
         IBackgroundScheduler background,
         IMainThreadDispatcher mainThread,
         ThreadRuntime runtime,
-        IAssetDatabase? database = null)
+        IAssetDatabase? database = null,
+        BuildArtifactStore? artifactStore = null,
+        AssetSerializerRegistry? serializers = null)
     {
         _files = files ?? throw new ArgumentNullException(nameof(files));
         _index = index ?? throw new ArgumentNullException(nameof(index));
@@ -72,6 +91,10 @@ internal sealed class AssetPipeline : IAssetPipeline, IAssetKeyResolver
         _mainThread = mainThread ?? throw new ArgumentNullException(nameof(mainThread));
         _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
         _database = database;
+        _artifactStore = artifactStore;
+        _serializers = serializers;
+        if (artifactStore is not null && serializers is not null)
+            _serialization = new AssetSerializationService(serializers, new ArtifactRecordResolver(this));
     }
 
     /// <summary>结果接收器：成功结果经 FrameCommit 阶段投递（AssetManager 设置；Main 域执行）</summary>
@@ -219,15 +242,26 @@ internal sealed class AssetPipeline : IAssetPipeline, IAssetKeyResolver
         var settings = new ImportSettings { Path = path };
         var importer = _importers.Resolve(key.AssetType, Path.GetExtension(path), settings);
 
+        // 构建产物缓存：命中直接发布（跳过导入）；任何失效/损坏/反序列化失败均回退导入
+        if (_artifactStore is not null && _serialization is not null)
+        {
+            var fromCache = await TryBuildFromArtifactAsync(key, ct).ConfigureAwait(false);
+            if (fromCache is not null)
+                return fromCache;
+        }
+
         var source = await _files.ReadAsync(path).ConfigureAwait(false);
         ct.ThrowIfCancellationRequested();
         var import = importer.Import(source, new AssetImportContext(path, settings));
 
         var resolved = await ResolveDependenciesAsync(import.Dependencies, chain, ct).ConfigureAwait(false);
         ValidateFreshness(key, import.ImporterRevision);
+        var payload = HydratePayload(key, import.Payload, resolved);
+        if (_artifactStore is not null && _serialization is not null)
+            await CacheArtifactAsync(key, payload, import.ImporterRevision, ct).ConfigureAwait(false);
         return new AssetPipelineResult(
             key,
-            HydratePayload(key, import.Payload, resolved),
+            payload,
             import.Dependencies,
             AssetPipelineResultState.Succeeded,
             null);
@@ -309,7 +343,7 @@ internal sealed class AssetPipeline : IAssetPipeline, IAssetKeyResolver
         var record = _catalog.GetOrAdd(node.Id, assetType);
         var settings = new ImportSettings { Path = normalized };
         return AssetBuildKey.Create(
-            record.AssetId, assetType, record.SourceRevision, importerRevision: 1, "", settings.ComputeFingerprint());
+            record.AssetId, assetType, record.SourceRevision, DefaultImporterRevision, "", settings.ComputeFingerprint());
     }
 
     /// <summary>
@@ -338,6 +372,104 @@ internal sealed class AssetPipeline : IAssetPipeline, IAssetKeyResolver
         return new MaterialAsset(
             material.Name, key.AssetId, shader, texture, material.Defaults, key.SourceRevision, handles);
     }
+
+    /// <summary>
+    /// 构建产物缓存命中路径：按 BuildKey（含 fingerprint）查存储 → 解码记录 → 校验记录语义三元组
+    /// （BuildKey/SourceFingerprint/ImporterRevision 必须同时一致）→ 校验修订新鲜度 → 经
+    /// <see cref="AssetSerializationService"/> 反序列化直接发布。
+    /// 缓存命中结果不携带依赖列表：记录只含载荷声明的句柄依赖（如材质缺网格路径依赖），
+    /// 依赖边已由最初导入构建的 FrameCommit 持久化，空列表使 <see cref="PersistDependencies"/> 跳过回写，
+    /// 维持任务 5 的依赖解析与回写语义不变。
+    /// 失败语义：解码损坏/三元组失配/依赖记录缺失或不支持 → 视为 miss 返回 null，由调用方回退导入；
+    /// 修订过期（<see cref="AssetStaleResultException"/>）与取消（<see cref="OperationCanceledException"/>）照常抛出。
+    /// </summary>
+    /// <returns>缓存命中结果；任何失配/损坏回退时为 null</returns>
+    private async Task<AssetPipelineResult?> TryBuildFromArtifactAsync(AssetBuildKey key, CancellationToken ct)
+    {
+        try
+        {
+            var keyString = KeyString(key);
+            var bytes = await _artifactStore!.TryLoadAsync(keyString, ct).ConfigureAwait(false);
+            if (bytes is null)
+                return null;
+
+            var record = _serialization!.DecodeRecord(bytes.Value);
+            if (!string.Equals(record.BuildKey, keyString, StringComparison.Ordinal)
+                || !string.Equals(record.SourceFingerprint, SourceFingerprint(key.AssetId), StringComparison.Ordinal)
+                || record.ImporterRevision != key.ImporterRevision)
+            {
+                return null; // 记录语义三元组与当前键不符 → 视为 miss
+            }
+
+            ValidateFreshness(key, DefaultImporterRevision);
+            var data = _serialization.Deserialize(record).Asset as IAssetPayload
+                ?? throw new InvalidDataException($"构建产物反序列化结果不是 IAssetPayload（{keyString}）");
+            ct.ThrowIfCancellationRequested();
+            return new AssetPipelineResult(key, data, [], AssetPipelineResultState.Succeeded, null);
+        }
+        catch (Exception ex) when (ex is InvalidDataException or KeyNotFoundException or NotSupportedException)
+        {
+            if (LogConfig.Assets)
+                Log.Warning($"[AssetPipeline] 构建产物缓存失效，回退导入：{KeyString(key)}：{ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// 构建产物缓存写入：按导入结果序列化为记录（附 BuildKey/SourceFingerprint/ImporterRevision 语义
+    /// 与源节点）后经 <see cref="AssetSerializationService"/> 编码为派生字节存入缓存。
+    /// 缓存为加速手段：任何写入失败仅告警不阻断构建；取消照常传播（不落盘，临时文件由存储清理）。
+    /// </summary>
+    /// <param name="key">构建键</param>
+    /// <param name="payload">已水合的最终载荷（缓存反序列化的还原对象，不含实例覆盖）</param>
+    /// <param name="importerRevision">本次导入的导入器修订号</param>
+    /// <param name="ct">取消令牌</param>
+    private async Task CacheArtifactAsync(AssetBuildKey key, IAssetPayload payload, ulong importerRevision, CancellationToken ct)
+    {
+        try
+        {
+            var serializer = _serializers!.Resolve(key.AssetType, CurrentRecordSchemaVersion);
+            var keyString = KeyString(key);
+            var record = serializer.Serialize(payload) with
+            {
+                BuildKey = keyString,
+                SourceFingerprint = SourceFingerprint(key.AssetId),
+                ImporterRevision = importerRevision,
+                SourceNodeId = CatalogSourceNode(key.AssetId),
+            };
+            await _artifactStore!.SaveAsync(keyString, _serialization!.EncodeRecord(record), ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            if (LogConfig.Assets)
+                Log.Warning($"[AssetPipeline] 构建产物缓存写入失败（忽略）：{KeyString(key)}：{ex.Message}");
+        }
+    }
+
+    /// <summary>查询资产当前源内容指纹（目录/索引未命中或指纹缺失时为空串；与目录对账语义一致）</summary>
+    private string SourceFingerprint(AssetId assetId)
+    {
+        if (_catalog.TryGet(assetId, out var record)
+            && record is not null
+            && _index.TryGet(record.SourceNodeId, out var node)
+            && node is not null)
+        {
+            return node.MetaData?.SourceFingerprint ?? string.Empty;
+        }
+        return string.Empty;
+    }
+
+    /// <summary>查询资产的源虚拟节点（目录未命中返回 null）</summary>
+    private VirtualNodeId? CatalogSourceNode(AssetId assetId)
+        => _catalog.TryGet(assetId, out var record) && record is not null ? record.SourceNodeId : null;
+
+    /// <summary>构建键 → 缓存稳定键字符串（确定性；含指纹，路径安全字符）</summary>
+    private static string KeyString(AssetBuildKey key) =>
+        $"{key.AssetId.Value:N}|{key.AssetType.Value}|{key.SourceRevision}|{key.ImporterRevision}|{key.TargetProfile}|{key.ImportSettingsFingerprint}";
 
     /// <summary>FrameCommit 阶段（Main 域）：镜像结果依赖到内存反向索引，并单事务持久化依赖边。</summary>
     private void PersistDependencies(AssetPipelineResult result)
@@ -423,6 +555,58 @@ internal sealed class AssetPipeline : IAssetPipeline, IAssetKeyResolver
                 _inflight.Remove(job.Key);
             }
         }
+    }
+
+    /// <summary>
+    /// 构建产物记录解析器（缓存命中路径的记录目录）：按 AssetId 从目录/索引重算依赖构建键
+    /// （源修订 + 导入设置指纹），经 <see cref="BuildArtifactStore"/> 加载并解码记录，
+    /// 校验语义三元组一致后才返回（不一致即 null，服务层据此判定依赖缺失回退导入）。
+    /// 反序列化器只消费句柄，<see cref="Resolve"/> 不解析对象。同步等待安全：本地磁盘读取无真正异步 IO。
+    /// </summary>
+    private sealed class ArtifactRecordResolver(AssetPipeline pipeline) : IAssetReferenceResolver
+    {
+        /// <summary>按 ID 从构建产物缓存读取记录；目录/索引/缓存未命中或语义不符返回 null</summary>
+        public AssetSerializationRecord? TryGetRecord(AssetId assetId)
+        {
+            if (!pipeline._catalog.TryGet(assetId, out var record) || record is null)
+                return null;
+            if (!pipeline._index.TryGet(record.SourceNodeId, out var node) || node is null)
+                return null;
+
+            var fingerprint = node.MetaData?.SourceFingerprint ?? string.Empty;
+            var settings = new ImportSettings { Path = node.LogicalPath };
+            var key = AssetBuildKey.Create(
+                record.AssetId, record.AssetTypeId, record.SourceRevision,
+                DefaultImporterRevision, "", settings.ComputeFingerprint());
+            var keyString = KeyString(key);
+            var bytes = pipeline._artifactStore!.TryLoadAsync(keyString, CancellationToken.None)
+                .GetAwaiter().GetResult();
+            if (bytes is null)
+                return null;
+
+            try
+            {
+                var decoded = pipeline._serialization!.DecodeRecord(bytes.Value);
+                if (!string.Equals(decoded.BuildKey, keyString, StringComparison.Ordinal)
+                    || !string.Equals(decoded.SourceFingerprint, fingerprint, StringComparison.Ordinal)
+                    || decoded.ImporterRevision != DefaultImporterRevision)
+                {
+                    return null;
+                }
+                return decoded;
+            }
+            catch (InvalidDataException)
+            {
+                return null;
+            }
+        }
+
+        /// <summary>强类型句柄解析（反序列化器不依赖对象解析；返回 null）</summary>
+        public T Resolve<T>(AssetHandle<T> handle)
+            where T : class => null!;
+
+        /// <summary>非泛型句柄解析（反序列化器不依赖对象解析；返回 null）</summary>
+        public object Resolve(UntypedAssetHandle handle) => null!;
     }
 
     /// <summary>依赖解析结果：声明 + 解析后的资产身份（Pipeline 内部）</summary>
