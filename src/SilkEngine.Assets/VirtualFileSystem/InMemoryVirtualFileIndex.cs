@@ -75,7 +75,8 @@ public sealed class InMemoryVirtualFileIndex : IVirtualFileIndex
     {
         if (file.NodeType == VirtualNodeType.Directory)
             return true;
-        return node.MetaData?.FileHash == file.Version;
+        return node.MetaData?.FileHash == file.Version
+            && node.MetaData?.SourceFingerprint == file.SourceFingerprint;
     }
 
     private VirtualNode CreateNode(ScanFile file)
@@ -134,5 +135,6 @@ public sealed class InMemoryVirtualFileIndex : IVirtualFileIndex
     {
         LogicPath = file.LogicalPath,
         FileHash = file.NodeType == VirtualNodeType.File ? file.Version : null,
+        SourceFingerprint = file.NodeType == VirtualNodeType.File ? file.SourceFingerprint : null,
     };
 }

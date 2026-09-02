@@ -1,3 +1,6 @@
+using System.Buffers;
+using System.Security.Cryptography;
+
 namespace SilkEngine.Assets.VirtualFileSystem;
 
 /// <summary>
@@ -8,6 +11,9 @@ namespace SilkEngine.Assets.VirtualFileSystem;
 public sealed class DiskAssetFileSystem : IAssetFileSystem
 {
     private const char Separator = '/';
+
+    // 源内容指纹的流式读取缓冲大小
+    private const int SourceHashBufferSize = 8192;
 
     private readonly string _root;
     private readonly string[] _rootSegments;
@@ -91,7 +97,8 @@ public sealed class DiskAssetFileSystem : IAssetFileSystem
     }
 
     /// <summary>
-    /// 启动扫描：递归枚举根目录下全部文件与目录，生成扫描结果（逻辑路径相对根目录，分隔符统一 '/'）。
+    /// 启动扫描：递归枚举根目录下全部文件与目录，生成扫描结果（逻辑路径相对根目录，分隔符统一 '/'）；
+    /// 文件条目携带源内容 SHA-256 指纹（流式读取，不缓存完整字节），目录条目不计算内容哈希。
     /// 根目录不存在时返回空扫描结果。
     /// </summary>
     /// <returns>本次扫描观察到的全部条目</returns>
@@ -113,7 +120,46 @@ public sealed class DiskAssetFileSystem : IAssetFileSystem
         foreach (var file in Directory.GetFiles(physicalDir))
         {
             var info = new FileInfo(file);
-            files.Add(ScanFile.File(ToLogical(file), unchecked((ulong)info.LastWriteTimeUtc.Ticks)));
+            files.Add(ScanFile.File(
+                ToLogical(file),
+                unchecked((ulong)info.LastWriteTimeUtc.Ticks),
+                sourceFingerprint: ComputeSourceFingerprint(file)));
+        }
+    }
+
+    /// <summary>
+    /// 流式计算源内容 SHA-256（小写十六进制）：固定 8KB 租借缓冲增量哈希，
+    /// 不保留任何内容字节；分配面收敛到句柄/哈希器/结果字符串，避免扫描期分配噪声。
+    /// </summary>
+    private static string ComputeSourceFingerprint(string physicalPath)
+    {
+        using var handle = File.OpenHandle(physicalPath, options: FileOptions.SequentialScan);
+        byte[] buffer = ArrayPool<byte>.Shared.Rent(SourceHashBufferSize);
+        try
+        {
+            using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            long offset = 0;
+            int read;
+            while ((read = RandomAccess.Read(handle, buffer, offset)) > 0)
+            {
+                hash.AppendData(buffer.AsSpan(0, read));
+                offset += read;
+            }
+            Span<byte> digest = stackalloc byte[32];
+            hash.GetHashAndReset(digest);
+            return string.Create(digest.Length * 2, digest, static (span, value) =>
+            {
+                const string HexDigits = "0123456789abcdef";
+                for (int i = 0; i < value.Length; i++)
+                {
+                    span[i * 2] = HexDigits[value[i] >> 4];
+                    span[i * 2 + 1] = HexDigits[value[i] & 0x0F];
+                }
+            });
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
         }
     }
 

@@ -143,6 +143,54 @@ internal sealed class SqliteAssetDatabase : IAssetDatabase
     }
 
     /// <inheritdoc/>
+    public async ValueTask ReconcileAsync(AssetDbFileNodeRecord fileNode, AssetDbAssetRecord asset, CancellationToken cancellationToken)
+    {
+        await using var transaction = await _connection.BeginTransactionAsync(cancellationToken);
+
+        await _connection.ExecuteAsync(new CommandDefinition(
+            "DELETE FROM FileNodes WHERE LogicalPath = @LogicalPath AND NodeId <> @NodeId;",
+            new { NodeId = fileNode.NodeId.Value.ToString(), fileNode.LogicalPath },
+            transaction,
+            cancellationToken: cancellationToken));
+        await _connection.ExecuteAsync(new CommandDefinition(
+            """
+            INSERT INTO FileNodes (NodeId, LogicalPath) VALUES (@NodeId, @LogicalPath)
+            ON CONFLICT(NodeId) DO UPDATE SET LogicalPath = excluded.LogicalPath;
+            """,
+            new { NodeId = fileNode.NodeId.Value.ToString(), fileNode.LogicalPath },
+            transaction,
+            cancellationToken: cancellationToken));
+
+        await _connection.ExecuteAsync(new CommandDefinition(
+            "DELETE FROM Assets WHERE LogicalPath = @LogicalPath AND AssetId <> @AssetId;",
+            new { AssetId = asset.AssetId.Value.ToString(), asset.LogicalPath },
+            transaction,
+            cancellationToken: cancellationToken));
+        await _connection.ExecuteAsync(new CommandDefinition(
+            """
+            INSERT INTO Assets (AssetId, LogicalPath, AssetType, SourceFingerprint, SourceRevision)
+            VALUES (@AssetId, @LogicalPath, @AssetType, @SourceFingerprint, @SourceRevision)
+            ON CONFLICT(AssetId) DO UPDATE SET
+                LogicalPath = excluded.LogicalPath,
+                AssetType = excluded.AssetType,
+                SourceFingerprint = excluded.SourceFingerprint,
+                SourceRevision = excluded.SourceRevision;
+            """,
+            new
+            {
+                AssetId = asset.AssetId.Value.ToString(),
+                asset.LogicalPath,
+                AssetType = asset.AssetType.Value,
+                asset.SourceFingerprint,
+                SourceRevision = (long)asset.SourceRevision,
+            },
+            transaction,
+            cancellationToken: cancellationToken));
+
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    /// <inheritdoc/>
     public async ValueTask<AssetDatabaseSnapshot> CaptureSnapshotAsync(CancellationToken cancellationToken)
     {
         var assetRows = await _connection.QueryAsync<AssetRow>(new CommandDefinition(
