@@ -36,6 +36,12 @@ public sealed class AssetManager : IDisposable
     /// <summary>最近一次 GPU 句柄发布时的线程域（测试断言用；未发布为 Unknown）。</summary>
     internal ThreadDomain LastPublishDomainForTests { get; private set; } = ThreadDomain.Unknown;
 
+    /// <summary>最近一次 GPU 创建/编译失败的阶段（测试断言用；未失败为 null）。</summary>
+    internal string? LastFailureStageForTests { get; private set; }
+
+    /// <summary>最近一次 GPU 创建/编译失败的详情消息（测试断言用；未失败为 null）。</summary>
+    internal string? LastFailureMessageForTests { get; private set; }
+
     /// <summary>
     /// 受控引用解析器视图：按 AssetId 从本管理器缓存解析已加载载荷（序列化层唯一资产访问边界，无全局服务定位）。
     /// 本管理器不持有序列化记录，<see cref="IAssetReferenceResolver.TryGetRecord"/> 恒返回 null。
@@ -406,7 +412,13 @@ public sealed class AssetManager : IDisposable
             }
             if (result.State != RenderResourceCreateResultState.Succeeded)
             {
-                Log.Error($"[AssetManager] GPU 创建失败 ({tracked.Kind}): {result.Error?.Message}");
+                // 编译/加载失败：阶段信息（Render 域携带）与错误消息按 RequestId 落账，不发布句柄
+                var stage = result.Stage ?? tracked.Kind.ToString();
+                var message = result.Error?.Message ?? "未知创建失败（无错误消息）";
+                _gpuCache.RecordFailure(result.RequestId, stage, message);
+                LastFailureStageForTests = stage;
+                LastFailureMessageForTests = message;
+                Log.Error($"[AssetManager] GPU 创建失败 ({tracked.Kind}) [stage={stage}]: {message}");
                 continue;
             }
             PublishRenderHandle(tracked.AssetId, tracked.Kind, result.Handle.Value);

@@ -21,6 +21,9 @@ public sealed class ImportSettings
     /// <summary>颜色空间（"srgb" 或 "linear"；影响纹理采样/线性化输出）</summary>
     public string ColorSpace { get; init; } = "srgb";
 
+    /// <summary>DXC（HLSL→SPIR-V）编译器版本标识（影响着色器编译输出；参与 BuildKey 指纹联动）</summary>
+    public string? DxcVersion { get; init; }
+
     /// <summary>
     /// 计算确定性导入设置指纹：全部字段按固定顺序拼接为 UTF-8 文本后取 SHA-256（小写十六进制）。
     /// 相同字段组合恒产生相同指纹；任一影响输出的字段变化即换指纹。
@@ -32,7 +35,8 @@ public sealed class ImportSettings
             "Path=", Path ?? string.Empty, "\n",
             "Profile=", ShadingProfile ?? string.Empty, "\n",
             "Defines=", Defines ?? string.Empty, "\n",
-            "ColorSpace=", ColorSpace ?? string.Empty);
+            "ColorSpace=", ColorSpace ?? string.Empty, "\n",
+            "DxcVersion=", DxcVersion ?? string.Empty);
         return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(material)));
     }
 }

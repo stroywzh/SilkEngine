@@ -13,6 +13,9 @@ public sealed class AssetGpuResourceCache
     private readonly Dictionary<(AssetId AssetId, ulong Revision, RenderResourceKind Kind), ulong> _handles = new();
     private readonly Dictionary<RenderResourceRequestId, TrackedRenderRequest> _requests = new();
 
+    /// <summary>创建失败结果账本（RequestId → 阶段 + 消息）：ApplyCreateResults 失败分支落账，诊断/测试查询用。</summary>
+    private readonly Dictionary<RenderResourceRequestId, (string Stage, string Message)> _failures = new();
+
     /// <summary>登记创建请求关联（Main 域调用）：RequestId → (AssetId, Revision, Kind)。</summary>
     /// <param name="requestId">创建请求关联标识</param>
     /// <param name="assetId">资产标识</param>
@@ -90,6 +93,37 @@ public sealed class AssetGpuResourceCache
         }
         return releases;
     }
+
+    /// <summary>记录创建/编译失败（Main 域 ApplyCreateResults 失败分支调用）：阶段信息与错误消息按 RequestId 留存。</summary>
+    /// <param name="requestId">创建请求关联标识</param>
+    /// <param name="stage">失败阶段（如 "hlsl-compile"/"gl-specialize"）</param>
+    /// <param name="message">失败详情（含 source path/入口/profile/backend 上下文）</param>
+    public void RecordFailure(RenderResourceRequestId requestId, string stage, string message)
+        => _failures[requestId] = (stage, message);
+
+    /// <summary>按 RequestId 查询失败阶段与消息（测试/诊断用；未记录返回 false）。</summary>
+    /// <param name="requestId">创建请求关联标识</param>
+    /// <param name="stage">失败阶段（未记录为 null）</param>
+    /// <param name="message">失败详情（未记录为 null）</param>
+    /// <returns>命中为 true</returns>
+    internal bool TryGetFailure(RenderResourceRequestId requestId, out string? stage, out string? message)
+    {
+        if (_failures.TryGetValue(requestId, out var failure))
+        {
+            stage = failure.Stage;
+            message = failure.Message;
+            return true;
+        }
+        stage = null;
+        message = null;
+        return false;
+    }
+
+    /// <summary>移除失败记录（测试/清理用；失败账本仅在显式调用时清除）。</summary>
+    /// <param name="requestId">创建请求关联标识</param>
+    /// <returns>存在并移除为 true</returns>
+    public bool RemoveFailure(RenderResourceRequestId requestId)
+        => _failures.Remove(requestId);
 
     private void Publish(AssetId assetId, ulong revision, RenderResourceKind kind, ulong handle)
         => _handles[(assetId, revision, kind)] = handle;

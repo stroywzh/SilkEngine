@@ -104,9 +104,11 @@ public sealed class EngineHost : IDisposable
     /// </summary>
     private void BuildRuntime()
     {
-        IRenderBackend backend = _options.Headless
-            ? new HeadlessRenderBackend()
-            : new OpenGLRenderBackend();
+        IRenderBackend backend = _options.BackendOverrideForTests
+            ?? (_options.Headless
+                ? new HeadlessRenderBackend()
+                : new OpenGLRenderBackend(
+                    _options.ShaderCompilerOverride ?? new DxcHlslCompiler(_options.DxcPath)));
         var runtime = new ThreadRuntime();
         // LibraryRoot 为 AssetDB 存储目录（默认 "Library"；任务 5 起接线到磁盘资产管线）
         var assets = AssetManager.CreateDiskBacked(_options.AssetRoot, runtime, libraryRoot: _options.LibraryRoot);
