@@ -5,11 +5,11 @@
 ## 代码风格
 
 - 所有公共 API 使用 C# 现代语法（init-only 属性、主构造函数、集合表达式）
-- 命名空间：根命名空间不放置类型，全部归于子命名空间——`SilkEngine.Core`（含 `.Core.Assets`）/ `.Scene` / `.Render` / `.Assets`（含 Binding/Importer/Serialization/VirtualFileSystem）/ `.Rendering`（含 Abstraction/Backend/OpenGL/Pipeline）/ `.Threading` / `.InputSystem` / `.Math` / `.Host`；命名空间与物理目录/程序集解耦（如 `SilkEngine.Render` 类型分布于 Assets 与 Rendering.OpenGL 项目）
-- 静态门面与实例模式：`Time` / `Input` / `Log` 为全局门面；`SceneManager` / `AssetManager` 为实例类（EngineHost 组合根创建并注册进 Services，业务经 EngineHost 公开门面属性取用）
+- 命名空间：根命名空间不放置类型，全部归于子命名空间——`SilkEngine.Core`（EngineLog/Services 等）/ `.Scene` / `.Render` / `.Assets`（含 Binding/Importer/Serialization/VirtualFileSystem/Database）/ `.Rendering`（含 Abstraction/Backend/OpenGL/Pipeline）/ `.Threading` / `.InputSystem` / `.Math` / `.Host`；命名空间与物理目录/程序集解耦（如 `SilkEngine.Render` 类型分布于 Assets 与 Rendering.OpenGL 项目）
+- 静态门面与实例模式：`Time` / `Input` / `Log` / `Assets`（无状态转发当前 Host 的 AssetManager，Bind/Unbind 由 EngineHost 管理，未绑定 fail-fast）为全局门面；`SceneManager` / `AssetManager` 为实例类（EngineHost 组合根创建并注册进 Services，业务经 EngineHost 公开门面属性取用）
 - 线程通过 `ThreadFactory.CreateThread` 统一创建（禁止直接 `new Thread()`）
 - `allow(ArbirtaryCode)` requires safe code blocks explicitly: 仅 "unsafe" 标为 unsafe；所有其他代码逻辑应为 safe
-- Priority: automated testing exists with full coverage (568 xUnit tests)
+- Priority: automated testing exists with full coverage (640 xUnit tests + 8 SourceGen tests；6 skipped 为 OpenGLReal 门控)
 
 ## 架构
 
@@ -29,23 +29,25 @@ ThreadRuntime（线程资源唯一属主）
   └─ ManagedLoopRegistry（internal；未来扫描/监听/批量循环）
 
 AssetPipeline（Assets 域）
-  ├─ VFS 索引 → AssetCatalog → BuildKey/依赖计划
-  ├─ Worker Read/Decode/Import/Deserialize/Validate
-  └─ Main FrameCommit → AssetManager 状态与 Payload 发布
+  ├─ SQLite AssetDB（<LibraryRoot>/assetdb.sqlite：WAL/外键/单连接写事务）
+  │    └─ SchemaMigrations/FileNodes/Assets/Dependencies/Builds + BuildArtifactStore（<LibraryRoot>/SilkEngine/AssetDB/cache）
+  ├─ 确定性 AssetId（AssetIdFactory：ns\npath\ntype → SHA-256 → RFC 4122 v5）→ Catalog 单事务对账 → AssetBuildKey/依赖计划
+  ├─ Worker Read/Import（HLSL/OBJ/.asset JSON/PNG）/Validate（失败不写缓存；循环依赖 DFS 链带完整路径抛错）
+  └─ Main FrameCommit → AssetDependencyIndex 反向闭包 + AssetManager 状态与 Payload 发布 → UnloadUnused 驱逐；热重载经 IAssetChangeSource 低频指纹对账级联失效
 
-Assets.AssetRenderBridge → Rendering.Abstraction 请求/Handle → Rendering.Backend → Rendering.OpenGL/Vulkan
+Assets.AssetRenderBridge → Rendering.Abstraction 请求/Handle（RenderShaderCreateRequest/RenderPacket 无资产语义）→ Rendering.Backend ShaderCompileContracts → Rendering.OpenGL DXC→SPIR-V 编译链路
 ```
 
 ### 核心子系统
 
-- **程序集拆分**：按依赖方向拆为 8 个引擎程序集——`SilkEngine.Runtime`（Math/Core/Threading/Input）→ `SilkEngine.Rendering.Abstraction` + `SilkEngine.Rendering.Backend`（无资产语义契约，仅依赖 Runtime）→ `SilkEngine.Assets`（含 Render 域 Material*/MeshFactory）→ `SilkEngine.Scene` → `SilkEngine.Rendering`（RenderSystem/RenderThreadHost/Pipeline）→ `SilkEngine.Rendering.OpenGL` → `SilkEngine.Host`（组合根：EngineHost/EngineBuilder/EngineOptions + internal EngineLoop）。禁令：Rendering 域不得引用 Assets/Scene；Threading 不得引用 Rendering/Assets；Sandbox 仅直接引用 Host（`DependencyBoundaryTests` 断言）。跨程序集 friend access 保留给 `SilkEngine.Tests`
+- **程序集拆分**：按依赖方向拆为 8 个引擎程序集——`SilkEngine.Runtime`（Math/Core/Threading/Input）→ `SilkEngine.Rendering.Abstraction` + `SilkEngine.Rendering.Backend`（无资产语义契约，仅依赖 Runtime）→ `SilkEngine.Assets`（含 Render 域 Material*/MeshFactory）→ `SilkEngine.Scene` → `SilkEngine.Rendering`（RenderSystem/RenderThreadHost/Pipeline）→ `SilkEngine.Rendering.OpenGL` → `SilkEngine.Host`（组合根：EngineHost/EngineBuilder/EngineOptions + internal EngineLoop）。禁令：Rendering 域不得引用 Assets/Scene；Threading 不得引用 Rendering/Assets；Sandbox 仅直接引用 Host（`DependencyBoundaryTests` 断言）。跨程序集 friend access 保留给 `SilkEngine.Tests`；另 Assets 对 Host 的 `InternalsVisibleTo`（Assets 静态门面 internal Bind/Unbind 供 EngineHost 调用）为已知折衷
 - **Services**: `public static class`（SilkEngine.Runtime）服务定位器：Register（重复注册抛错）/ Get（未注册 fail-fast）/ TryGet（初始化前静默回退）/ Unregister（测试夹具用）/ Shutdown（反序 Dispose 全部 IDisposable 服务并清空注册表，幂等）。EngineHost 组合根集中注册管理者实例，业务经 EngineHost 公开门面取用。`[Service(Priority, Name)]` 特性经 ServiceRegistrationGenerator 自动注册（ModuleInitializer，按 Priority 升序、类名次排序；仅 SilkEngine* 引擎程序集 SERV001/002 把关）
-- **EngineLoop**: internal 心跳驱动器（位于 SilkEngine.Host，EngineHost.Loop 内部属性；业务用 SceneManager/AssetManager 门面），计算 dt（钳制 0.1s）→ 驱动 Input/Tick/渲染。内建 FixedStepAccumulator（LogicLoop 合并）；`Initialize` 执行 `SceneManager.Attach` 注入注册表与快照管理器并注册输入服务；依赖（RenderSystem/AssetManager/ThreadRuntime/ComponentRegistry/FrameSnapshotManager）全部由 EngineHost 经构造注入，资产管线组合收在 `AssetManager.CreateDiskBacked` 工厂；支持 Pause 和 Embedded 模式
+- **EngineLoop**: internal 心跳驱动器（位于 SilkEngine.Host，EngineHost.Loop 内部属性；业务用 SceneManager/AssetManager 门面），计算 dt（钳制 0.1s）→ 驱动 Input/Tick/渲染。内建 FixedStepAccumulator（LogicLoop 合并）；`Initialize` 执行 `SceneManager.Attach` 注入注册表与快照管理器并注册输入服务；依赖（RenderSystem/AssetManager/ThreadRuntime/ComponentRegistry/FrameSnapshotManager）全部由 EngineHost 经构造注入，资产管线组合收在 `AssetManager.CreateDiskBacked` 工厂；持有固定低频资产变更扫描槽（`AssetChangeScanInterval`，不识别资产类型）；支持 Pause 和 Embedded 模式
 - **FrameSnapshot/ComponentRegistry**: 帧原子性核心。ComponentRegistry 类型索引注册表（持久化 ComponentGroup + MonoBehaviour 基类索引 `_mbIndex` 按具体类型归类），FrameSnapshotManager 双缓冲快照，帧末 CommitPending 统一应用销毁/注册并 swap（零分配）。销毁幂等（`_destroyPending`/`_destroyed` 双标志），LoadScene 场景切换注销旧场景全部组件
 - **Scene System**: Object → GameObject(内置Transform) → Component(活跃状态机: `RecomputeActiveState` 单一真理源, OnEnable/OnDisable/OnDestroy 下沉至 Component, Enabled/IsActive/SetParent 三路幂等重放) → MonoBehaviour(OnAwake/OnStart/OnUpdate/OnFixedUpdate/OnLateUpdate/OnPostRender)。工厂 `InitializeComponent`（挂载→OnAwake→RecomputeActiveState(Enable)→注册），GO 层级活跃门控 `IsActiveInHierarchy` 级联通知，`Started` 标志位 Start 补发，`AddObjectToScene` 运行时增删；SceneManager 为实例（ctor 订阅 Object.DestroyHandler，Dispose 解绑），`Attach(registry, snapshotManager)` 注入（替代 ActiveRegistry），Tick/FixedTick/LateTick/PostRender 经 `Registry.MonoBehaviourGroups` 基类索引直读派发（零 IsSubclassOf 扫描）
-- **Rendering**: `Rendering` 负责 RenderSystem、RenderCollector、ForwardPipeline、RenderPacket/RenderFrame 和 RenderThreadHost；`Rendering.Abstraction` 定义无资产语义的数据/Handle，`Rendering.Backend` 定义后端能力契约，`Rendering.OpenGL`/`Rendering.Vulkan` 提供具体实现。整个 Rendering 域不引用或解析 AssetId、AssetHandle、AssetPipeline、AssetManager、AssetEntry 或 AssetPayload；Assets 侧通过 AssetRenderBridge 完成资产到渲染契约的转换
-- **Asset System**: AssetPipeline 负责 VFS 索引后的 Identity/Plan、BuildKey 去重、依赖、Read/Decode/Import/Deserialize/Validate 与不可变 Payload 结果；AssetManager 是 Main 域运行时门面，负责 Payload 缓存、AssetOperation 发布、驻留和卸载。静态 `Asset.Load<T>(path)` 通过 Services 转发；未索引路径直接抛详细 `InvalidOperationException`，不自动补录
-- **Serialization**: AssetSerializationRecord、Serializer Registry/Store 和 AssetSerializationService 属于 AssetPipeline 的 Worker/缓存阶段；Serializer 只处理 `IAssetPayload`，不创建 GPU 或 Scene 对象。当前 SilkEngine.SourceGen 仅含 [Service] 自动注册生成器（ServiceRegistrationGenerator）
+- **Rendering**: `Rendering` 负责 RenderSystem、RenderCollector、ForwardPipeline、RenderPacket/RenderFrame 和 RenderThreadHost；`Rendering.Abstraction` 定义无资产语义的数据/Handle（含只读着色器消费契约 `IShader` 与 backend-neutral 的 `RenderShaderCreateRequest`），`Rendering.Backend` 定义后端能力契约与 `ShaderCompileContracts`（ShaderCompileRequest/Result/Error/State/IShaderCompiler，错误消息含 source path/入口/profile/backend），`Rendering.OpenGL`/`Rendering.Vulkan` 提供具体实现。着色器编译链路：`DxcHlslCompiler`（HLSL→SPIR-V，profile→vs_6_0/ps_6_0，DXC 缺失→Unsupported，绝不改写 GLSL）+ `OpenGLShaderCompiler`（glShaderBinary/glSpecializeShader/LinkProgram，失败清理句柄并抛带阶段/上下文的 `ShaderCompilationException`）；原 GLSL 双源码 OpenGLShader 路径已删除，契约定义在 Backend、OpenGLRenderBackend 在设备边界 ToCompileRequest 转换（Abstraction↔Backend 依赖无环）。`RendererBase` 已移除公开 Shader 属性/SetShader，标准绑定只接受 `Material`（保留 Mesh/Texture 业务属性），Shader/Texture 依赖句柄经 MaterialBinding 解析出走 AssetSlot/lease 通道；RenderPacket 只含无资产语义句柄与参数（RenderShaderHandle/MeshHandle/TextureHandle），不携带 MaterialAsset/AssetHandle/AssetId。整个 Rendering 域不引用或解析 AssetId、AssetHandle、AssetPipeline、AssetManager、AssetEntry 或 AssetPayload；Assets 侧通过 AssetRenderBridge 完成资产到渲染契约的转换
+- **Asset System**: 盘上资产身份由 `AssetIdFactory.Create(projectNamespace, normalizedPath, type)` 确定性产生（UTF-8 `ns\npath\ntype` → SHA-256 前 16 字节 → RFC 4122 version=5/variant；磁盘资产走工厂，瞬态资产保留随机 ID）。`AssetManager` 是 Main 域运行时门面（Payload 缓存、AssetOperation 发布、驻留、驱逐与 GPU 句柄发布）；静态 `Assets.Load<T>/LoadAsync<T>/GetHandle<T>/RegisterTransient<T>` 无状态转发当前 Host 唯一 AssetManager（未绑定 fail-fast，消息含 "initialized"）。管线按 `AssetBuildKey`（AssetId/Type/SourceRevision/ImporterRevision/TargetProfile/ImportSettingsFingerprint）去重、按缓存命中跳过导入；Worker 只返回路径依赖，Main/FrameCommit 用 AssetDB snapshot 路径→AssetId 映射、单事务回写 Dependencies 边 + `AssetDependencyIndex` 内存反向闭包级联失效；循环依赖 DFS 链带完整路径抛 `InvalidDataException`；JSON .asset 源始终由 importer 从 AssetRoot 读取，缓存不存源副本，失败不写缓存（Invalidate 后新 BuildKey 可重试）。SQLite AssetDB 位于 `<LibraryRoot>/assetdb.sqlite`（WAL/外键/单连接写事务，文件损坏时改名备份并抛 `AssetDatabaseCorruptException`），构建产物缓存位于 `<LibraryRoot>/SilkEngine/AssetDB/cache`（header/BuildKey/长度/SHA-256 完整性校验，损坏=miss）。热重载经 `IAssetChangeSource`（内存测试实现 + `PollingAssetChangeSource` 低频轮询）在 Main/FrameCommit 指纹对账递增 revision 级联失效并启动新构建；新版本发布前保留旧 Payload/GPU Handle，发布后旧句柄入 release 队列；失败重载保留旧 Ready 版本并暴露 LastAssetError；删除→MarkMissing 级联通知依赖方（保留最后已知版本语义；删除不清理 AssetDB 行为已知遗留）。消费者取消不杀共享 job（最后一个消费者取消才取消 Worker）；失败结果保留阶段/路径/根因；未索引路径直接抛详细 `InvalidOperationException`，不自动补录
+- **Serialization**: AssetSerializationRecord（携带 BuildKey/SourceFingerprint/ImporterRevision，缓存命中须三字段全匹配）、Serializer Registry/Store 和 AssetSerializationService 属于 AssetPipeline 的 Worker/缓存阶段；Serializer 只处理 `IAssetPayload`，不创建 GPU 或 Scene 对象。当前 SilkEngine.SourceGen 仅含 [Service] 自动注册生成器（ServiceRegistrationGenerator）
 - **Input**: Input门面 → KeyboardState/MouseState(双缓冲) → IInputProvider → SilkInputProvider
 - **Threading**: ThreadRuntime 统一登记 Main/Worker/Render 域、拥有 BackgroundScheduler/MainThreadDispatcher/RenderThreadHost 生命周期并负责关闭。业务层只接触 `IBackgroundScheduler`、`IMainThreadDispatcher` 和 `IJobHandle`；AssetPipeline 第一阶段使用 Worker Pool，未来持续扫描/监听才使用 internal ManagedLoopRegistry。旧 ThreadManager/Request/Executor API 迁移后删除
 - **Math**: 自研 Mathf/Vector2/Vector3/Quaternion/Matrix4x4 (左手系, 行主序约定; GL 上传 UniformMatrix4 transpose=true)
@@ -56,32 +58,33 @@ Assets.AssetRenderBridge → Rendering.Abstraction 请求/Handle → Rendering.B
 ```
 PumpEvents → GetDeltaTime → Input.Update → TickFrame(FixedStepAccumulator 固定步长累加 → FixedTick → Tick(活跃且未 Started 组件补发 OnStart, 仅一次) → LateTick)
 → RenderSystem.Render(Collector→Pipeline→RenderPacket→Submit 阻塞等GPU) → SceneManager.PostRender
-→ CommitFrame(FrameSnapshotManager.CommitPending 销毁+注册+快照swap → drain FrameCommit → AssetManager 应用 AssetPipeline 结果 → AssetResidency/GPU release)
+→ CommitFrame(FrameSnapshotManager.CommitPending 销毁+注册+快照swap → drain FrameCommit → AssetManager 应用 AssetPipeline 结果 → 固定低频资产变更扫描槽 → UnloadUnused 驱逐，GPU release 请求由渲染线程帧首排空)
 ```
 
 ### 项目结构
 
 ```
-src/SilkEngine.Runtime/            # Math/ Core/(EngineLog) Threading/ Input/ + Object.cs Time.cs
-src/SilkEngine.Rendering.Abstraction/  # 无资产语义渲染契约（RenderPacket/Handle/IRenderable/ICameraView…）
-src/SilkEngine.Rendering.Backend/  # 后端能力契约（IRenderBackend/IRenderDevice/IWindowSurface…）
-src/SilkEngine.Assets/             # 资产域（AssetManager/AssetPipeline/Importer/Serialization/VFS/Binding + Render 域 Material*/MeshFactory）
-src/SilkEngine.Scene/              # 场景域（GameObject/Component/SceneManager/FrameSnapshot/RendererBase/SceneRenderWorld…）
-src/SilkEngine.Rendering/          # RenderSystem/RenderThreadHost/HeadlessRenderBackend + Pipeline/（internal Collector/ForwardPipeline）
-src/SilkEngine.Rendering.OpenGL/   # OpenGL 后端 + DefaultWindowOption
-src/SilkEngine.Host/               # 组合根：EngineHost/EngineBuilder/EngineOptions + internal EngineLoop
+src/SilkEngine.Runtime/            # Math/ Core/(Services/EngineLog/FrameClock…) Threading/ Input/ + Object.cs Time.cs
+src/SilkEngine.Rendering.Abstraction/  # 无资产语义渲染契约（RenderPacket/Handle/IRenderable/ICameraView/IShader/RenderResourceRequests…）
+src/SilkEngine.Rendering.Backend/  # 后端能力契约（IRenderBackend/IRenderDevice/IWindowSurface/ShaderCompileContracts…）
+src/SilkEngine.Assets/             # 资产域（AssetManager/AssetPipeline/Database(SQLite AssetDB/BuildArtifactStore)/AssetIdFactory/Assets 门面/AssetDependencyIndex/Importer/Serialization/VFS/Binding + Render 域 Material*/MeshFactory）
+src/SilkEngine.Scene/              # 场景域（GameObject/Component/SceneManager/FrameSnapshot/FrameCommitter/RendererBase/SceneRenderWorld…）
+src/SilkEngine.Rendering/          # SceneRenderWorld 消费 + RenderSystem/RenderThreadHost/HeadlessRenderBackend + Pipeline/（internal Collector/ForwardPipeline）
+src/SilkEngine.Rendering.OpenGL/   # OpenGL 后端（OpenGLRenderBackend/DxcHlslCompiler/OpenGLShaderCompiler/OpenGLMesh/OpenGLTexture…）
+src/SilkEngine.Host/               # 组合根：EngineHost/EngineBuilder/EngineOptions（AssetRoot/LibraryRoot/DxcPath/AssetChangeScanInterval）+ internal EngineLoop
 src/SilkEngine.SourceGen/          # [Service] 自动注册生成器 (netstandard2.0 Roslyn 增量生成器)
-src/Sandbox/                       # 演示程序（Program.cs 逐个启用 + Demos/ 全部经 EngineHost+DemoAssetsExt + Gameplay.cs）
-tests/SilkEngine.Tests/            # 560 个 xUnit 测试（含 Architecture/ 依赖边界测试）
+src/Sandbox/                       # 演示程序（Program.cs 逐个启用 + Demos/ 经 EngineHost+静态 Assets.Load/GetHandle + DemoAssetsExt + Gameplay.cs）
+src/Sandbox/Assets/                # 真实盘上资产：Shaders/Unlit.hlsl、Meshes/Cube.obj、Materials/Cube.asset、Textures/ShoreKeeper1.png（复制到输出）
+tests/SilkEngine.Tests/            # 640 用例（634 通过 + 6 skipped；含 Architecture/ 依赖边界与 Host/ 资产生命周期冒烟测试）
 tests/SilkEngine.SourceGen.Tests/  # 8 个 Service 注册测试
 ```
 
 ## 测试
 
 - 框架: xUnit 2.9.3，目标 net10.0
-- 568 个测试（SilkEngine.Tests 560 + SourceGen.Tests 8）覆盖 Math / Scene / Threading / Input / Render / Core / MeshFactory / Assets / Architecture（程序集依赖边界）/ Host
+- 640 用例（SilkEngine.Tests 634 通过 + 6 skipped；skipped 为 OpenGLReal 门控：`SILKENGINE_OPENGL_REAL=1` 且 DXC 可用才执行，否则跳过说明原因，绝不伪造通过）+ SourceGen.Tests 8 用例，覆盖 Math / Scene / Threading / Input / Render / Core / MeshFactory / Assets / Architecture（程序集依赖边界）/ Host
 - TDD 强制: 所有业务逻辑代码必须先写测试→失败→实现→通过
-- 测试文件按模块分目录: Math/ Scene/ Threading/ Input/ Render/ Core/（Assets 位于 Core/Assets）Architecture/（边界与纯净性断言）Host/ + SilkEngine.SourceGen.Tests（Service 注册测试）
+- 测试文件按模块分目录: Math/ Scene/ Threading/ Input/ Render/（含 OpenGL 子目录）Core/ Assets/（SqliteAssetDatabase/DeterministicAssetId/AssetsFacade/ShaderImporter/ObjMeshImporter/MaterialImporter/AssetDependencyIndex/BuildArtifactStore/AssetCancellation/AssetFailureRecovery/AssetHotReload + 共享 AssetWorkflowTestFixtures）Architecture/（边界与纯净性断言）Host/（HostAssetLifecycleSmoke/SandboxDiskAssetSmoke）+ SilkEngine.SourceGen.Tests（Service 注册测试）
 - 验证基线: `dotnet test SilkEngine.slnx --settings seq.runsettings`（顺序模式规避既有 flaky）
 
 ## 约束
@@ -96,7 +99,7 @@ tests/SilkEngine.SourceGen.Tests/  # 8 个 Service 注册测试
 ## 已知问题 / 待办
 
 ### P0
-- 渲染为主线程同步阻塞 (SubmitFrame 等 GPU)
+- 渲染为主线程同步阻塞 (SubmitFrame 等 GPU)；DXC 编译亦在渲染线程同步阻塞
 - InstancedDrawCommand 无消费端
 - Vulkan 后端为桩
 
@@ -105,10 +108,14 @@ tests/SilkEngine.SourceGen.Tests/  # 8 个 Service 注册测试
 - Transform.Scale 不组合父级
 - SetParent 无环检测
 - Instantiate 组件按默认值重建（不复刻状态；ComponentFactory 未注册类型静默跳过）
-- 场景卸载只发 OnDestroy 不发 OnDisable
 - Sprite/图片渲染组件（SpriteRenderer）与 UI 系统（Canvas/RawImage）待建；当前图片显示仅经 Material+MeshRenderer（TestPNGQuad 模式）
+- 删除资产不清理 AssetDB 行（删除后同路径重建会遗留旧 node-id 孤儿目录记录）
+- Missing 资产保留最后已知版本语义
+- 渲染器 Shader/Texture 依赖无独立驻留槽（靠材质驻留级联依赖保护间接持有）
+- DB 路径为 `<LibraryRoot>/assetdb.sqlite`（非 `Library/SilkEngine/AssetDB/assetdb.sqlite`；两文档口径需同步）
+- `ImportSettings.DxcVersion` 已入指纹但生产未赋值（编译产物不落缓存，无功能影响）
+- OpenGLReal 门控测试需 DXC+GPU 环境才执行
 - FindEntry 线性扫描（规模增长需反向索引）
 - Log 写入者全局共享的测试并行竞争（既有 flaky）
-- 既有 FrameSnapshotTests 零分配测试的并行 flaky
 - OpenGLMaterial 同名 uniform 覆盖风险
-- 预留未接线: IComputeShader, RenderPacket, DrawIndirect
+- 预留未接线: IComputeShader, DrawIndirect（RenderPacket 已剔除）
