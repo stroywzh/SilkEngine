@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/" />
+  <Folder Name="/src/SilkEngine/">
+    <Project Path="src/SilkEngine/Rendering/SilkEngine.Rendering.csproj" />
+  </Folder>
+  <Folder Name="/src/SilkEngine/Runtime/">
+    <Project Path="src/SilkEngine/Runtime/SilkEngine.Runtime.csproj" />
+  </Folder>
+  <Project Path="src/SilkEngine/SilkEngine.csproj" />
+</Solution>
