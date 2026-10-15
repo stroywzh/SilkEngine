@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text;
-using SilkEngine.Core.Log;
+using SilkEngine.Core.LogSystem;
 
 namespace SilkEngine;
 
