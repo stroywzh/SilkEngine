@@ -1,6 +1,6 @@
 using System;
 using System.Threading;
-using SilkEngine.Core.Log;
+using SilkEngine.Core.LogSystem;
 
 namespace SilkEngine.Runtime.Host;
 
