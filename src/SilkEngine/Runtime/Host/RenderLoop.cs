@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Threading;
-using SilkEngine.Runtime.Rendering;
+using SilkEngine.Rendering;
 
 namespace SilkEngine.Runtime.Host;
 
@@ -13,14 +13,11 @@ internal sealed class RenderLoop : RuntimeBase
     public bool IsComplete => Volatile.Read(ref _completed) == 1;
     public override string ThreadName => "RenderThread";
 
-    protected override void Run(CancellationToken token)
+    protected override void Run()
     {
-        while (!token.IsCancellationRequested)
-        {
-            Thread.Sleep(160);
-            Log.Info("RenderFinished");
-            Signal();
-        }
+        Thread.Sleep(160);
+        Log.Info("RenderFinished");
+        Signal();
     }
 
     internal void Signal() => Volatile.Write(ref _completed, 1);

@@ -1,4 +1,4 @@
-namespace SilkEngine.Runtime.Rendering;
+namespace SilkEngine.Rendering;
 
 public interface IRenderCommand
 {

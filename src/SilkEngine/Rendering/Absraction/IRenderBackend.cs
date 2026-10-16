@@ -1,4 +1,4 @@
-﻿namespace SilkEngine.Runtime.Rendering.Abstraction;
+﻿namespace SilkEngine.Rendering.Abstraction;
 
 
 //*

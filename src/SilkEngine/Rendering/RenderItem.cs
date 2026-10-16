@@ -1,7 +1,7 @@
-using SilkEngine.Runtime.Rendering.Abstraction;
-using SilkEngine.Runtime.Rendering.Internal;
+using SilkEngine.Rendering.Abstraction;
+using SilkEngine.Rendering.Internal;
 
-namespace SilkEngine.Runtime.Rendering;
+namespace SilkEngine.Rendering;
 
 public enum RenderItemSortMode : byte
 {

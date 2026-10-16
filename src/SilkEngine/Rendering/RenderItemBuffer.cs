@@ -1,6 +1,6 @@
 using System;
 
-namespace SilkEngine.Runtime.Rendering;
+namespace SilkEngine.Rendering;
 
 /// <summary>
 /// Stores a set of <see cref="RenderItem"/> instances and exposes them ordered by their packed sort key.

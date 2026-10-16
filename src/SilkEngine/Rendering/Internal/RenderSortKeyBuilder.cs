@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
 
-namespace SilkEngine.Runtime.Rendering.Internal;
+namespace SilkEngine.Rendering.Internal;
 
 internal static class RenderItemSortKeyBuilder
 {

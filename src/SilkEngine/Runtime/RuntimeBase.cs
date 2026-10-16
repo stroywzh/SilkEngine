@@ -57,6 +57,7 @@ public abstract class RuntimeBase : IDisposable
         if (!TryEnter(RuntimeStage.Start))
             throw new InvalidOperationException($"{ThreadName} has already been started.");
 
+        Log.Info("Entering RuntimeStage Start...");
         _thread = ThreadFactory.CreateThread(
             () => RunInternal(StopToken),
             ThreadName,
@@ -70,8 +71,15 @@ public abstract class RuntimeBase : IDisposable
     {
         try
         {
+            if (!TryEnter(RuntimeStage.Running))
+                throw new Exception("无法进入 RuntimeStage.Running");
+
             Initialize();
-            Run(token);
+
+            while (ShouldUpdtae(token))
+            {
+                Run();
+            }
         }
         catch (OperationCanceledException)
         {
@@ -102,12 +110,17 @@ public abstract class RuntimeBase : IDisposable
     /// <summary>
     /// Thread workload-loop.
     /// </summary>
-    protected abstract void Run(CancellationToken token);
+    protected abstract void Run();
 
     /// <summary>
     /// Called when thread shutdown, excute once after <see cref="Run"/>, no matter normal exit or exception happend.
     /// </summary>
     protected virtual void Shutdown() { }
+
+    protected virtual bool ShouldUpdtae(CancellationToken token)
+    {
+        return !token.IsCancellationRequested;
+    }
 
     /// <summary>
     /// Stop workLoad.

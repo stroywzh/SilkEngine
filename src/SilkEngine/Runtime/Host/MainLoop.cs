@@ -25,15 +25,12 @@ public sealed class MainLoop : RuntimeBase
         Log.Info("MainLoop Init done...");
     }
 
-    protected override void Run(CancellationToken token)
+    protected override void Run()
     {
-        while (!token.IsCancellationRequested)
-        {
-            _renderLoop.Reset();
-            Thread.Sleep(20);
-            Log.Info("逻辑已完成，正在等待渲染");
-            _renderLoop.WaitForFrameFinished();
-        }
+        _renderLoop.Reset();
+        Thread.Sleep(20);
+        Log.Info("逻辑已完成，正在等待渲染");
+        _renderLoop.WaitForFrameFinished();
     }
 
     protected override void DisposeCore()

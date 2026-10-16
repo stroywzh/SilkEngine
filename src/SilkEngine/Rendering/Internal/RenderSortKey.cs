@@ -1,6 +1,6 @@
 using System;
 
-namespace SilkEngine.Runtime.Rendering.Internal;
+namespace SilkEngine.Rendering.Internal;
 
 public readonly struct RenderItemSortKey
     : IComparable<RenderItemSortKey>,

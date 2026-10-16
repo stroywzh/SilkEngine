@@ -1,4 +1,4 @@
-namespace SilkEngine.Runtime.Rendering.Internal;
+namespace SilkEngine.Rendering.Internal;
 
 internal static class RenderQueueConstHelper
 {

@@ -1,8 +1,8 @@
 using SilkEngine;
 
-namespace SilkEngine.Runtime.Rendering.Abstraction;
+namespace SilkEngine.Rendering.Abstraction;
 
-public interface ICommandBuffer
+public interface ICommandBuffer:IDisposable
 {
     /// <summary>
     /// Add a new <see cref="IRenderCommand"/> to this buffer.

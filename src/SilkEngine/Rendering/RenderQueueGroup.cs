@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
 
-namespace SilkEngine.Runtime.Rendering;
+namespace SilkEngine.Rendering;
 
 public enum RenderQueueGroup : ushort
 {
