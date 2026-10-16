@@ -1,3 +1,4 @@
+using SilkEngine.Runtime.Rendering.Abstraction;
 using SilkEngine.Runtime.Rendering.Internal;
 
 namespace SilkEngine.Runtime.Rendering;
@@ -8,6 +9,9 @@ public enum RenderItemSortMode : byte
     Transparent = 1,
 }
 
+/// <summary>
+/// A single draw item, tagged with a sort key for ordering by <see cref="RenderItemBuffer"/>.
+/// </summary>
 public readonly struct RenderItem
 {
     public readonly int MeshId;

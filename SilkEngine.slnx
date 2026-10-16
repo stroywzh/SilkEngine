@@ -1,5 +1,7 @@
 <Solution>
-  <Folder Name="/src/" />
+  <Folder Name="/src/">
+    <Project Path="src/SandBox/SandBox.csproj" />
+  </Folder>
   <Folder Name="/src/SilkEngine/">
     <Project Path="src/SilkEngine.Rendering/SilkEngine.Rendering.csproj" />
   </Folder>

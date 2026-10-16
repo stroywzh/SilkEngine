@@ -1,7 +1,7 @@
 namespace SilkEngine.Runtime.Rendering;
 
-public readonly struct RenderFrameContext
+public readonly struct RenderContext
 {
     //TODO:占位，目标是Context包含CameraData/PipelineData
-    public readonly RenderCommandQueue Commands;
+    public readonly RenderItemBuffer Commands;
 }

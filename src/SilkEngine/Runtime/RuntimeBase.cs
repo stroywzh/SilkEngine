@@ -57,16 +57,13 @@ public abstract class RuntimeBase : IDisposable
         if (!TryEnter(RuntimeStage.Start))
             throw new InvalidOperationException($"{ThreadName} has already been started.");
 
-        // Not Main thread, start new thread itself.
-        if (!IsMainThread)
-        {
-            _thread = ThreadFactory.CreateThread(
-                () => RunInternal(StopToken),
-                ThreadName,
-                IsBackground
-            );
-            _thread.Start();
-        }
+        _thread = ThreadFactory.CreateThread(
+            () => RunInternal(StopToken),
+            ThreadName,
+            IsBackground
+        );
+        _thread.Start();
+        Log.Info($"-Thread:{ThreadName},MID:{_thread.ManagedThreadId} -- Invoke Start()");
     }
 
     private void RunInternal(CancellationToken token)
@@ -124,6 +121,10 @@ public abstract class RuntimeBase : IDisposable
             _cts.Cancel();
         }
         catch (ObjectDisposedException) { }
+        finally
+        {
+            Log.Info($"{ThreadName} Request stop.");
+        }
     }
 
     public void Dispose()
@@ -136,6 +137,7 @@ public abstract class RuntimeBase : IDisposable
         DisposeCore();
         WaitForExit();
         _cts.Dispose();
+        Log.Info($"{ThreadName} Disposed.");
     }
 
     /// <summary>

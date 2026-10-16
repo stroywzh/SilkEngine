@@ -1,3 +1,5 @@
+using SilkEngine.Runtime.Host;
+
 namespace SilkEngine.Runtime;
 
 public static class ThreadFactory
@@ -26,5 +28,25 @@ public static class ThreadFactory
             IsBackground = isBackground,
             Priority = priority,
         };
+    }
+
+    public static T RuntimeBuilder<T>()
+        where T : RuntimeBase, new()
+    {
+        var runtime = new T();
+        RuntimeRegistry.Register(runtime);
+        runtime.Start();
+        return runtime;
+    }
+
+    public static void RuntimeBuilder<T>(out T result)
+        where T : RuntimeBase, new()
+    {
+        result = RuntimeBuilder<T>();
+    }
+
+    public static MainLoop BuildMainThread()
+    {
+        return RuntimeBuilder<MainLoop>();
     }
 }

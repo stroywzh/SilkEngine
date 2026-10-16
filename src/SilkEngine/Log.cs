@@ -5,6 +5,15 @@ using SilkEngine.Core.LogSystem;
 
 namespace SilkEngine;
 
+public enum LogLevel : byte
+{
+    Debug = 0,
+    Info = 1,
+    Warn = 2,
+    Error = 3,
+    Exception = 4,
+}
+
 public static class Log
 {
     private static LogDriver _logger = new();

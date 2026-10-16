@@ -2,16 +2,23 @@ using System;
 
 namespace SilkEngine.Runtime.Rendering;
 
-public sealed class RenderCommandQueue
+/// <summary>
+/// Stores a set of <see cref="RenderItem"/> instances and exposes them ordered by their packed sort key.
+/// <br/>Used by <see cref="CommandBuffer"/> to collect draw items before submission.
+/// </summary>
+/// <seealso cref="RenderItem"/>
+/// <seealso cref="CommandBuffer"/>
+public sealed class RenderItemBuffer
 {
     private const int DefaultCapacity = 256;
     private RenderItem[] _items;
     private ulong[] _keys;
     private int _count;
+    private bool _isSorted = false;
     public int Count => _count;
     public int Capacity => _items.Length;
 
-    public RenderCommandQueue(int capacity = DefaultCapacity)
+    public RenderItemBuffer(int capacity = DefaultCapacity)
     {
         if (capacity <= 0)
         {
@@ -22,6 +29,10 @@ public sealed class RenderCommandQueue
         _count = 0;
     }
 
+    /// <summary>
+    /// Dirctory submit a <see cref="RenderItem"/>
+    /// </summary>
+    /// <param name="item"></param>
     public void Submit(in RenderItem item)
     {
         EnsureCapacity(_count + 1);
@@ -29,8 +40,18 @@ public sealed class RenderCommandQueue
         _items[_count] = item;
         _keys[_count] = item.SortKey.PackedData;
         _count++;
+
+        _isSorted = false;
     }
 
+    /// <summary>
+    /// Submit a <see cref="RenderItem"/>  by its' props.
+    /// </summary>
+    /// <param name="mode"></param>
+    /// <param name="queue"></param>
+    /// <param name="depth01"></param>
+    /// <param name="materialId"></param>
+    /// <param name="meshId"></param>
     public void Submit(
         RenderItemSortMode mode,
         ushort queue,
@@ -46,13 +67,15 @@ public sealed class RenderCommandQueue
     {
         Array.Clear(_items, 0, _count);
         _count = 0;
+        _isSorted = true;
     }
 
     public ReadOnlySpan<RenderItem> GetSortedRenderItems()
     {
-        if (_count > 1)
+        if (!_isSorted && _count > 1)
         {
             Array.Sort(_keys, _items, 0, _count);
+            _isSorted = true;
         }
         return _items.AsSpan(0, _count);
     }

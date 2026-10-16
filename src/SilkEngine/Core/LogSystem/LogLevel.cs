@@ -1,8 +1,0 @@
-public enum LogLevel : byte
-{
-    Debug = 0,
-    Info = 1,
-    Warn = 2,
-    Error = 3,
-    Exception = 4,
-}
