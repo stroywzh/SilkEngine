@@ -15,58 +15,68 @@ internal enum BackendState : byte
 
 /// <summary>
 /// Owns command-buffer storage and implements the CPU record/submit/execute protocol. A derived
-/// backend supplies device initialization, command consumption, and optional GPU idling.
+/// backend supplies device initialization, command consumption, and presentation.
 /// </summary>
+/// <remarks>
+/// Thread affinity: <see cref="Initialize"/> captures the calling thread as the owner. Every other
+/// member, including the internal recording entry points, must be called from that thread; calls
+/// from any other thread throw <see cref="InvalidOperationException"/>. There is no locking on the
+/// render path, so violating the contract is detected, never silently serialized.
+/// </remarks>
 public abstract class RenderBackendBase : IRenderBackend
 {
-    private readonly object _gate = new();
     private readonly Stack<CommandBufferStore> _freeStores = new();
     private readonly Queue<CommandBufferStore> _pending = new();
     private readonly HashSet<CommandBufferLease> _issued = new();
     private BackendState _state;
     private bool _coreDisposed;
-    private bool _callbackActive;
+    private bool _inCallback;
+    private int _ownerThread;
 
     /// <inheritdoc />
     public abstract string Name { get; }
+
+    /// <summary>Gets the thread that owns this backend, or zero before <see cref="Initialize"/>.</summary>
+    protected int OwnerThread => _ownerThread;
 
     /// <inheritdoc />
     public void Initialize(IGraphicsDevice device)
     {
         ArgumentNullException.ThrowIfNull(device);
-        lock (_gate)
-        {
-            if (_state == BackendState.Disposed)
-                throw new ObjectDisposedException(GetType().Name);
-            if (_state == BackendState.Faulted)
-                throw new InvalidOperationException("Backend is faulted.");
-            if (_state != BackendState.Created)
-                throw new InvalidOperationException("Backend has already been initialized.");
+        EnsureOwner();
 
-            _state = BackendState.Initializing;
+        if (_state == BackendState.Disposed)
+            throw new ObjectDisposedException(GetType().Name);
+        if (_state == BackendState.Faulted)
+            throw new InvalidOperationException("Backend is faulted.");
+        if (_state != BackendState.Created)
+            throw new InvalidOperationException("Backend has already been initialized.");
+
+        _ownerThread = Environment.CurrentManagedThreadId;
+        _state = BackendState.Initializing;
+        try
+        {
+            OnInitialize(device);
+            _state = BackendState.Initialized;
+        }
+        catch (Exception error)
+        {
+            _state = BackendState.Faulted;
             try
             {
-                OnInitialize(device);
-                _state = BackendState.Initialized;
+                DisposeCoreOnce();
             }
-            catch (Exception error)
+            catch (Exception cleanupError)
             {
-                _state = BackendState.Faulted;
-                try
-                {
-                    DisposeCoreOnce();
-                }
-                catch (Exception cleanupError)
-                {
-                    throw new AggregateException(
-                        "Backend initialization and cleanup failed.",
-                        error,
-                        cleanupError
-                    );
-                }
-                throw;
+                throw new AggregateException(
+                    "Backend initialization and cleanup failed.",
+                    error,
+                    cleanupError
+                );
             }
+            throw;
         }
+
         if (Application.LogSetting.EnableRenderLog)
         {
             Log.Debug($"Render Backend Initialized at {Time.FrameCount}");
@@ -76,151 +86,126 @@ public abstract class RenderBackendBase : IRenderBackend
     /// <inheritdoc />
     public ICommandBuffer RentCommandBuffer()
     {
-        lock (_gate)
-        {
-            EnsureUsable();
-            var store = _freeStores.Count > 0 ? _freeStores.Pop() : new CommandBufferStore();
-            var lease = new CommandBufferLease(this, store);
-            store.Lease = lease;
-            _issued.Add(lease);
-            return lease;
-        }
+        EnsureOwner();
+        EnsureUsable();
+
+        var store = _freeStores.Count > 0 ? _freeStores.Pop() : new CommandBufferStore();
+        var lease = new CommandBufferLease(this, store);
+        store.Lease = lease;
+        _issued.Add(lease);
+        return lease;
     }
 
     /// <inheritdoc />
     public void RecycleCommandBuffer(ICommandBuffer buffer)
     {
-        lock (_gate)
-        {
-            EnsureUsable();
-            var lease = RequireOwnedLease(buffer);
-            if (lease.State != LeaseState.Recording)
-                throw new InvalidOperationException("Only a recording buffer can be returned.");
+        EnsureOwner();
+        EnsureUsable();
 
-            lease.State = LeaseState.Returned;
-            _issued.Remove(lease);
-            var store = lease.Store;
-            store.Reset();
-            _freeStores.Push(store);
-        }
+        var lease = RequireOwnedLease(buffer);
+        if (lease.State != LeaseState.Recording)
+            throw new InvalidOperationException("Only a recording buffer can be returned.");
+
+        lease.State = LeaseState.Returned;
+        _issued.Remove(lease);
+        var store = lease.Store;
+        store.Reset();
+        _freeStores.Push(store);
     }
 
     /// <inheritdoc />
     public void Submit(ICommandBuffer buffer)
     {
-        lock (_gate)
+        EnsureOwner();
+        EnsureUsable();
+
+        var lease = RequireOwnedLease(buffer);
+        if (lease.State != LeaseState.Recording)
+            throw new InvalidOperationException("Only a recording buffer can be submitted.");
+
+        if (lease.Store.Commands.Count == 0)
         {
-            EnsureUsable();
-            var lease = RequireOwnedLease(buffer);
-            if (lease.State != LeaseState.Recording)
-                throw new InvalidOperationException("Only a recording buffer can be submitted.");
-
-            if (lease.Store.Commands.Count == 0)
-            {
-                Log.Warning("You have submited an empty buffer.");
-            }
-
-            // Validation complete; enqueue first, then make the transfer visible.
-            _pending.Enqueue(lease.Store);
-            lease.State = LeaseState.Submitted;
+            Log.Warning("You have submited an empty buffer.");
         }
+
+        // Validation complete; enqueue first, then make the transfer visible.
+        _pending.Enqueue(lease.Store);
+        lease.State = LeaseState.Submitted;
     }
 
     /// <inheritdoc />
     public void ExecuteRender()
     {
-        lock (_gate)
-        {
-            EnsureUsable();
-            _callbackActive = true;
-            try
-            {
-                while (_pending.Count > 0)
-                {
-                    var store = _pending.Peek();
-                    ExecuteCommands(CollectionsMarshal.AsSpan(store.Commands));
+        EnsureOwner();
+        EnsureUsable();
 
-                    _pending.Dequeue();
-                    var lease = store.Lease!;
-                    lease.State = LeaseState.Executed;
-                    _issued.Remove(lease);
-                    store.Reset();
-                    _freeStores.Push(store);
-                }
-            }
-            catch
+        _inCallback = true;
+        try
+        {
+            while (_pending.Count > 0)
             {
-                // One frame failed: drop everything still queued, keep the backend usable.
-                // Do not replay executed buffers; do not leave pending buffers writable.
-                while (_pending.Count > 0)
-                {
-                    var store = _pending.Dequeue();
-                    var lease = store.Lease!;
-                    lease.State = LeaseState.Faulted;
-                    _issued.Remove(lease);
-                    store.Reset();
-                    _freeStores.Push(store);
-                }
-                throw;
+                var store = _pending.Peek();
+                ExecuteCommands(CollectionsMarshal.AsSpan(store.Commands));
+
+                _pending.Dequeue();
+                var lease = store.Lease!;
+                lease.State = LeaseState.Executed;
+                _issued.Remove(lease);
+                store.Reset();
+                _freeStores.Push(store);
             }
-            finally
+        }
+        catch
+        {
+            // One frame failed: drop everything still queued, keep the backend usable.
+            // Do not replay executed buffers; do not leave pending buffers writable.
+            while (_pending.Count > 0)
             {
-                _callbackActive = false;
-                // if (Application.LogSetting.EnableRenderLog)
-                // {
-                //     Log.Debug("Render Backend finished RenderExecute().");
-                // }
+                var store = _pending.Dequeue();
+                var lease = store.Lease!;
+                lease.State = LeaseState.Faulted;
+                _issued.Remove(lease);
+                store.Reset();
+                _freeStores.Push(store);
             }
+            throw;
+        }
+        finally
+        {
+            _inCallback = false;
+            // if (Application.LogSetting.EnableRenderLog)
+            // {
+            //     Log.Debug("Render Backend finished RenderExecute().");
+            // }
         }
 
         OnPresent();
     }
 
     /// <inheritdoc />
-    public void WaitForIdle()
-    {
-        lock (_gate)
-        {
-            EnsureUsable();
-            _callbackActive = true;
-            try
-            {
-                OnWaitForIdle();
-            }
-            finally
-            {
-                _callbackActive = false;
-            }
-        }
-    }
-
-    /// <inheritdoc />
     public void Dispose()
     {
-        lock (_gate)
+        EnsureOwner();
+
+        if (_state == BackendState.Disposed)
+            return;
+        if (_inCallback || _state == BackendState.Initializing)
+            throw new InvalidOperationException("Cannot dispose from an active backend callback.");
+        _state = BackendState.Disposed;
+
+        foreach (var lease in _issued)
         {
-            if (_state == BackendState.Disposed)
-                return;
-            if (_callbackActive || _state == BackendState.Initializing)
-                throw new InvalidOperationException(
-                    "Cannot dispose from an active backend callback."
-                );
-            _state = BackendState.Disposed;
-
-            foreach (var lease in _issued)
-            {
-                lease.State = LeaseState.Disposed;
-                lease.Store.Reset();
-            }
-            _issued.Clear();
-
-            while (_pending.Count > 0)
-                _pending.Dequeue().Reset();
-            while (_freeStores.Count > 0)
-                _freeStores.Pop().Reset();
-
-            DisposeCoreOnce();
+            lease.State = LeaseState.Disposed;
+            lease.Store.Reset();
         }
+        _issued.Clear();
+
+        while (_pending.Count > 0)
+            _pending.Dequeue().Reset();
+        while (_freeStores.Count > 0)
+            _freeStores.Pop().Reset();
+
+        DisposeCoreOnce();
 
         if (Application.LogSetting.EnableRenderLog)
         {
@@ -237,37 +222,45 @@ public abstract class RenderBackendBase : IRenderBackend
     /// responsibility and are independent from this CPU store's lifetime. Reentry is rejected.</remarks>
     protected abstract void ExecuteCommands(ReadOnlySpan<RenderCommand> commands);
 
-    /// <summary>Backend-specific GPU synchronization; default does nothing.</summary>
-    protected virtual void OnWaitForIdle() { }
-
     /// <summary>Presents the frame after all pending buffers were consumed; default does nothing.</summary>
-    /// <remarks>Runs once per <see cref="ExecuteRender"/> on the backend's owning thread, outside the
-    /// command lock so a blocking swap cannot stall submitters. A throw faults the backend.</remarks>
+    /// <remarks>Runs once per <see cref="ExecuteRender"/> on the backend's owning thread, outside any
+    /// command iteration. A throw is a single-frame failure: the backend stays usable.</remarks>
     protected virtual void OnPresent() { }
 
     /// <summary>Releases device state; must tolerate partial initialization and runs at most once.</summary>
     protected virtual void OnDisposeCore() { }
 
+    /// <summary>Throws unless the caller is the thread that initialized this backend.</summary>
+    /// <remarks>Skips the check before the first <see cref="Initialize"/>, so <see cref="Dispose"/>
+    /// stays available for an object that was never initialized.</remarks>
+    /// <exception cref="InvalidOperationException">Called from a thread other than the owner.</exception>
+    protected void EnsureOwner()
+    {
+        var owner = _ownerThread;
+        if (owner == 0 || owner == Environment.CurrentManagedThreadId)
+            return;
+
+        throw new InvalidOperationException(
+            $"Backend is owned by thread {owner}; call it from that thread only."
+        );
+    }
+
     internal int GetCommandCount(CommandBufferLease lease)
     {
-        lock (_gate)
-        {
-            EnsureUsable();
-            if (lease.State != LeaseState.Recording)
-                throw new InvalidOperationException("Command buffer is no longer writable.");
-            return lease.Store.Commands.Count;
-        }
+        EnsureOwner();
+        EnsureUsable();
+        if (lease.State != LeaseState.Recording)
+            throw new InvalidOperationException("Command buffer is no longer writable.");
+        return lease.Store.Commands.Count;
     }
 
     internal void Record(CommandBufferLease lease, RenderCommand command)
     {
-        lock (_gate)
-        {
-            EnsureUsable();
-            if (lease.State != LeaseState.Recording)
-                throw new InvalidOperationException("Command buffer is no longer writable.");
-            lease.Store.Commands.Add(command);
-        }
+        EnsureOwner();
+        EnsureUsable();
+        if (lease.State != LeaseState.Recording)
+            throw new InvalidOperationException("Command buffer is no longer writable.");
+        lease.Store.Commands.Add(command);
     }
 
     private void DisposeCoreOnce()
@@ -293,7 +286,7 @@ public abstract class RenderBackendBase : IRenderBackend
     {
         if (_state == BackendState.Disposed)
             throw new ObjectDisposedException(GetType().Name);
-        if (_callbackActive)
+        if (_inCallback)
             throw new InvalidOperationException("Backend callback reentry is not supported.");
         if (_state == BackendState.Faulted)
             throw new InvalidOperationException("Backend is faulted.");
@@ -301,3 +294,4 @@ public abstract class RenderBackendBase : IRenderBackend
             throw new InvalidOperationException("Backend is not initialized.");
     }
 }
+

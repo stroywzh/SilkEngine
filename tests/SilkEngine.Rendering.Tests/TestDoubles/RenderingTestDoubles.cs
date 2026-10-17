@@ -33,7 +33,6 @@ internal sealed class SpyBackend : IRenderBackend
     public int ReturnCount { get; private set; }
     public int SubmitCount { get; private set; }
     public int ExecuteRenderCount { get; private set; }
-    public int WaitForIdleCount { get; private set; }
     public bool ThrowOnSubmit { get; set; }
     public bool Initialized { get; private set; }
     public bool Disposed { get; private set; }
@@ -67,7 +66,6 @@ internal sealed class SpyBackend : IRenderBackend
         OnExecute?.Invoke();
     }
 
-    public void WaitForIdle() => WaitForIdleCount++;
     public void Dispose() => Disposed = true;
 }
 

@@ -12,15 +12,12 @@ public sealed class SilkOpenGLBackend : RenderBackendBase, IRenderWindowHost
 {
     private IWindow? _window;
     private GL? _gl;
-    private int _ownerThread;
 
     public override string Name => "Silk.NET OpenGL";
     public bool IsClosing => _window?.IsClosing ?? true;
 
     protected override void OnInitialize(IGraphicsDevice device)
     {
-        _ownerThread = Environment.CurrentManagedThreadId;
-
         var options = WindowOptions.Default;
         options.Size = new Vector2D<int>(800, 600);
         options.FramesPerSecond = 0;
@@ -73,19 +70,8 @@ public sealed class SilkOpenGLBackend : RenderBackendBase, IRenderWindowHost
         }
     }
 
-    protected override void OnWaitForIdle()
-    {
-        EnsureOwner();
-        _gl?.Finish();
-    }
-
     protected override void OnDisposeCore()
     {
-        if (_ownerThread != 0)
-        {
-            EnsureOwner();
-        }
-
         var errors = new List<Exception>();
 
         void Cleanup(Action action)
@@ -111,8 +97,8 @@ public sealed class SilkOpenGLBackend : RenderBackendBase, IRenderWindowHost
 
         if (window is not null)
         {
-            // Even a faulted command stream can have prior GL work. Best-effort device cleanup
-            // must not depend on the public WaitForIdle method accepting the faulted state.
+            // A recording fault can leave prior GL work queued. Best-effort device cleanup must
+            // not depend on any public synchronization method accepting that state.
             Cleanup(() => window.GLContext?.MakeCurrent());
             Cleanup(window.Dispose);
         }
@@ -121,13 +107,5 @@ public sealed class SilkOpenGLBackend : RenderBackendBase, IRenderWindowHost
         _window = null;
         if (errors.Count > 0)
             throw new AggregateException("GL cleanup failed.", errors);
-    }
-
-    private void EnsureOwner()
-    {
-        if (_ownerThread != Environment.CurrentManagedThreadId)
-            throw new InvalidOperationException(
-                "GL/window access must remain on the owning render thread."
-            );
     }
 }

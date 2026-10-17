@@ -1,6 +1,10 @@
 namespace SilkEngine.Rendering.Abstraction;
 
 /// <summary>Owns command storage and consumes submitted command buffers.</summary>
+/// <remarks>
+/// Thread affinity: <see cref="Initialize"/> captures the calling thread as the owner. Every other
+/// member must be called from that thread; there is no locking on the render path.
+/// </remarks>
 public interface IRenderBackend : IDisposable
 {
     /// <summary>Gets the backend display name.</summary>
@@ -35,11 +39,6 @@ public interface IRenderBackend : IDisposable
     /// <exception cref="InvalidOperationException">The backend is not initialized or is faulted.</exception>
     /// <exception cref="ObjectDisposedException">The backend was disposed.</exception>
     void ExecuteRender();
-
-    /// <summary>Waits for already-issued GPU work; does not execute pending CPU submissions.</summary>
-    /// <exception cref="InvalidOperationException">The backend is unavailable or a callback is active.</exception>
-    /// <exception cref="ObjectDisposedException">The backend was disposed.</exception>
-    void WaitForIdle();
 }
 
 /// <summary>Marker interface for a graphics device supplied by the host.</summary>

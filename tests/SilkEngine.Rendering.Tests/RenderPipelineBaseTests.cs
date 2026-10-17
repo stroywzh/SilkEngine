@@ -150,4 +150,31 @@ public sealed class RenderPipelineBaseTests
         Assert.Equal(1, backend.SubmitCount);
         Assert.False(backend.LastRented!.IsWritable);
     }
+
+    [Fact]
+    public void RenderFrameFromAnotherThread_Throws()
+    {
+        using var backend = new SpyBackend();
+        using var pipeline = new TestPipeline();
+        pipeline.Initialize(backend);
+
+        Exception? captured = null;
+        // A real thread is used because a pool task can be inlined onto the calling thread.
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                pipeline.RenderFrame(default);
+            }
+            catch (Exception error)
+            {
+                captured = error;
+            }
+        });
+        thread.Start();
+        thread.Join();
+
+        var invalid = Assert.IsType<InvalidOperationException>(captured);
+        Assert.Contains("owned by thread", invalid.Message, StringComparison.OrdinalIgnoreCase);
+    }
 }

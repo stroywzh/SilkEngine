@@ -48,7 +48,7 @@ public sealed class RenderLoopTests
             release.Set();
             loop.Dispose();
         }
-        Assert.Equal(backend.OwnerThread, backend.DisposeThread);
+        Assert.Equal(backend.InitializeThread, backend.DisposeThread);
     }
 
     [Fact]
@@ -175,7 +175,6 @@ public sealed class RenderLoopTests
         loop.Publish(1);
         loop.Wait(timeout.Token);
         Assert.Equal(new[] { "record", "execute", "present" }, order);
-        Assert.Equal(0, backend.IdleCalls); // Assert before Dispose, which may wait once for shutdown.
     }
 
     [Fact]
@@ -211,5 +210,23 @@ public sealed class RenderLoopTests
             LoopHarness.FailureLimit = previousLimit;
             loop.Dispose();
         }
+    }
+
+    [Fact]
+    public void ManyFrames_KeepConsecutiveCompletion_WithoutLocks()
+    {
+        var backend = new LoopBackend();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        using var loop = new LoopHarness(new LoopPipeline(), backend);
+        loop.Ready(timeout.Token);
+
+        for (ulong frame = 1; frame <= 500; frame++)
+        {
+            loop.Publish(frame);
+            loop.Wait(timeout.Token);
+            Assert.True(loop.LastFrameSucceeded);
+        }
+
+        Assert.Equal(500, backend.Executes);
     }
 }

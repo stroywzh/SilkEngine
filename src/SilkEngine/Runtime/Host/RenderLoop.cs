@@ -9,7 +9,6 @@ internal sealed class RenderLoop : RuntimeBase
     private const int ConsecutiveFailureLimit = 120;
     internal static int MaxConsecutiveFailedFrames = ConsecutiveFailureLimit;
 
-    private readonly object _frameGate = new();
     private readonly IRenderPipeline _pipeline;
     private readonly IRenderBackend _backend;
     private readonly IGraphicsDevice _device;
@@ -20,7 +19,6 @@ internal sealed class RenderLoop : RuntimeBase
     private int _ready;
     private int _stopping;
     private ExceptionDispatchInfo? _fault;
-    private bool _backendInitialized;
     private int _consecutiveFailures;
     private SpinWait _idleWait;
 
@@ -45,15 +43,11 @@ internal sealed class RenderLoop : RuntimeBase
             StopToken.ThrowIfCancellationRequested();
 
             _backend.Initialize(_device);
-            _backendInitialized = true;
 
             _pipeline.Initialize(_backend);
 
-            lock (_frameGate)
-            {
-                if (_stopping == 0)
-                    Volatile.Write(ref _ready, 1);
-            }
+            if (Volatile.Read(ref _stopping) == 0)
+                Volatile.Write(ref _ready, 1);
         }
         catch (OperationCanceledException) when (StopToken.IsCancellationRequested)
         {
@@ -86,29 +80,26 @@ internal sealed class RenderLoop : RuntimeBase
     /// <summary>Publishes the frame announced by <see cref="Time"/> into the single slot.</summary>
     /// <exception cref="InvalidOperationException">The loop is not ready or a frame is still in flight.</exception>
     /// <exception cref="ArgumentOutOfRangeException">The announced id is not the next consecutive id.</exception>
-    /// <remarks>The announced values are snapshotted here, so the consumer never re-reads the global clock.</remarks>
+    /// <remarks>Main thread only; it is the sole writer of <c>_publishedFrameId</c>.</remarks>
     internal void PublishFrame()
     {
-        lock (_frameGate)
-        {
-            CheckAvailable(CancellationToken.None);
+        CheckAvailable(CancellationToken.None);
 
-            if (_ready == 0)
-                throw new InvalidOperationException("Render loop is not ready.");
+        if (Volatile.Read(ref _ready) == 0)
+            throw new InvalidOperationException("Render loop is not ready.");
 
-            var published = Volatile.Read(ref _publishedFrameId);
-            if (published != Volatile.Read(ref _completedFrameId))
-                throw new InvalidOperationException("A frame is still in flight.");
+        var published = Volatile.Read(ref _publishedFrameId);
+        if (published != Volatile.Read(ref _completedFrameId))
+            throw new InvalidOperationException("A frame is still in flight.");
 
-            var frameId = Time.FrameCount;
-            if (frameId != checked(published + 1))
-                throw new ArgumentOutOfRangeException(
-                    nameof(frameId),
-                    "Frame ids must be consecutive from one."
-                );
+        var frameId = Time.FrameCount;
+        if (frameId != checked(published + 1))
+            throw new ArgumentOutOfRangeException(
+                nameof(frameId),
+                "Frame ids must be consecutive from one."
+            );
 
-            Volatile.Write(ref _publishedFrameId, frameId);
-        }
+        Volatile.Write(ref _publishedFrameId, frameId);
     }
 
     /// <summary>Waits for the frame currently published in the single slot to finish.</summary>
@@ -140,16 +131,8 @@ internal sealed class RenderLoop : RuntimeBase
     }
 
     /// <summary>Gets whether the last completed frame finished without a failure.</summary>
-    internal bool LastFrameSucceeded
-    {
-        get
-        {
-            lock (_frameGate)
-            {
-                return Volatile.Read(ref _failedFrameId) != Volatile.Read(ref _completedFrameId);
-            }
-        }
-    }
+    internal bool LastFrameSucceeded =>
+        Volatile.Read(ref _failedFrameId) != Volatile.Read(ref _completedFrameId);
 
     private void CheckAvailable(CancellationToken token)
     {
@@ -167,11 +150,7 @@ internal sealed class RenderLoop : RuntimeBase
 
     public override void RequestStop()
     {
-        lock (_frameGate)
-        {
-            Volatile.Write(ref _stopping, 1);
-        }
-
+        Volatile.Write(ref _stopping, 1);
         base.RequestStop();
     }
 
@@ -201,11 +180,9 @@ internal sealed class RenderLoop : RuntimeBase
             _backend.ExecuteRender();
             _idleWait.Reset();
 
-            lock (_frameGate)
-            {
-                if (_stopping == 0 && _fault is null)
-                    Volatile.Write(ref _completedFrameId, frameId);
-            }
+            // Render thread is the sole writer of _completedFrameId.
+            if (Volatile.Read(ref _stopping) == 0 && Volatile.Read(ref _fault) is null)
+                Volatile.Write(ref _completedFrameId, frameId);
             Volatile.Write(ref _consecutiveFailures, 0);
         }
         catch (OperationCanceledException) when (StopToken.IsCancellationRequested)
@@ -224,14 +201,11 @@ internal sealed class RenderLoop : RuntimeBase
         Log.Exception(error);
 
         var frameId = Volatile.Read(ref _publishedFrameId);
-        lock (_frameGate)
-        {
-            if (_stopping != 0)
-                return;
+        if (Volatile.Read(ref _stopping) != 0)
+            return;
 
-            Volatile.Write(ref _failedFrameId, frameId);
-            Volatile.Write(ref _completedFrameId, frameId);
-        }
+        Volatile.Write(ref _failedFrameId, frameId);
+        Volatile.Write(ref _completedFrameId, frameId);
 
         var failures = Interlocked.Increment(ref _consecutiveFailures);
         if (failures < MaxConsecutiveFailedFrames)
@@ -243,28 +217,23 @@ internal sealed class RenderLoop : RuntimeBase
 
     private void LatchFault(Exception error)
     {
-        lock (_frameGate)
-        {
-            var failure = _fault is null
-                ? error
-                : new AggregateException(
-                    "Rendering and cleanup failed.",
-                    _fault.SourceException,
-                    error
-                );
+        var existing = Volatile.Read(ref _fault);
+        var failure = existing is null
+            ? error
+            : new AggregateException(
+                "Rendering and cleanup failed.",
+                existing.SourceException,
+                error
+            );
 
-            Volatile.Write(ref _fault, ExceptionDispatchInfo.Capture(failure));
-            Volatile.Write(ref _stopping, 1);
-        }
+        Volatile.Write(ref _fault, ExceptionDispatchInfo.Capture(failure));
+        Volatile.Write(ref _stopping, 1);
         base.RequestStop();
     }
 
     protected override void Shutdown()
     {
-        lock (_frameGate)
-        {
-            Volatile.Write(ref _stopping, 1);
-        }
+        Volatile.Write(ref _stopping, 1);
 
         var errors = new List<Exception>();
         void Cleanup(Action action)
@@ -277,11 +246,6 @@ internal sealed class RenderLoop : RuntimeBase
             {
                 errors.Add(error);
             }
-        }
-
-        if (_backendInitialized && Volatile.Read(ref _fault) is null)
-        {
-            Cleanup(_backend.WaitForIdle);
         }
 
         Cleanup(_pipeline.Dispose);

@@ -41,7 +41,8 @@ public sealed class RenderBackendBaseTests
         using var other = CreateBackend();
 
         var empty = backend.RentCommandBuffer();
-        Assert.Throws<ArgumentException>(() => backend.Submit(empty));
+        //不throw空cmdBuffer，没有意义，直接一条LogWarning就行
+        // Assert.Throws<ArgumentException>(() => backend.Submit(empty));
         empty.ClearColor(new RenderTargetHandle(2), Vector4.One);
         backend.RecycleCommandBuffer(empty);
 
@@ -103,7 +104,6 @@ public sealed class RenderBackendBaseTests
         var backend = new RecordingBackend();
         Assert.Throws<InvalidOperationException>(() => backend.RentCommandBuffer());
         Assert.Throws<InvalidOperationException>(() => backend.ExecuteRender());
-        Assert.Throws<InvalidOperationException>(() => backend.WaitForIdle());
         backend.Dispose();
     }
 
@@ -177,18 +177,6 @@ public sealed class RenderBackendBaseTests
     }
 
     [Fact]
-    public void WaitForIdleFailure_KeepsBackendUsable()
-    {
-        using var backend = CreateBackend();
-        backend.ThrowOnWaitForIdle = true;
-        Assert.Throws<InvalidOperationException>(() => backend.WaitForIdle());
-
-        backend.ThrowOnWaitForIdle = false;
-        backend.WaitForIdle();
-        Assert.Equal(1, backend.WaitForIdleCount);
-    }
-
-    [Fact]
     public void Dispose_IsIdempotent_AndInvalidatesLiveLeases()
     {
         var backend = CreateBackend();
@@ -202,16 +190,6 @@ public sealed class RenderBackendBaseTests
             buffer.ClearColor(new RenderTargetHandle(1), Vector4.One));
         Assert.Throws<ObjectDisposedException>(() => backend.RentCommandBuffer());
         Assert.Throws<ObjectDisposedException>(() => backend.ExecuteRender());
-    }
-
-    [Fact]
-    public void WaitForIdle_IsNotCalledByExecuteRender()
-    {
-        using var backend = CreateBackend();
-        backend.ExecuteRender();
-        Assert.Equal(0, backend.WaitForIdleCount);
-        backend.WaitForIdle();
-        Assert.Equal(1, backend.WaitForIdleCount);
     }
 
     [Fact]
@@ -231,5 +209,49 @@ public sealed class RenderBackendBaseTests
         backend.ExecuteRender();
 
         Assert.Single(backend.Frames);
+    }
+
+    [Fact]
+    public void OperationsFromAnotherThread_Throw()
+    {
+        using var backend = CreateBackend();
+
+        var error = RunOnAnotherThread(() => backend.RentCommandBuffer());
+
+        var invalid = Assert.IsType<InvalidOperationException>(error);
+        Assert.Contains("owned by thread", invalid.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ExecuteFromAnotherThread_Throws_WithoutLosingOwnerUsability()
+    {
+        using var backend = CreateBackend();
+
+        var error = RunOnAnotherThread(() => backend.ExecuteRender());
+        var invalid = Assert.IsType<InvalidOperationException>(error);
+        Assert.Contains("owned by thread", invalid.Message, StringComparison.OrdinalIgnoreCase);
+
+        backend.ExecuteRender(); // owner thread still works
+    }
+
+    /// <summary>Runs an action on a freshly started thread and returns whatever it threw.</summary>
+    /// <remarks>A real thread is used because a pool task can be inlined onto the calling thread.</remarks>
+    private static Exception? RunOnAnotherThread(Action action)
+    {
+        Exception? captured = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                action();
+            }
+            catch (Exception error)
+            {
+                captured = error;
+            }
+        });
+        thread.Start();
+        thread.Join();
+        return captured;
     }
 }

@@ -11,24 +11,22 @@ internal sealed class LoopBackend : RenderBackendBase, IRenderWindowHost
 {
     private int _pumps,
         _executes,
-        _presents,
-        _idleCalls;
+        _presents;
 
     public override string Name => "CPU loop backend";
     public bool IsClosing => false;
     public int Pumps => Volatile.Read(ref _pumps);
     public int Executes => Volatile.Read(ref _executes);
     public int Presents => Volatile.Read(ref _presents);
-    public int IdleCalls => Volatile.Read(ref _idleCalls);
     public Exception? InitializeError { get; init; }
     public Action? BeforeExecute { get; set; }
     public Action? BeforePresent { get; set; }
-    public int OwnerThread { get; private set; }
+    public int InitializeThread { get; private set; }
     public int DisposeThread { get; private set; }
 
     protected override void OnInitialize(IGraphicsDevice device)
     {
-        OwnerThread = Environment.CurrentManagedThreadId;
+        InitializeThread = Environment.CurrentManagedThreadId;
         if (InitializeError is not null)
             throw InitializeError;
     }
@@ -46,8 +44,6 @@ internal sealed class LoopBackend : RenderBackendBase, IRenderWindowHost
         BeforePresent?.Invoke();
         Interlocked.Increment(ref _presents);
     }
-
-    protected override void OnWaitForIdle() => Interlocked.Increment(ref _idleCalls);
 
     protected override void OnDisposeCore() => DisposeThread = Environment.CurrentManagedThreadId;
 }

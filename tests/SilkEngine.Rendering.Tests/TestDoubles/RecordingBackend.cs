@@ -11,10 +11,8 @@ internal sealed class RecordingBackend : RenderBackendBase
     public List<RenderCommand[]> Frames { get; } = new();
     public bool ThrowOnInitialize { get; set; }
     public bool ThrowOnPresent { get; set; }
-    public bool ThrowOnWaitForIdle { get; set; }
     public int ThrowOnExecuteCall { get; set; } = -1;
     public int DisposeCount { get; private set; }
-    public int WaitForIdleCount { get; private set; }
 
     public Action? OnExecute { get; set; }
 
@@ -36,12 +34,6 @@ internal sealed class RecordingBackend : RenderBackendBase
     protected override void OnPresent()
     {
         if (ThrowOnPresent) throw new InvalidOperationException("present failed");
-    }
-
-    protected override void OnWaitForIdle()
-    {
-        if (ThrowOnWaitForIdle) throw new InvalidOperationException("idle failed");
-        WaitForIdleCount++;
     }
 
     protected override void OnDisposeCore() => DisposeCount++;
