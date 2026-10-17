@@ -54,15 +54,16 @@ public sealed class RenderingFailureTests
     }
 
     [Fact]
-    public void ResizeExecutionFailure_FaultsPipeline_WhileNegativeArgumentDoesNot()
+    public void ResizeHookFailure_LeavesPipelineUsable_WhileNegativeArgumentDoesNot()
     {
         using var backend = new SpyBackend();
         using var pipeline = new BrokenPipeline();
         pipeline.Initialize(backend);
+
         Assert.Throws<ArgumentOutOfRangeException>(() => pipeline.Resize(-1, 100));
-        pipeline.RenderFrame(default);
         Assert.Throws<InvalidOperationException>(() => pipeline.Resize(100, 100));
-        var error = Assert.Throws<InvalidOperationException>(() => pipeline.RenderFrame(default));
-        Assert.Contains("faulted", error.Message, StringComparison.OrdinalIgnoreCase);
+
+        pipeline.RenderFrame(default);
+        Assert.Equal(1, backend.RentCount);
     }
 }

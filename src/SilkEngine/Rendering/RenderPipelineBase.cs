@@ -100,11 +100,6 @@ public abstract class RenderPipelineBase : IRenderPipeline
                     Backend.RecycleCommandBuffer(buffer);
                 }
             }
-            catch
-            {
-                _state = PipelineState.Faulted;
-                throw;
-            }
             finally
             {
                 if (_state == PipelineState.Recording)
@@ -127,11 +122,6 @@ public abstract class RenderPipelineBase : IRenderPipeline
             try
             {
                 OnResize(width, height);
-            }
-            catch
-            {
-                _state = PipelineState.Faulted;
-                throw;
             }
             finally
             {

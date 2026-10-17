@@ -134,16 +134,20 @@ public sealed class RenderPipelineBaseTests
     }
 
     [Fact]
-    public void RecordingFailure_LatchesFaultAndDoesNotRentAnotherBuffer()
+    public void RecordingFailure_PropagatesOriginal_AndAllowsNextFrame()
     {
         using var pipeline = CreatePipeline(out var backend);
         pipeline.ThrowOnRecord = true;
         Assert.Throws<InvalidOperationException>(() => pipeline.RenderFrame(default));
+
         pipeline.ThrowOnRecord = false;
-        var error = Assert.Throws<InvalidOperationException>(() => pipeline.RenderFrame(default));
-        Assert.Contains("faulted", error.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal(1, backend.RentCount);
+        pipeline.OnRecord = commands =>
+            commands.ClearColor(new RenderTargetHandle(31), Vector4.One);
+        pipeline.RenderFrame(default);
+
+        Assert.Equal(2, backend.RentCount);
         Assert.Equal(1, backend.ReturnCount);
-        Assert.Equal(0, backend.SubmitCount);
+        Assert.Equal(1, backend.SubmitCount);
+        Assert.False(backend.LastRented!.IsWritable);
     }
 }

@@ -14,8 +14,8 @@ public static class Time
     private static ulong _frameCountBits;
 
     /// <summary>
-    /// Gets the duration of the previous successful whole frame in seconds; zero before the first
-    /// successful frame.
+    /// Gets the duration of the previous completed whole frame in seconds; zero before the first
+    /// completed frame. A frame counts as completed even when its render pass failed.
     /// </summary>
     public static double UnscaledDeltaTime =>
         BitConverter.Int64BitsToDouble(Volatile.Read(ref _unscaledDeltaBits));
@@ -29,7 +29,7 @@ public static class Time
 
     /// <summary>Publishes the values for the frame that is about to be updated.</summary>
     /// <param name="frameCount">1-based id of the frame being processed.</param>
-    /// <param name="unscaledDeltaSeconds">Duration of the previous successful frame, in seconds.</param>
+    /// <param name="unscaledDeltaSeconds">Duration of the previous completed frame, in seconds.</param>
     /// <exception cref="ArgumentOutOfRangeException">The delta is negative or not finite.</exception>
     internal static void BeginFrame(ulong frameCount, double unscaledDeltaSeconds)
     {

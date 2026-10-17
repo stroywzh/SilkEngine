@@ -10,20 +10,19 @@ namespace SilkEngine.Rendering.Tests;
 internal sealed class LoopBackend : RenderBackendBase, IRenderWindowHost
 {
     private int _pumps,
-        _outputs,
         _executes,
+        _presents,
         _idleCalls;
 
     public override string Name => "CPU loop backend";
     public bool IsClosing => false;
-    public int SkipAttempts { get; init; }
     public int Pumps => Volatile.Read(ref _pumps);
-    public int Outputs => Volatile.Read(ref _outputs);
     public int Executes => Volatile.Read(ref _executes);
+    public int Presents => Volatile.Read(ref _presents);
     public int IdleCalls => Volatile.Read(ref _idleCalls);
     public Exception? InitializeError { get; init; }
-    public Action? BeforeOutput { get; set; }
-    public Action? OnExecute { get; init; }
+    public Action? BeforeExecute { get; set; }
+    public Action? BeforePresent { get; set; }
     public int OwnerThread { get; private set; }
     public int DisposeThread { get; private set; }
 
@@ -36,19 +35,16 @@ internal sealed class LoopBackend : RenderBackendBase, IRenderWindowHost
 
     public void PumpEvents() => Interlocked.Increment(ref _pumps);
 
-    public bool TryRenderFrame(Action executeCommands)
-    {
-        if (Interlocked.Increment(ref _outputs) <= SkipAttempts)
-            return false;
-        executeCommands();
-        BeforeOutput?.Invoke();
-        return true;
-    }
-
     protected override void ExecuteCommands(ReadOnlySpan<RenderCommand> commands)
     {
+        BeforeExecute?.Invoke();
         Interlocked.Increment(ref _executes);
-        OnExecute?.Invoke();
+    }
+
+    protected override void OnPresent()
+    {
+        BeforePresent?.Invoke();
+        Interlocked.Increment(ref _presents);
     }
 
     protected override void OnWaitForIdle() => Interlocked.Increment(ref _idleCalls);
@@ -130,6 +126,30 @@ internal sealed class LoopHarness : IDisposable
     }
 
     public void Wait(CancellationToken token) => Invoke(_wait, token);
+
+    private PropertyInfo LastFrameSucceededProperty =>
+        _loop.GetType()
+            .GetProperty("LastFrameSucceeded", BindingFlags.Instance | BindingFlags.NonPublic)
+        ?? throw new MissingMethodException("RenderLoop.LastFrameSucceeded is missing.");
+
+    /// <summary>Whether the last completed frame finished without a failure.</summary>
+    public bool LastFrameSucceeded => (bool)LastFrameSucceededProperty.GetValue(_loop)!;
+
+    /// <summary>Consecutive failed frames that stop the loop; restore the previous value after the test.</summary>
+    public static int FailureLimit
+    {
+        get => (int)LimitField.GetValue(null)!;
+        set => LimitField.SetValue(null, value);
+    }
+
+    private static FieldInfo LimitField =>
+        typeof(RuntimeBase)
+            .Assembly.GetType("SilkEngine.Runtime.Host.RenderLoop", true)!
+            .GetField(
+                "MaxConsecutiveFailedFrames",
+                BindingFlags.Static | BindingFlags.NonPublic
+            )
+        ?? throw new MissingFieldException("RenderLoop.MaxConsecutiveFailedFrames is missing.");
 
     public void Stop() => _loop.RequestStop();
 

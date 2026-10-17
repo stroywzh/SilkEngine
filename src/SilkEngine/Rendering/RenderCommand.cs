@@ -35,4 +35,3 @@ public readonly struct RenderCommand
     public static RenderCommand ClearColor(RenderTargetHandle target, Vector4 color) =>
         new(RenderCommandKind.ClearColor, target, color);
 }
-

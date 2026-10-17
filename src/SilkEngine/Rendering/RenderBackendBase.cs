@@ -114,11 +114,11 @@ public abstract class RenderBackendBase : IRenderBackend
             var lease = RequireOwnedLease(buffer);
             if (lease.State != LeaseState.Recording)
                 throw new InvalidOperationException("Only a recording buffer can be submitted.");
+
             if (lease.Store.Commands.Count == 0)
-                throw new ArgumentException(
-                    "Cannot submit an empty command buffer.",
-                    nameof(buffer)
-                );
+            {
+                Log.Warning("You have submited an empty buffer.");
+            }
 
             // Validation complete; enqueue first, then make the transfer visible.
             _pending.Enqueue(lease.Store);
@@ -150,8 +150,7 @@ public abstract class RenderBackendBase : IRenderBackend
             }
             catch
             {
-                _state = BackendState.Faulted;
-
+                // One frame failed: drop everything still queued, keep the backend usable.
                 // Do not replay executed buffers; do not leave pending buffers writable.
                 while (_pending.Count > 0)
                 {
@@ -167,12 +166,14 @@ public abstract class RenderBackendBase : IRenderBackend
             finally
             {
                 _callbackActive = false;
-                if (Application.LogSetting.EnableRenderLog)
-                {
-                    Log.Debug("Render Backend finished RenderExecute().");
-                }
+                // if (Application.LogSetting.EnableRenderLog)
+                // {
+                //     Log.Debug("Render Backend finished RenderExecute().");
+                // }
             }
         }
+
+        OnPresent();
     }
 
     /// <inheritdoc />
@@ -185,11 +186,6 @@ public abstract class RenderBackendBase : IRenderBackend
             try
             {
                 OnWaitForIdle();
-            }
-            catch
-            {
-                _state = BackendState.Faulted;
-                throw;
             }
             finally
             {
@@ -243,6 +239,11 @@ public abstract class RenderBackendBase : IRenderBackend
 
     /// <summary>Backend-specific GPU synchronization; default does nothing.</summary>
     protected virtual void OnWaitForIdle() { }
+
+    /// <summary>Presents the frame after all pending buffers were consumed; default does nothing.</summary>
+    /// <remarks>Runs once per <see cref="ExecuteRender"/> on the backend's owning thread, outside the
+    /// command lock so a blocking swap cannot stall submitters. A throw faults the backend.</remarks>
+    protected virtual void OnPresent() { }
 
     /// <summary>Releases device state; must tolerate partial initialization and runs at most once.</summary>
     protected virtual void OnDisposeCore() { }

@@ -7,16 +7,18 @@ namespace SilkEngine.Rendering.Tests;
 public sealed class RenderLoopTests
 {
     [Fact]
-    public void Completion_WaitsForOutput_AndRejectsOverwrite()
+    public void Completion_WaitsForExecute_AndRejectsOverwrite()
     {
         using var entered = new ManualResetEventSlim();
         using var release = new ManualResetEventSlim();
-        var backend = new LoopBackend { SkipAttempts = 3 };
-        backend.BeforeOutput = () =>
+        var backend = new LoopBackend
         {
-            entered.Set();
-            if (!release.Wait(TimeSpan.FromSeconds(5)))
-                throw new TimeoutException();
+            BeforeExecute = () =>
+            {
+                entered.Set();
+                if (!release.Wait(TimeSpan.FromSeconds(5)))
+                    throw new TimeoutException();
+            },
         };
         var pipeline = new LoopPipeline();
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
@@ -27,14 +29,17 @@ public sealed class RenderLoopTests
             loop.Publish(1);
             Assert.True(entered.Wait(TimeSpan.FromSeconds(5)));
             Assert.Throws<InvalidOperationException>(() => loop.Publish(2));
+
             using var canceled = new CancellationTokenSource();
             canceled.Cancel();
             Assert.ThrowsAny<OperationCanceledException>(() => loop.Wait(canceled.Token));
+
             release.Set();
             loop.Wait(timeout.Token);
             Assert.Equal(1, backend.Executes);
-            Assert.True(backend.Outputs >= 4);
+            Assert.Equal(1, backend.Presents);
             Assert.True(backend.Pumps > 0);
+
             loop.Publish(2);
             loop.Wait(timeout.Token);
         }
@@ -57,18 +62,47 @@ public sealed class RenderLoopTests
     }
 
     [Fact]
-    public void RecordingFailure_PropagatesOriginal_AndDoesNotExecuteBackend()
+    public void RecordingFailure_IsConsumed_AndTheNextFrameRuns()
     {
         var error = new InvalidOperationException("record failed");
         var backend = new LoopBackend();
         var pipeline = new LoopPipeline { Record = _ => throw error };
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         using var loop = new LoopHarness(pipeline, backend);
         loop.Ready(timeout.Token);
+
         loop.Publish(1);
-        Assert.Same(error, Assert.Throws<InvalidOperationException>(() => loop.Wait(timeout.Token)));
+        loop.Wait(timeout.Token);
+        Assert.False(loop.LastFrameSucceeded);
         Assert.Equal(0, backend.Executes);
-        Assert.Throws<InvalidOperationException>(() => loop.Publish(2));
+
+        pipeline.Record = null;
+        loop.Publish(2);
+        loop.Wait(timeout.Token);
+        Assert.True(loop.LastFrameSucceeded);
+        Assert.Equal(1, backend.Executes);
+    }
+
+    [Fact]
+    public void ExecuteFailure_IsConsumed_AndTheNextFrameRuns()
+    {
+        var error = new InvalidOperationException("execute failed");
+        var backend = new LoopBackend { BeforeExecute = () => throw error };
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var loop = new LoopHarness(new LoopPipeline(), backend);
+        loop.Ready(timeout.Token);
+
+        loop.Publish(1);
+        loop.Wait(timeout.Token);
+        Assert.False(loop.LastFrameSucceeded);
+        Assert.Equal(0, backend.Executes);
+
+        backend.BeforeExecute = null;
+        loop.Publish(2);
+        loop.Wait(timeout.Token);
+        Assert.True(loop.LastFrameSucceeded);
+        Assert.Equal(1, backend.Executes);
+        Assert.Equal(1, backend.Presents);
     }
 
     [Fact]
@@ -79,19 +113,6 @@ public sealed class RenderLoopTests
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         Assert.ThrowsAny<OperationCanceledException>(() => loop.Ready(timeout.Token));
         Assert.ThrowsAny<OperationCanceledException>(() => loop.Publish(1));
-    }
-
-    [Fact]
-    public void OutputFailure_IsNotPublishedAsSuccessfulFrame()
-    {
-        var error = new InvalidOperationException("swap failed");
-        var backend = new LoopBackend { BeforeOutput = () => throw error };
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        using var loop = new LoopHarness(new LoopPipeline(), backend);
-        loop.Ready(timeout.Token);
-        loop.Publish(1);
-        Assert.Same(error, Assert.Throws<InvalidOperationException>(() => loop.Wait(timeout.Token)));
-        Assert.Equal(1, backend.Executes);
     }
 
     [Fact]
@@ -107,13 +128,13 @@ public sealed class RenderLoopTests
     }
 
     [Fact]
-    public void StopDuringOutput_ReleasesWaiterWithoutClaimingCompletion()
+    public void StopDuringExecute_ReleasesWaiterWithoutClaimingCompletion()
     {
         using var entered = new ManualResetEventSlim();
         using var release = new ManualResetEventSlim();
         var backend = new LoopBackend
         {
-            BeforeOutput = () =>
+            BeforeExecute = () =>
             {
                 entered.Set();
                 if (!release.Wait(TimeSpan.FromSeconds(5)))
@@ -139,13 +160,13 @@ public sealed class RenderLoopTests
     }
 
     [Fact]
-    public void Frame_OrderIsRecordExecuteOutput_AndDoesNotWaitForGpu()
+    public void Frame_OrderIsRecordExecutePresent_AndDoesNotWaitForGpu()
     {
         var order = new List<string>();
         var backend = new LoopBackend
         {
-            OnExecute = () => order.Add("execute"),
-            BeforeOutput = () => order.Add("output"),
+            BeforeExecute = () => order.Add("execute"),
+            BeforePresent = () => order.Add("present"),
         };
         var pipeline = new LoopPipeline { Record = _ => order.Add("record") };
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -153,7 +174,42 @@ public sealed class RenderLoopTests
         loop.Ready(timeout.Token);
         loop.Publish(1);
         loop.Wait(timeout.Token);
-        Assert.Equal(new[] { "record", "execute", "output" }, order);
+        Assert.Equal(new[] { "record", "execute", "present" }, order);
         Assert.Equal(0, backend.IdleCalls); // Assert before Dispose, which may wait once for shutdown.
+    }
+
+    [Fact]
+    public void ConsecutiveFailedFrames_StopTheLoop()
+    {
+        var previousLimit = LoopHarness.FailureLimit;
+        LoopHarness.FailureLimit = 3;
+        var backend = new LoopBackend
+        {
+            BeforeExecute = () => throw new InvalidOperationException("execute failed"),
+        };
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var loop = new LoopHarness(new LoopPipeline(), backend);
+        try
+        {
+            loop.Ready(timeout.Token);
+
+            for (ulong frame = 1; frame <= 3; frame++)
+            {
+                loop.Publish(frame);
+                loop.Wait(timeout.Token);
+                Assert.False(loop.LastFrameSucceeded);
+            }
+
+            Assert.ThrowsAny<OperationCanceledException>(() =>
+            {
+                loop.Publish(4);
+                loop.Wait(timeout.Token);
+            });
+        }
+        finally
+        {
+            LoopHarness.FailureLimit = previousLimit;
+            loop.Dispose();
+        }
     }
 }

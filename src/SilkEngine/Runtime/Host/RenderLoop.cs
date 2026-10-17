@@ -6,6 +6,9 @@ namespace SilkEngine.Runtime.Host;
 
 internal sealed class RenderLoop : RuntimeBase
 {
+    private const int ConsecutiveFailureLimit = 120;
+    internal static int MaxConsecutiveFailedFrames = ConsecutiveFailureLimit;
+
     private readonly object _frameGate = new();
     private readonly IRenderPipeline _pipeline;
     private readonly IRenderBackend _backend;
@@ -13,10 +16,12 @@ internal sealed class RenderLoop : RuntimeBase
     private readonly IRenderWindowHost? _host;
     private ulong _publishedFrameId;
     private ulong _completedFrameId;
+    private ulong _failedFrameId;
     private int _ready;
     private int _stopping;
     private ExceptionDispatchInfo? _fault;
     private bool _backendInitialized;
+    private int _consecutiveFailures;
     private SpinWait _idleWait;
 
     public RenderLoop()
@@ -108,7 +113,8 @@ internal sealed class RenderLoop : RuntimeBase
 
     /// <summary>Waits for the frame currently published in the single slot to finish.</summary>
     /// <exception cref="OperationCanceledException">The wait was canceled, the loop stopped, or it faulted.</exception>
-    /// <remarks>Only the publishing thread calls this, so the slot holds exactly the frame to wait for.</remarks>
+    /// <remarks>Only the publishing thread calls this, so the slot holds exactly the frame to wait for.
+    /// A stop published after this frame was consumed still counts as completion.</remarks>
     internal void WaitForFrameFinished(CancellationToken token)
     {
         var targetFrameId = Volatile.Read(ref _publishedFrameId);
@@ -116,8 +122,32 @@ internal sealed class RenderLoop : RuntimeBase
         var wait = new SpinWait();
         while (Volatile.Read(ref _completedFrameId) < targetFrameId)
         {
-            CheckAvailable(token);
+            try
+            {
+                CheckAvailable(token);
+            }
+            catch (RenderLoopStoppedException)
+            {
+                // The loop can stop right after consuming the frame we wait for; that is still success.
+                if (Volatile.Read(ref _completedFrameId) >= targetFrameId)
+                    return;
+
+                throw;
+            }
+
             wait.SpinOnce();
+        }
+    }
+
+    /// <summary>Gets whether the last completed frame finished without a failure.</summary>
+    internal bool LastFrameSucceeded
+    {
+        get
+        {
+            lock (_frameGate)
+            {
+                return Volatile.Read(ref _failedFrameId) != Volatile.Read(ref _completedFrameId);
+            }
         }
     }
 
@@ -166,39 +196,9 @@ internal sealed class RenderLoop : RuntimeBase
                 return;
             }
 
-            var invoked = false;
-
-            void Execute()
-            {
-                if (invoked)
-                    throw new InvalidOperationException("Frame callback was invoked twice.");
-                invoked = true;
-                //TODO: RenderContext 现在依旧是占位
-                _pipeline.RenderFrame(default);
-                _backend.ExecuteRender();
-            }
-
-            bool rendered;
-            if (_host is null)
-            {
-                Execute();
-                rendered = true;
-            }
-            else
-            {
-                rendered = _host.TryRenderFrame(Execute);
-            }
-
-            if (rendered != invoked)
-                throw new InvalidOperationException(
-                    "Window host violated its render callback contract."
-                );
-
-            if (!rendered)
-            {
-                _idleWait.SpinOnce();
-                return;
-            }
+            //TODO: RenderContext 现在依旧是占位
+            _pipeline.RenderFrame(default);
+            _backend.ExecuteRender();
             _idleWait.Reset();
 
             lock (_frameGate)
@@ -206,16 +206,39 @@ internal sealed class RenderLoop : RuntimeBase
                 if (_stopping == 0 && _fault is null)
                     Volatile.Write(ref _completedFrameId, frameId);
             }
+            Volatile.Write(ref _consecutiveFailures, 0);
         }
         catch (OperationCanceledException) when (StopToken.IsCancellationRequested)
         {
             throw;
         }
-        catch (Exception error)
+        catch (Exception error) when (error is not ObjectDisposedException and not OperationCanceledException)
         {
-            LatchFault(error);
-            throw;
+            HandleFrameFailure(error);
         }
+    }
+
+    /// <summary>Records a failed frame as consumed, so the publisher can advance, then keeps running.</summary>
+    private void HandleFrameFailure(Exception error)
+    {
+        Log.Exception(error);
+
+        var frameId = Volatile.Read(ref _publishedFrameId);
+        lock (_frameGate)
+        {
+            if (_stopping != 0)
+                return;
+
+            Volatile.Write(ref _failedFrameId, frameId);
+            Volatile.Write(ref _completedFrameId, frameId);
+        }
+
+        var failures = Interlocked.Increment(ref _consecutiveFailures);
+        if (failures < MaxConsecutiveFailedFrames)
+            return;
+
+        Log.Error($"Render loop stopped after {failures} consecutive failed frames.");
+        RequestStop();
     }
 
     private void LatchFault(Exception error)

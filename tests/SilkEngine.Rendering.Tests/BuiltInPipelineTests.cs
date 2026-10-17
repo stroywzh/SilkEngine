@@ -1,3 +1,4 @@
+using System.Reflection;
 using SilkEngine.Rendering;
 using SilkEngine.Rendering.Abstraction;
 using SilkEngine.Rendering.BuiltIn;
@@ -6,8 +7,16 @@ using Xunit;
 
 namespace SilkEngine.Rendering.Tests;
 
+[Collection(EngineHostCollection.Name)]
 public sealed class BuiltInPipelineTests
 {
+    private static readonly MethodInfo BeginFrame =
+        typeof(Time).GetMethod("BeginFrame", BindingFlags.Static | BindingFlags.NonPublic)
+        ?? throw new MissingMethodException("Time.BeginFrame is missing.");
+
+    private static void SetTime(ulong frameId, double deltaSeconds) =>
+        BeginFrame.Invoke(null, new object[] { frameId, deltaSeconds });
+
     [Fact]
     public void FrameDelta_ChangesColor_AndUsesExplicitWindowTarget()
     {
@@ -15,10 +24,15 @@ public sealed class BuiltInPipelineTests
         backend.Initialize(new NullGraphicsDevice());
         using var pipeline = new BuiltInPipeline();
         pipeline.Initialize(backend);
-        pipeline.RenderFrame(new RenderContext(1, 0));
+
+        SetTime(1, 0);
+        pipeline.RenderFrame(default);
         backend.ExecuteRender();
-        pipeline.RenderFrame(new RenderContext(2, 0.5));
+
+        SetTime(2, 0.5);
+        pipeline.RenderFrame(default);
         backend.ExecuteRender();
+
         Assert.Equal(2, backend.Frames.Count);
         var first = Assert.Single(backend.Frames[0]);
         var second = Assert.Single(backend.Frames[1]);

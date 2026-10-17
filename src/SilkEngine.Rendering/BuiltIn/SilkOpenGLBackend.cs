@@ -1,5 +1,3 @@
-using System.Runtime.ExceptionServices;
-using Silk.NET;
 using Silk.NET.Maths;
 using Silk.NET.OpenGL;
 using Silk.NET.Windowing;
@@ -7,15 +5,13 @@ using SilkEngine.Rendering.Abstraction;
 
 namespace SilkEngine.Rendering.BuiltIn.Backend;
 
-/// <summary>OpenGL command consumer and manual Silk window host, owned by one render thread.</summary>
-/// <remarks>Window/render APIs require that same thread. ExecuteRender never pumps the window.</remarks>
+/// <summary>OpenGL command consumer and Silk window owner, driven by one render thread.</summary>
+/// <remarks>Window/GL calls must stay on the owning render thread. The backend presents its own
+/// frame after consuming commands; there is no window render event and no callback entry.</remarks>
 public sealed class SilkOpenGLBackend : RenderBackendBase, IRenderWindowHost
 {
     private IWindow? _window;
     private GL? _gl;
-    private Action? _execute;
-    private ExceptionDispatchInfo? _callbackError;
-    private bool _callbackRan;
     private int _ownerThread;
 
     public override string Name => "Silk.NET OpenGL";
@@ -32,7 +28,6 @@ public sealed class SilkOpenGLBackend : RenderBackendBase, IRenderWindowHost
         options.VSync = true;
 
         _window = Window.Create(options);
-        _window.Render += OnRender;
         _window.Initialize();
         _window.GLContext!.MakeCurrent();
         _gl = _window.CreateOpenGL();
@@ -46,68 +41,13 @@ public sealed class SilkOpenGLBackend : RenderBackendBase, IRenderWindowHost
         (_window ?? throw new InvalidOperationException("Window is unavailable.")).DoEvents();
     }
 
-    /// <summary>Attempts a manual render event followed by exactly one explicit buffer swap.</summary>
-    /// <returns>False if no callback ran or the window is closing; true after callback and swap return.</returns>
-    /// <exception cref="ArgumentNullException">The callback is null.</exception>
-    /// <exception cref="InvalidOperationException">Called on another thread or reentrantly.</exception>
-    /// <remarks>Callback and swap errors propagate. No callback survives this call; no GPU idle wait occurs.</remarks>
-    public bool TryRenderFrame(Action executeCommands)
+    /// <summary>Swaps the back buffer once; called by <see cref="RenderBackendBase.ExecuteRender"/>.</summary>
+    protected override void OnPresent()
     {
-        ArgumentNullException.ThrowIfNull(executeCommands);
         EnsureOwner();
-
-        var window = _window ?? throw new InvalidOperationException("Window is unavailable.");
-        if (window.IsClosing)
-            return false;
-
-        if (_execute is not null)
-            throw new InvalidOperationException("Reentrant window render.");
-
-        _callbackRan = false;
-        _callbackError = null;
-        _execute = executeCommands;
-
-        try
-        {
-            window.GLContext!.MakeCurrent();
-            window.DoRender();
-            _callbackError?.Throw();
-
-            if (!_callbackRan)
-                return false;
-
-            window.GLContext!.SwapBuffers();
-            return true;
-        }
-        finally
-        {
-            _execute = null;
-        }
-    }
-
-    private void OnRender(double deltaSeconds)
-    {
-        if (_execute is null)
-            return;
-
-        if (_callbackRan)
-        {
-            _callbackError ??= ExceptionDispatchInfo.Capture(
-                new InvalidOperationException("Silk render callback ran twice.")
-            );
-            return;
-        }
-
-        _callbackRan = true;
-
-        try
-        {
-            _execute();
-        }
-        catch (Exception error)
-        {
-            _callbackError = ExceptionDispatchInfo.Capture(error);
-        }
+        (
+            _window ?? throw new InvalidOperationException("Window is unavailable.")
+        ).GLContext!.SwapBuffers();
     }
 
     protected override void ExecuteCommands(ReadOnlySpan<RenderCommand> commands)
@@ -146,7 +86,6 @@ public sealed class SilkOpenGLBackend : RenderBackendBase, IRenderWindowHost
             EnsureOwner();
         }
 
-        _execute = null;
         var errors = new List<Exception>();
 
         void Cleanup(Action action)
@@ -172,17 +111,11 @@ public sealed class SilkOpenGLBackend : RenderBackendBase, IRenderWindowHost
 
         if (window is not null)
         {
-            window.Render -= OnRender;
             // Even a faulted command stream can have prior GL work. Best-effort device cleanup
             // must not depend on the public WaitForIdle method accepting the faulted state.
             Cleanup(() => window.GLContext?.MakeCurrent());
             Cleanup(window.Dispose);
         }
-
-        // if (window is not null)
-        // {
-        //     Cleanup(window.Dispose);
-        // }
 
         _gl = null;
         _window = null;

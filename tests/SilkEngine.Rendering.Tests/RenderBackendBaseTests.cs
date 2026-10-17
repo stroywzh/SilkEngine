@@ -125,7 +125,7 @@ public sealed class RenderBackendBaseTests
     }
 
     [Fact]
-    public void ExecuteFailure_FaultsAndClearsPendingWithoutReplay()
+    public void ExecuteFailure_DropsQueuedFrames_AndKeepsBackendUsable()
     {
         using var backend = CreateBackend();
         var first = backend.RentCommandBuffer();
@@ -136,15 +136,56 @@ public sealed class RenderBackendBaseTests
         second.ClearColor(new RenderTargetHandle(21), Vector4.Zero);
         backend.Submit(second);
 
-        backend.ThrowOnExecuteCall = 2;
+        backend.ThrowOnExecuteCall = 1;
 
-        Assert.Throws<InvalidOperationException>(() => backend.ExecuteRender());
-        Assert.Single(backend.Frames);
-        Assert.Throws<InvalidOperationException>(() => backend.ExecuteRender());
-        Assert.Single(backend.Frames);
-        Assert.Throws<InvalidOperationException>(() => backend.RentCommandBuffer());
+        var error = Assert.Throws<InvalidOperationException>(() => backend.ExecuteRender());
+        Assert.Equal("execute failed", error.Message);
+        Assert.Empty(backend.Frames); // 没有任何一帧被重放
+
         Assert.Throws<InvalidOperationException>(() =>
             first.ClearColor(new RenderTargetHandle(20), Vector4.Zero));
+        Assert.Throws<InvalidOperationException>(() => { _ = second.CommandsCount; });
+
+        var third = backend.RentCommandBuffer();
+        third.ClearColor(new RenderTargetHandle(22), Vector4.One);
+        backend.Submit(third);
+        backend.ExecuteRender();
+
+        var frame = Assert.Single(backend.Frames);
+        Assert.Equal((ushort)22, Assert.Single(frame).Target.Id);
+    }
+
+    [Fact]
+    public void PresentFailure_KeepsBackendUsable()
+    {
+        using var backend = CreateBackend();
+        backend.ThrowOnPresent = true;
+        var first = backend.RentCommandBuffer();
+        first.ClearColor(new RenderTargetHandle(40), Vector4.One);
+        backend.Submit(first);
+
+        Assert.Throws<InvalidOperationException>(() => backend.ExecuteRender());
+        Assert.Single(backend.Frames); // 命令已消费，只有呈现失败
+
+        backend.ThrowOnPresent = false;
+        var second = backend.RentCommandBuffer();
+        second.ClearColor(new RenderTargetHandle(41), Vector4.One);
+        backend.Submit(second);
+        backend.ExecuteRender();
+
+        Assert.Equal(2, backend.Frames.Count);
+    }
+
+    [Fact]
+    public void WaitForIdleFailure_KeepsBackendUsable()
+    {
+        using var backend = CreateBackend();
+        backend.ThrowOnWaitForIdle = true;
+        Assert.Throws<InvalidOperationException>(() => backend.WaitForIdle());
+
+        backend.ThrowOnWaitForIdle = false;
+        backend.WaitForIdle();
+        Assert.Equal(1, backend.WaitForIdleCount);
     }
 
     [Fact]

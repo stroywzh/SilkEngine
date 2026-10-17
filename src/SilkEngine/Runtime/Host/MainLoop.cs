@@ -15,6 +15,7 @@ public sealed class MainLoop : RuntimeBase
     private RenderLoop? _renderLoop;
     private ulong _frameId;
     private long _lastFrameTicks;
+    private int _lastFrameSucceeded = 1;
 
     /// <summary>Creates the main host using registrations frozen before application startup.</summary>
     /// <exception cref="ArgumentNullException">A required Application registration is missing.</exception>
@@ -35,8 +36,18 @@ public sealed class MainLoop : RuntimeBase
     public override string ThreadName => "MainThread";
     internal override bool IsMainThread => true;
 
-    /// <summary>Gets the full duration of the last successful frame; initially zero, safe for cross-thread reads.</summary>
+    /// <summary>Gets the full duration of the last completed frame; initially zero, safe for cross-thread reads.</summary>
+    /// <remarks>A completed frame may still have failed to render; <see cref="RenderLoop"/> treats such a
+    /// frame as consumed, and <c>LastFrameSucceeded</c> there reports whether its render pass succeeded.</remarks>
     public TimeSpan LastFrameElapsed => TimeSpan.FromTicks(Volatile.Read(ref _lastFrameTicks));
+
+    /// <summary>
+    /// Gets whether the last completed frame's render pass succeeded; initially true, safe for
+    /// cross-thread reads.
+    /// </summary>
+    /// <remarks>Failures are non-fatal: a false value describes that one frame only and the loop keeps
+    /// running. The frame's duration is still published through <see cref="LastFrameElapsed"/>.</remarks>
+    public bool LastFrameSucceeded => Volatile.Read(ref _lastFrameSucceeded) != 0;
 
     protected override void Initialize()
     {
@@ -58,7 +69,7 @@ public sealed class MainLoop : RuntimeBase
     protected override void Run()
     {
         _frameStopwatch.Restart();
-        var successful = false;
+        var completed = false;
         try
         {
             OnFrameStarted();
@@ -70,7 +81,7 @@ public sealed class MainLoop : RuntimeBase
             StopToken.ThrowIfCancellationRequested();
 
             OnFrameEnded();
-            successful = true;
+            completed = true;
 
             // if (Application.LogSetting.EnableMainThreadLog)
             // {
@@ -84,8 +95,18 @@ public sealed class MainLoop : RuntimeBase
         finally
         {
             _frameStopwatch.Stop();
-            if (successful)
+
+            // The elapsed time was really spent even when the frame failed to render,
+            // so every completed frame publishes it; success is tracked separately.
+            if (completed)
+            {
                 Interlocked.Exchange(ref _lastFrameTicks, _frameStopwatch.Elapsed.Ticks);
+            }
+
+            if (!LastFrameSucceeded)
+            {
+                Log.Warning("Main Loop: Failed to render last frame.");
+            }
         }
     }
 
@@ -108,6 +129,7 @@ public sealed class MainLoop : RuntimeBase
         var render = _renderLoop!;
         render.PublishFrame();
         render.WaitForFrameFinished(StopToken);
+        Volatile.Write(ref _lastFrameSucceeded, render.LastFrameSucceeded ? 1 : 0);
     }
 
     /// <summary>
