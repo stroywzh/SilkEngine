@@ -1,41 +1,38 @@
+using System.Numerics;
+
 namespace SilkEngine.Rendering;
 
-public interface IRenderCommand
+/// <summary>Identifies the semantic operation stored in a <see cref="RenderCommand"/>.</summary>
+public enum RenderCommandKind : byte
 {
-    void Execute(RenderContext ctx);
+    /// <summary>Clears a render target to a color.</summary>
+    ClearColor = 0,
 }
 
-public struct SetRenderTargetCommand : IRenderCommand
+/// <summary>A backend-agnostic, CPU-side render command.</summary>
+public readonly struct RenderCommand
 {
-    //TODO: 后面做资源管理之后把这个Item换成Tex+Mesh
-    public RenderTargetHandle Target;
-
-    public SetRenderTargetCommand(RenderTargetHandle rt)
+    private RenderCommand(RenderCommandKind kind, RenderTargetHandle target, Vector4 color)
     {
-        Target = rt;
+        Kind = kind;
+        Target = target;
+        Color = color;
     }
 
-    public void Execute(RenderContext ctx)
-    {
-        throw new NotImplementedException();
-    }
+    /// <summary>Gets the semantic operation kind.</summary>
+    public RenderCommandKind Kind { get; }
+
+    /// <summary>Gets the render target affected by this command.</summary>
+    public RenderTargetHandle Target { get; }
+
+    /// <summary>Gets the clear color; meaningful only for <see cref="RenderCommandKind.ClearColor"/>.</summary>
+    public Vector4 Color { get; }
+
+    /// <summary>Creates a clear-color command.</summary>
+    /// <param name="target">Render target to clear.</param>
+    /// <param name="color">Color written to the target.</param>
+    /// <returns>A command that records the clear request.</returns>
+    public static RenderCommand ClearColor(RenderTargetHandle target, Vector4 color) =>
+        new(RenderCommandKind.ClearColor, target, color);
 }
 
-public struct DrawMeshCommand : IRenderCommand
-{
-    public MeshHandle Mesh;
-    public Matrix4x4 Matrix;
-    public MaterialHandle Material;
-
-    public DrawMeshCommand(MeshHandle m,in Matrix4x4 mat, MaterialHandle matl)
-    {
-        Mesh = m;
-        Matrix = mat;
-        Material = matl;
-    }
-
-    public void Execute(RenderContext ctx)
-    {
-        throw new NotImplementedException();
-    }
-}

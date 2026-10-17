@@ -1,26 +1,23 @@
-using SilkEngine;
+using System.Numerics;
 
 namespace SilkEngine.Rendering.Abstraction;
 
-public interface ICommandBuffer:IDisposable
+/// <summary>
+/// A writable lease over backend-owned command storage. It becomes permanently non-writable after
+/// submission, return, execution, fault, or backend disposal.
+/// </summary>
+public interface ICommandBuffer
 {
-    /// <summary>
-    /// Add a new <see cref="IRenderCommand"/> to this buffer.
-    /// </summary>
-    /// <typeparam name="T"></typeparam>
-    /// <param name="command">A struct that with <see cref="IRenderCommand"/></param>
-    public void AddCommand<T>(in T command)
-        where T : struct, IRenderCommand;
+    /// <summary>Gets the command count while this buffer is writable.</summary>
+    /// <exception cref="InvalidOperationException">The buffer is no longer writable, or the backend is faulted.</exception>
+    /// <exception cref="ObjectDisposedException">The owning backend was disposed.</exception>
+    int CommandsCount { get; }
 
-    /// <summary>
-    /// Use this to execute all commands in this buffer.
-    /// </summary>
-    /// <param name="ctx"></param>
-    void Execute(RenderContext ctx);
-
-    /// <summary>
-    /// Reset this buffer to default state.
-    /// <br/>Use this before next <see cref="Execute(RenderContext)"/> call.
-    /// </summary>
-    void Reset();
+    /// <summary>Records a clear-color operation.</summary>
+    /// <param name="target">Render target to clear.</param>
+    /// <param name="color">Color written to the target.</param>
+    /// <exception cref="InvalidOperationException">The buffer is no longer writable, or the backend is faulted.</exception>
+    /// <exception cref="ObjectDisposedException">The owning backend was disposed.</exception>
+    void ClearColor(RenderTargetHandle target, Vector4 color);
 }
+

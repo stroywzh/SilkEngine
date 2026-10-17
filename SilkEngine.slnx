@@ -5,7 +5,10 @@
     <Folder Name="/src/SilkEngine/">
         <Project Path="src/SilkEngine.Rendering/SilkEngine.Rendering.csproj" />
     </Folder>
-
-    <Folder Name="/src/SilkEngine/Runtime/" />
-    <Project Path="src/SilkEngine/SilkEngine.csproj" />
+    <Folder Name="/src/SilkEngine/Runtime/">
+        <Project Path="src/SilkEngine/SilkEngine.csproj" />
+    </Folder>
+    <Folder Name="/tests/">
+        <Project Path="tests/SilkEngine.Rendering.Tests/SilkEngine.Rendering.Tests.csproj" />
+     </Folder>
 </Solution>

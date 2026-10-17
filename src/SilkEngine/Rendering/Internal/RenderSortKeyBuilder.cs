@@ -4,35 +4,72 @@ namespace SilkEngine.Rendering.Internal;
 
 internal static class RenderItemSortKeyBuilder
 {
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static RenderItemSortKey BuildKey(
-        RenderItemSortMode mode,
-        ushort queue,
-        float depth01,
-        ushort materialId
-    )
+    /// <summary>
+    /// Build a Opaque sort key: [queue:16][psoHash:16][depth:32]
+    /// <br/>psoHash came from materialId.
+    /// </summary>
+    /// <param name="queue"></param>
+    /// <param name="materialId"></param>
+    /// <param name="depth01"></param>
+    /// <returns></returns>
+    public static ulong BuildOpaque(ushort queue, int materialId, float depth01)
     {
-        return new RenderItemSortKey(Build(mode, queue, depth01, materialId));
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ulong Build(
-        RenderItemSortMode mode,
-        ushort queue,
-        float depth01,
-        ushort materialId
-    )
-    {
+        ushort psoHash = PsoHash16(materialId);
         uint depthBits = SortKeyPacker.MonotonicFloatBits(depth01);
-
-        // Opaque：近的先画，depthBits 保持升序。
-        // Transparent：远的先画，对 depthBits 取反，让大深度得到小 key。
-        if (mode == RenderItemSortMode.Transparent)
-        {
-            depthBits = ~depthBits;
-        }
-
-        // high16 = queue，mid32 = depth，low16 = materialId
-        return SortKeyPacker.Pack(materialId, depthBits, queue);
+        return SortKeyPacker.Pack16_16_32(queue, psoHash, depthBits);
     }
+
+    /// <summary>
+    /// Build a Transparent sort key: [queue:16][~depth:32][psoHash:16]
+    /// <br/>psoHash came from materialId.
+    /// </summary>
+    /// <param name="queue"></param>
+    /// <param name="materialId"></param>
+    /// <param name="depth01"></param>
+    /// <returns></returns>
+    public static ulong BuildTransparent(ushort queue, int materialId, float depth01)
+    {
+        ushort psoHash = PsoHash16(materialId);
+        uint depthBits = ~SortKeyPacker.MonotonicFloatBits(depth01);
+        return SortKeyPacker.Pack16_32_16(queue, depthBits, psoHash);
+    }
+
+    /// <summary>
+    /// Build RenderItem's sort key.
+    /// </summary>
+    /// <param name="mode"></param>
+    /// <param name="queue"></param>
+    /// <param name="depth01"></param>
+    /// <param name="materialId"></param>
+    /// <returns></returns>
+    public static RenderItemSortKey Build(
+        RenderItemSortMode mode,
+        ushort queue,
+        float depth01,
+        int materialId
+    ) =>
+        mode switch
+        {
+            RenderItemSortMode.Transparent => SetUpRenderItemSortKey(
+                BuildTransparent(queue, materialId, depth01)
+            ),
+            RenderItemSortMode.Opaque => SetUpRenderItemSortKey(
+                BuildOpaque(queue, materialId, depth01)
+            ),
+            _ => throw new ArgumentOutOfRangeException($"Invalid RenderItemSortMode:{mode}"),
+        };
+
+    private const uint HashBase = 2166136261u;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static ushort PsoHash16(int materialId)
+    {
+        uint h = HashBase;
+        h = (h ^ (uint)materialId) * 16777619u;
+        return (ushort)h;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static RenderItemSortKey SetUpRenderItemSortKey(ulong packedData) =>
+        new RenderItemSortKey(packedData);
 }

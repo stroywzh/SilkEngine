@@ -1,4 +1,5 @@
-using SilkEngine.Rendering.Abstraction;
+using System;
+using System.Runtime.InteropServices;
 using SilkEngine.Rendering.Internal;
 
 namespace SilkEngine.Rendering;
@@ -21,7 +22,7 @@ public readonly struct RenderItem
     internal readonly RenderItemSortMode SortMode;
     internal readonly RenderItemSortKey SortKey;
 
-    public RenderItem(
+    private RenderItem(
         RenderItemSortMode mode,
         ushort queue,
         float depth01,
@@ -34,17 +35,12 @@ public readonly struct RenderItem
         Queue = queue;
         Depth01 = depth01;
         SortMode = mode;
-
-        SortKey = RenderItemSortKeyBuilder.BuildKey(mode, queue, depth01, materialId);
+        SortKey = RenderItemSortKeyBuilder.Build(mode, queue, depth01, materialId);
     }
 
-    public static RenderItem Opaque(ushort queue, float depth01, ushort materialId, int meshId) =>
-        new(RenderItemSortMode.Opaque, queue, depth01, materialId, meshId);
+    public static RenderItem Opaque(ushort q, float d, ushort mat, int mesh) =>
+        new(RenderItemSortMode.Opaque, q, d, mat, mesh);
 
-    public static RenderItem Transparent(
-        ushort queue,
-        float depth01,
-        ushort materialId,
-        int meshId
-    ) => new(RenderItemSortMode.Transparent, queue, depth01, materialId, meshId);
+    public static RenderItem Transparent(ushort q, float d, ushort mat, int mesh) =>
+        new(RenderItemSortMode.Transparent, q, d, mat, mesh);
 }

@@ -1,51 +1,25 @@
 using SilkEngine.Rendering.Abstraction;
 
-namespace SilkEngine.Rendering.Pipeline;
+namespace SilkEngine.Rendering.BuiltIn;
 
-public sealed class BuiltInPipeline : IRenderPipeline
+/// <summary>
+/// Built-in pipeline skeleton. This milestone validates the frame protocol only and records no GPU work.
+/// </summary>
+public sealed class BuiltInPipeline : RenderPipelineBase
 {
-    public string Name => "Built-In Pipeline";
-    private IRenderBackend _renderBackend;
-    private List<BuiltInCommandBuffer> _commandBuffers = new();
+    /// <inheritdoc />
+    public override string Name => "Built-In Pipeline";
 
-    public void Initialize(IRenderBackend backend)
-    {
-        _renderBackend = backend;
-    }
+    /// <inheritdoc />
+    protected override void OnInitialize() { }
 
-    public void Resize(int width, int height)
-    {
-        throw new NotImplementedException();
-    }
+    /// <inheritdoc />
+    protected override void RecordCommands(ICommandBuffer commands, RenderContext ctx) { }
 
-    public ICommandBuffer BeginFrame()
-    {
-        throw new NotImplementedException();
-    }
+    /// <inheritdoc />
+    protected override void OnResize(int width, int height) { }
 
-    public ICommandBuffer CreateCommandBuffer()
-    {
-        throw new NotImplementedException();
-    }
-
-    public void Dispose()
-    {
-        foreach(var cb in _commandBuffers)
-        {
-            cb.Dispose();
-        }
-    }
-
-    public void EndFrame(ICommandBuffer commandBuffer)
-    {
-        throw new NotImplementedException();
-    }
-
-    public void RenderFrame(RenderContext ctx)
-    {
-        foreach(var cb in _commandBuffers)
-        {
-            cb.Execute(ctx);
-        }
-    }
+    /// <inheritdoc />
+    protected override void DisposeCore() { }
 }
+

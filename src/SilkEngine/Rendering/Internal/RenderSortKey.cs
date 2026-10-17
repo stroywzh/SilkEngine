@@ -13,10 +13,6 @@ public readonly struct RenderItemSortKey
         PackedData = key;
     }
 
-    public ushort Low16 => (ushort)(PackedData & ushort.MaxValue);
-    public uint Mid32 => (uint)((PackedData >> 16) & uint.MaxValue);
-    public ushort High16 => (ushort)((PackedData >> 48) & ushort.MaxValue);
-
     public int CompareTo(RenderItemSortKey other) => PackedData.CompareTo(other.PackedData);
 
     public bool Equals(RenderItemSortKey other) => PackedData == other.PackedData;
