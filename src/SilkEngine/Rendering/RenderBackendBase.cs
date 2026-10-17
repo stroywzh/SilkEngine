@@ -4,6 +4,15 @@ using SilkEngine.Rendering.Abstraction;
 
 namespace SilkEngine.Rendering;
 
+internal enum BackendState : byte
+{
+    Created,
+    Initializing,
+    Initialized,
+    Faulted,
+    Disposed,
+}
+
 /// <summary>
 /// Owns command-buffer storage and implements the CPU record/submit/execute protocol. A derived
 /// backend supplies device initialization, command consumption, and optional GPU idling.
@@ -149,6 +158,8 @@ public abstract class RenderBackendBase : IRenderBackend
                 _callbackActive = false;
             }
         }
+
+        DoRender();
     }
 
     /// <inheritdoc />
@@ -212,6 +223,8 @@ public abstract class RenderBackendBase : IRenderBackend
     /// responsibility and are independent from this CPU store's lifetime. Reentry is rejected.</remarks>
     protected abstract void ExecuteCommands(ReadOnlySpan<RenderCommand> commands);
 
+    protected virtual void DoRender() { }
+
     /// <summary>Backend-specific GPU synchronization; default does nothing.</summary>
     protected virtual void OnWaitForIdle() { }
 
@@ -270,53 +283,4 @@ public abstract class RenderBackendBase : IRenderBackend
         if (_state != BackendState.Initialized)
             throw new InvalidOperationException("Backend is not initialized.");
     }
-}
-
-internal enum BackendState : byte
-{
-    Created,
-    Initializing,
-    Initialized,
-    Faulted,
-    Disposed,
-}
-
-internal enum LeaseState : byte
-{
-    Recording,
-    Submitted,
-    Executed,
-    Faulted,
-    Returned,
-    Disposed,
-}
-
-internal sealed class CommandBufferStore
-{
-    internal List<RenderCommand> Commands { get; } = new();
-    internal CommandBufferLease? Lease { get; set; }
-
-    internal void Reset()
-    {
-        Commands.Clear();
-        Lease = null;
-    }
-}
-
-internal sealed class CommandBufferLease : ICommandBuffer
-{
-    internal RenderBackendBase Owner { get; }
-    internal CommandBufferStore Store { get; }
-    internal LeaseState State { get; set; } = LeaseState.Recording;
-
-    internal CommandBufferLease(RenderBackendBase owner, CommandBufferStore store)
-    {
-        Owner = owner;
-        Store = store;
-    }
-
-    public int CommandsCount => Owner.GetCommandCount(this);
-
-    public void ClearColor(RenderTargetHandle target, Vector4 color) =>
-        Owner.Record(this, RenderCommand.ClearColor(target, color));
 }

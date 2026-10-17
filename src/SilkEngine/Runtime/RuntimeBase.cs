@@ -74,9 +74,14 @@ public abstract class RuntimeBase : IDisposable
             if (!TryEnter(RuntimeStage.Running))
                 throw new Exception("无法进入 RuntimeStage.Running");
 
+            if (IsMainThread)
+            {
+                //TODO:主线程注册机制,暂时没定好在这里注册还是放在Registry里面搞
+            }
+
             Initialize();
 
-            while (ShouldUpdtae(token))
+            while (ShouldUpdate(token))
             {
                 Run();
             }
@@ -117,7 +122,7 @@ public abstract class RuntimeBase : IDisposable
     /// </summary>
     protected virtual void Shutdown() { }
 
-    protected virtual bool ShouldUpdtae(CancellationToken token)
+    protected virtual bool ShouldUpdate(CancellationToken token)
     {
         return !token.IsCancellationRequested;
     }

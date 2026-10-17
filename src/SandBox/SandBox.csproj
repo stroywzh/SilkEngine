@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\SilkEngine.Rendering\SilkEngine.Rendering.csproj" />
     <ProjectReference Include="..\SilkEngine\SilkEngine.csproj" />
   </ItemGroup>
 

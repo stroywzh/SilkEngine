@@ -1,7 +1,13 @@
+using SilkEngine.Rendering.Abstraction;
+
 namespace SilkEngine;
 
 public class Application
 {
     internal static volatile bool _isRunning = false;
     public static bool IsRunning => _isRunning;
+    public static bool IsEmbed = false;
+    public static IRenderBackend RenderBackend;
+    public static IRenderPipeline RenderPipeline;
+    public static IGraphicsDevice GraphicsDevice;
 }

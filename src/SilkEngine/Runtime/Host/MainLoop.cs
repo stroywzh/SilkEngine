@@ -28,7 +28,7 @@ public sealed class MainLoop : RuntimeBase
     protected override void Run()
     {
         _renderLoop.Reset();
-        Thread.Sleep(20);
+        Thread.Sleep(160);
         Log.Info("逻辑已完成，正在等待渲染");
         _renderLoop.WaitForFrameFinished();
     }

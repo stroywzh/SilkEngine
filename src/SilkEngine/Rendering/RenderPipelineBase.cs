@@ -89,7 +89,9 @@ public abstract class RenderPipelineBase : IRenderPipeline
                 }
 
                 if (!submitted)
+                {
                     Backend.RecycleCommandBuffer(buffer);
+                }
             }
             finally
             {

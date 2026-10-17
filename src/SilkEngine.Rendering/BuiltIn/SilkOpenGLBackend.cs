@@ -1,3 +1,6 @@
+using Silk.NET;
+using Silk.NET.OpenGL;
+using Silk.NET.Windowing;
 using SilkEngine.Rendering.Abstraction;
 
 namespace SilkEngine.Rendering.BuiltIn.Backend;
@@ -8,22 +11,43 @@ namespace SilkEngine.Rendering.BuiltIn.Backend;
 /// </summary>
 public sealed class SilkOpenGLBackend : RenderBackendBase
 {
+    private WindowOptions options = WindowOptions.Default;
+    private GL gL;
+    private IWindow window;
+
     /// <inheritdoc />
     public override string Name => "Silk.NET OpenGL (placeholder)";
 
     /// <inheritdoc />
-    protected override void OnInitialize(IGraphicsDevice device) =>
-        throw new NotSupportedException(
-            "OpenGL backend initialization is not implemented in this milestone."
-        );
+    protected override void OnInitialize(IGraphicsDevice device)
+    {
+        options.Size = new Silk.NET.Maths.Vector2D<int>(800, 600);
+        window = Window.Create(options);
+        window.Load += () =>
+        {
+            gL = window.CreateOpenGL();
+        };
+        Log.Info("Backend Init finished.");
+        window.Initialize();
+    }
+
+    protected override void DoRender()
+    {
+        window.DoRender();
+        Log.Info($"Backend Render in {window.Time}");
+    }
 
     /// <inheritdoc />
-    protected override void ExecuteCommands(ReadOnlySpan<RenderCommand> commands) =>
-        throw new NotSupportedException(
-            "OpenGL command execution is not implemented in this milestone."
-        );
+    protected override void ExecuteCommands(ReadOnlySpan<RenderCommand> commands)
+    {
+        Thread.Sleep(2000);
+        Log.Info($"ExcutedCommand:{commands.Length} in 1000ms");
+    }
 
     /// <inheritdoc />
-    protected override void OnDisposeCore() { }
+    protected override void OnDisposeCore()
+    {
+        gL.Dispose();
+        window.Dispose();
+    }
 }
-

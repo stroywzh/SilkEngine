@@ -11,7 +11,7 @@ public static class RuntimeRegistry
     //暂时可能没什么用
     public static bool Register(RuntimeBase runtime)
     {
-        if (runtime is MainLoop m)
+        if (runtime.IsMainThread && runtime is MainLoop m)
         {
             if (_mainThread is not null)
             {
