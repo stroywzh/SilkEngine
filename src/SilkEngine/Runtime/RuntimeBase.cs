@@ -58,11 +58,8 @@ public abstract class RuntimeBase : IDisposable
             throw new InvalidOperationException($"{ThreadName} has already been started.");
 
         Log.Info("Entering RuntimeStage Start...");
-        _thread = ThreadFactory.CreateThread(
-            () => RunInternal(StopToken),
-            ThreadName,
-            IsBackground
-        );
+        var token = StopToken;
+        _thread = ThreadFactory.CreateThread(() => RunInternal(token), ThreadName, IsBackground);
         _thread.Start();
         Log.Info($"-Thread:{ThreadName},MID:{_thread.ManagedThreadId} -- Invoke Start()");
     }
@@ -71,8 +68,13 @@ public abstract class RuntimeBase : IDisposable
     {
         try
         {
+            token.ThrowIfCancellationRequested();
             if (!TryEnter(RuntimeStage.Running))
+            {
+                token.ThrowIfCancellationRequested();
                 throw new Exception("无法进入 RuntimeStage.Running");
+            }
+            token.ThrowIfCancellationRequested();
 
             if (IsMainThread)
             {
@@ -86,7 +88,8 @@ public abstract class RuntimeBase : IDisposable
                 Run();
             }
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException error)
+            when (token.IsCancellationRequested && error.CancellationToken == token)
         {
             Log.Info($"{ThreadName} normal exit");
         }
@@ -130,7 +133,7 @@ public abstract class RuntimeBase : IDisposable
     /// <summary>
     /// Stop workLoad.
     /// </summary>
-    public void RequestStop()
+    public virtual void RequestStop()
     {
         if (!TryEnter(RuntimeStage.Stop))
             return;
@@ -152,9 +155,21 @@ public abstract class RuntimeBase : IDisposable
         if (!TryEnter(RuntimeStage.Dispose))
             return;
 
-        DisposeCore();
-        WaitForExit();
-        _cts.Dispose();
+        try
+        {
+            DisposeCore();
+        }
+        finally
+        {
+            try
+            {
+                WaitForExit();
+            }
+            finally
+            {
+                _cts.Dispose();
+            }
+        }
         Log.Info($"{ThreadName} Disposed.");
     }
 

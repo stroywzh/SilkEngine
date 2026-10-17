@@ -19,11 +19,18 @@ public static class Log
     private static LogDriver _logger = new();
     internal static LogLevel MinLevel { get; set; } = LogLevel.Debug;
 
+    [Conditional("DEBUG")]
     public static void Debug(
         object message,
         [CallerMemberName] string callerName = "",
         [CallerFilePath] string callerFile = ""
-    ) => Write(LogLevel.Debug, message, callerName, callerFile);
+    )
+    {
+        if (Application.LogSetting.EnableLog)
+        {
+            Write(LogLevel.Debug, message, callerName, callerFile);
+        }
+    }
 
     public static void Info(
         object message,

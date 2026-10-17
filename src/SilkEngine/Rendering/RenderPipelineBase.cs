@@ -38,14 +38,21 @@ public abstract class RenderPipelineBase : IRenderPipeline
                 OnInitialize();
                 _state = PipelineState.Initialized;
             }
-            catch
+            catch (Exception error)
             {
                 _state = PipelineState.Faulted;
                 try
                 {
                     DisposeCoreOnce();
                 }
-                catch { }
+                catch (Exception cleanupError)
+                {
+                    throw new AggregateException(
+                        "Pipeline initialization and cleanup failed.",
+                        error,
+                        cleanupError
+                    );
+                }
                 throw;
             }
         }
@@ -93,9 +100,15 @@ public abstract class RenderPipelineBase : IRenderPipeline
                     Backend.RecycleCommandBuffer(buffer);
                 }
             }
+            catch
+            {
+                _state = PipelineState.Faulted;
+                throw;
+            }
             finally
             {
-                _state = PipelineState.Initialized;
+                if (_state == PipelineState.Recording)
+                    _state = PipelineState.Initialized;
             }
         }
     }
@@ -115,9 +128,15 @@ public abstract class RenderPipelineBase : IRenderPipeline
             {
                 OnResize(width, height);
             }
+            catch
+            {
+                _state = PipelineState.Faulted;
+                throw;
+            }
             finally
             {
-                _state = PipelineState.Initialized;
+                if (_state == PipelineState.Resizing)
+                    _state = PipelineState.Initialized;
             }
         }
     }
@@ -174,6 +193,8 @@ public abstract class RenderPipelineBase : IRenderPipeline
     {
         if (_state == PipelineState.Disposed)
             throw new ObjectDisposedException(GetType().Name);
+        if (_state == PipelineState.Faulted)
+            throw new InvalidOperationException("Pipeline is faulted.");
         if (_state != PipelineState.Initialized)
             throw new InvalidOperationException("Pipeline is not initialized.");
     }

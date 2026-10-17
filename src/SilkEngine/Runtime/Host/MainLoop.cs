@@ -1,40 +1,134 @@
-using System;
-using System.Threading;
-using SilkEngine.Core.LogSystem;
+using System.Diagnostics;
+using SilkEngine.Rendering.Abstraction;
 
 namespace SilkEngine.Runtime.Host;
 
-/// <summary>
-/// TIP: 设计中MainLoop 会被Main启动，在Main中间被ThreadFractory创建
-/// --启动线程(Main)-->MainLoop(Thread1)-->RenderLoop(Thread2)
-/// 按照顺序创建，因此之后主线程一定是第一个加入RuntimeRegistry的。
-/// </summary>
+/// <summary>Main-loop host that measures a complete logical frame including render/output waiting.</summary>
+/// <remarks>Override frame hooks for application logic. All hooks run on the main-loop thread.
+/// The host owns the supplied pipeline/backend; do not reuse them after start or dispose them externally.</remarks>
 public sealed class MainLoop : RuntimeBase
 {
+    private readonly IRenderPipeline _pipeline;
+    private readonly IRenderBackend _backend;
+    private readonly IGraphicsDevice _device;
+    private readonly Stopwatch _frameStopwatch = new();
+    private RenderLoop? _renderLoop;
+    private ulong _frameId;
+    private long _lastFrameTicks;
+
+    /// <summary>Creates the main host using registrations frozen before application startup.</summary>
+    /// <exception cref="ArgumentNullException">A required Application registration is missing.</exception>
+    public MainLoop()
+        : this(Application.RenderPipeline, Application.RenderBackend, Application.GraphicsDevice)
+    { }
+
+    /// <summary>Creates the main host with explicitly owned rendering dependencies.</summary>
+    /// <exception cref="ArgumentNullException">A dependency is null.</exception>
+    internal MainLoop(IRenderPipeline pipeline, IRenderBackend backend, IGraphicsDevice device)
+    {
+        _pipeline = pipeline ?? throw new ArgumentNullException(nameof(pipeline));
+        _backend = backend ?? throw new ArgumentNullException(nameof(backend));
+        _device = device ?? throw new ArgumentNullException(nameof(device));
+    }
+
     public override bool IsBackground => false;
     public override string ThreadName => "MainThread";
     internal override bool IsMainThread => true;
 
-    //暂时在这里硬编码这个，后面做一个Dict的映射
-    private RenderLoop _renderLoop;
+    /// <summary>Gets the full duration of the last successful frame; initially zero, safe for cross-thread reads.</summary>
+    public TimeSpan LastFrameElapsed => TimeSpan.FromTicks(Volatile.Read(ref _lastFrameTicks));
 
     protected override void Initialize()
     {
-        _thread = Thread.CurrentThread;
-        ThreadFactory.RuntimeBuilder(out _renderLoop);
-        Log.Info("MainLoop Init done...");
+        Time.Reset();
+        var render = ThreadFactory.BuildRenderThread(_pipeline, _backend, _device);
+        Volatile.Write(ref _renderLoop, render);
+
+        try
+        {
+            render.WaitUntilReady(StopToken);
+        }
+        catch (RenderLoopStoppedException)
+        {
+            RequestStop();
+            StopToken.ThrowIfCancellationRequested();
+        }
     }
 
     protected override void Run()
     {
-        _renderLoop.Reset();
-        Thread.Sleep(160);
-        Log.Info("逻辑已完成，正在等待渲染");
-        _renderLoop.WaitForFrameFinished();
+        _frameStopwatch.Restart();
+        var successful = false;
+        try
+        {
+            OnFrameStarted();
+
+            Update();
+            StopToken.ThrowIfCancellationRequested();
+
+            OnRendering();
+            StopToken.ThrowIfCancellationRequested();
+
+            OnFrameEnded();
+            successful = true;
+
+            // if (Application.LogSetting.EnableMainThreadLog)
+            // {
+            //     Log.Debug($"Main loop {Time.FrameCount} finished after {Time.UnscaledDeltaTime}");
+            // }
+        }
+        catch (RenderLoopStoppedException)
+        {
+            RequestStop();
+        }
+        finally
+        {
+            _frameStopwatch.Stop();
+            if (successful)
+                Interlocked.Exchange(ref _lastFrameTicks, _frameStopwatch.Elapsed.Ticks);
+        }
     }
 
-    protected override void DisposeCore()
+    /// <summary>
+    /// Called after frame timing starts; hook failures end the loop without publishing a successful duration.
+    /// </summary>
+    private void OnFrameStarted()
     {
-        _renderLoop.Dispose();
+        _frameId = checked(_frameId + 1);
+        Time.BeginFrame(_frameId, LastFrameElapsed.TotalSeconds);
     }
+
+    /// <summary>
+    /// Called before start rendering this frame.
+    /// </summary>
+    private void Update() { }
+
+    private void OnRendering()
+    {
+        var render = _renderLoop!;
+        render.PublishFrame();
+        render.WaitForFrameFinished(StopToken);
+    }
+
+    /// <summary>
+    /// Called after render/output completion and before the stopwatch stops; where process the end logics of this frame.
+    /// </summary>
+    private void OnFrameEnded() { }
+
+    protected override void Shutdown()
+    {
+        var render = Volatile.Read(ref _renderLoop);
+        if (render is null)
+            return;
+        render.RequestStop();
+        render.Dispose();
+
+        if (Application.LogSetting.EnableMainThreadLog)
+        {
+            Log.Debug($"Main loop Stopped at {Time.FrameCount}");
+        }
+    }
+
+    // Called on the disposing thread: signal only. Main Shutdown owns child disposal/join.
+    protected override void DisposeCore() => Volatile.Read(ref _renderLoop)?.RequestStop();
 }

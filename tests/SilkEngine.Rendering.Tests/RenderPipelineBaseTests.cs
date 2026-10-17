@@ -132,4 +132,18 @@ public sealed class RenderPipelineBaseTests
         pipeline.Resize(640, 480);
         Assert.Equal((640, 480), pipeline.LastResize);
     }
+
+    [Fact]
+    public void RecordingFailure_LatchesFaultAndDoesNotRentAnotherBuffer()
+    {
+        using var pipeline = CreatePipeline(out var backend);
+        pipeline.ThrowOnRecord = true;
+        Assert.Throws<InvalidOperationException>(() => pipeline.RenderFrame(default));
+        pipeline.ThrowOnRecord = false;
+        var error = Assert.Throws<InvalidOperationException>(() => pipeline.RenderFrame(default));
+        Assert.Contains("faulted", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(1, backend.RentCount);
+        Assert.Equal(1, backend.ReturnCount);
+        Assert.Equal(0, backend.SubmitCount);
+    }
 }

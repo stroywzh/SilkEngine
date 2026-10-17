@@ -1,3 +1,4 @@
+using SilkEngine.Rendering.Abstraction;
 using SilkEngine.Runtime.Host;
 
 namespace SilkEngine.Runtime;
@@ -39,14 +40,26 @@ public static class ThreadFactory
         return runtime;
     }
 
-    public static void RuntimeBuilder<T>(out T result)
-        where T : RuntimeBase, new()
-    {
-        result = RuntimeBuilder<T>();
-    }
-
     public static MainLoop BuildMainThread()
     {
         return RuntimeBuilder<MainLoop>();
+    }
+
+    /// <summary>Creates, registers and starts the render thread owned by a main loop.</summary>
+    /// <param name="pipeline">Pipeline driven on the render thread; must not be initialized yet.</param>
+    /// <param name="backend">Backend owner of the render thread; must not be initialized yet.</param>
+    /// <param name="device">Graphics device handed to the backend on the render thread.</param>
+    /// <returns>The started render runtime; the main loop owns it and must stop and dispose it.</returns>
+    /// <exception cref="ArgumentNullException">A dependency is null.</exception>
+    internal static RenderLoop BuildRenderThread(
+        IRenderPipeline pipeline,
+        IRenderBackend backend,
+        IGraphicsDevice device
+    )
+    {
+        var runtime = new RenderLoop(pipeline, backend, device);
+        RuntimeRegistry.Register(runtime);
+        runtime.Start();
+        return runtime;
     }
 }

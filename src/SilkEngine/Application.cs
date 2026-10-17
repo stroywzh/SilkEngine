@@ -10,4 +10,11 @@ public class Application
     public static IRenderBackend RenderBackend;
     public static IRenderPipeline RenderPipeline;
     public static IGraphicsDevice GraphicsDevice;
+
+    public static class LogSetting
+    {
+        public static bool EnableLog = true;
+        public static bool EnableMainThreadLog = true;
+        public static bool EnableRenderLog = true;
+    }
 }

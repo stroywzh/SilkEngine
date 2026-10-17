@@ -49,16 +49,27 @@ public abstract class RenderBackendBase : IRenderBackend
                 OnInitialize(device);
                 _state = BackendState.Initialized;
             }
-            catch
+            catch (Exception error)
             {
                 _state = BackendState.Faulted;
                 try
                 {
                     DisposeCoreOnce();
                 }
-                catch { }
+                catch (Exception cleanupError)
+                {
+                    throw new AggregateException(
+                        "Backend initialization and cleanup failed.",
+                        error,
+                        cleanupError
+                    );
+                }
                 throw;
             }
+        }
+        if (Application.LogSetting.EnableRenderLog)
+        {
+            Log.Debug($"Render Backend Initialized at {Time.FrameCount}");
         }
     }
 
@@ -156,10 +167,12 @@ public abstract class RenderBackendBase : IRenderBackend
             finally
             {
                 _callbackActive = false;
+                if (Application.LogSetting.EnableRenderLog)
+                {
+                    Log.Debug("Render Backend finished RenderExecute().");
+                }
             }
         }
-
-        DoRender();
     }
 
     /// <inheritdoc />
@@ -212,6 +225,11 @@ public abstract class RenderBackendBase : IRenderBackend
 
             DisposeCoreOnce();
         }
+
+        if (Application.LogSetting.EnableRenderLog)
+        {
+            Log.Debug("Render Backend disposed.");
+        }
     }
 
     /// <summary>Initializes device state; throwing faults the backend and triggers one cleanup.</summary>
@@ -222,8 +240,6 @@ public abstract class RenderBackendBase : IRenderBackend
     /// consumer may retain pointers to this span. GPU resource lifetimes remain the backend's
     /// responsibility and are independent from this CPU store's lifetime. Reentry is rejected.</remarks>
     protected abstract void ExecuteCommands(ReadOnlySpan<RenderCommand> commands);
-
-    protected virtual void DoRender() { }
 
     /// <summary>Backend-specific GPU synchronization; default does nothing.</summary>
     protected virtual void OnWaitForIdle() { }
