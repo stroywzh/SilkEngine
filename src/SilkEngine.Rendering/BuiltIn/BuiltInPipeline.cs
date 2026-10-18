@@ -31,4 +31,9 @@ public sealed class BuiltInPipeline : RenderPipelineBase
         );
         commands.ClearColor(new RenderTargetHandle(BuiltInTargets.Window), color);
     }
+
+    public void DEBUG_ClearColor()
+    {
+        
+    }
 }

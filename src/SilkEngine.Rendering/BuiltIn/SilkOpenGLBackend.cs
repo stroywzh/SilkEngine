@@ -16,7 +16,7 @@ public sealed class SilkOpenGLBackend : RenderBackendBase, IRenderWindowHost
     public override string Name => "Silk.NET OpenGL";
     public bool IsClosing => _window?.IsClosing ?? true;
 
-    protected override void OnInitialize(IGraphicsDevice device)
+    protected override void OnInitialize()
     {
         var options = WindowOptions.Default;
         options.Size = new Vector2D<int>(800, 600);
@@ -29,6 +29,8 @@ public sealed class SilkOpenGLBackend : RenderBackendBase, IRenderWindowHost
         _window.GLContext!.MakeCurrent();
         _gl = _window.CreateOpenGL();
     }
+
+    protected override IRenderHardware CreateHardware() => new OpenGLHardware(_gl!);
 
     /// <summary>Polls native events on the window-owning thread.</summary>
     /// <exception cref="InvalidOperationException">Called on another thread or before initialization.</exception>
@@ -51,23 +53,12 @@ public sealed class SilkOpenGLBackend : RenderBackendBase, IRenderWindowHost
     {
         EnsureOwner();
 
-        foreach (ref readonly var cmd in commands)
+        var ctx = new CommandContext { Render = default, RHI = Hardware };
+        foreach (ref readonly var entry in commands)
         {
-            BuildRenderCommand(cmd);
+            
         }
-    }
-
-    private void BuildRenderCommand(RenderCommand cmd)
-    {
-        var gl = _gl!;
-        switch (cmd.Kind)
-        {
-            case RenderCommandKind.ClearColor:
-                gl.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
-                gl.ClearColor(cmd.Color.X, cmd.Color.Y, cmd.Color.Z, cmd.Color.W);
-                gl.Clear(ClearBufferMask.ColorBufferBit);
-                break;
-        }
+            // RenderCommandDispatcher_Generated.Dispatch(entry.Id, entry.Payload, ref ctx);
     }
 
     protected override void OnDisposeCore()

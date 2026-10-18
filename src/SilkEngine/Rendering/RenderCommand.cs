@@ -7,6 +7,7 @@ public enum RenderCommandKind : byte
 {
     /// <summary>Clears a render target to a color.</summary>
     ClearColor = 0,
+    SetViewport = 1,
 }
 
 /// <summary>A backend-agnostic, CPU-side render command.</summary>

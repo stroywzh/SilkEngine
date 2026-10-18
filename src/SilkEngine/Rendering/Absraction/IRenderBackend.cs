@@ -11,10 +11,9 @@ public interface IRenderBackend : IDisposable
     string Name { get; }
 
     /// <summary>Initializes the backend exactly once.</summary>
-    /// <exception cref="ArgumentNullException"><paramref name="device"/> is null.</exception>
     /// <exception cref="InvalidOperationException">The backend was already initialized or is faulted.</exception>
     /// <exception cref="ObjectDisposedException">The backend was disposed.</exception>
-    void Initialize(IGraphicsDevice device);
+    void Initialize();
 
     /// <summary>Rents a writable buffer; it must be submitted or returned.</summary>
     /// <returns>A new, exclusive writable lease with no recorded commands.</returns>
@@ -40,6 +39,3 @@ public interface IRenderBackend : IDisposable
     /// <exception cref="ObjectDisposedException">The backend was disposed.</exception>
     void ExecuteRender();
 }
-
-/// <summary>Marker interface for a graphics device supplied by the host.</summary>
-public interface IGraphicsDevice { }

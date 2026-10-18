@@ -10,7 +10,6 @@ public sealed class MainLoop : RuntimeBase
 {
     private readonly IRenderPipeline _pipeline;
     private readonly IRenderBackend _backend;
-    private readonly IGraphicsDevice _device;
     private readonly Stopwatch _frameStopwatch = new();
     private RenderLoop? _renderLoop;
     private ulong _frameId;
@@ -20,16 +19,14 @@ public sealed class MainLoop : RuntimeBase
     /// <summary>Creates the main host using registrations frozen before application startup.</summary>
     /// <exception cref="ArgumentNullException">A required Application registration is missing.</exception>
     public MainLoop()
-        : this(Application.RenderPipeline, Application.RenderBackend, Application.GraphicsDevice)
-    { }
+        : this(Application.RenderPipeline, Application.RenderBackend) { }
 
     /// <summary>Creates the main host with explicitly owned rendering dependencies.</summary>
     /// <exception cref="ArgumentNullException">A dependency is null.</exception>
-    internal MainLoop(IRenderPipeline pipeline, IRenderBackend backend, IGraphicsDevice device)
+    internal MainLoop(IRenderPipeline pipeline, IRenderBackend backend)
     {
         _pipeline = pipeline ?? throw new ArgumentNullException(nameof(pipeline));
         _backend = backend ?? throw new ArgumentNullException(nameof(backend));
-        _device = device ?? throw new ArgumentNullException(nameof(device));
     }
 
     public override bool IsBackground => false;
@@ -52,7 +49,7 @@ public sealed class MainLoop : RuntimeBase
     protected override void Initialize()
     {
         Time.Reset();
-        var render = ThreadFactory.BuildRenderThread(_pipeline, _backend, _device);
+        var render = ThreadFactory.BuildRenderThread(_pipeline, _backend);
         Volatile.Write(ref _renderLoop, render);
 
         try

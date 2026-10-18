@@ -11,7 +11,6 @@ internal sealed class RenderLoop : RuntimeBase
 
     private readonly IRenderPipeline _pipeline;
     private readonly IRenderBackend _backend;
-    private readonly IGraphicsDevice _device;
     private readonly IRenderWindowHost? _host;
     private ulong _publishedFrameId;
     private ulong _completedFrameId;
@@ -23,14 +22,14 @@ internal sealed class RenderLoop : RuntimeBase
     private SpinWait _idleWait;
 
     public RenderLoop()
-        : this(Application.RenderPipeline, Application.RenderBackend, Application.GraphicsDevice)
+        : this(Application.RenderPipeline, Application.RenderBackend)
     { }
 
-    internal RenderLoop(IRenderPipeline pipeline, IRenderBackend backend, IGraphicsDevice device)
+    internal RenderLoop(IRenderPipeline pipeline, IRenderBackend backend)
     {
         _pipeline = pipeline ?? throw new ArgumentNullException(nameof(pipeline));
         _backend = backend ?? throw new ArgumentNullException(nameof(backend));
-        _device = device ?? throw new ArgumentNullException(nameof(device));
+
         _host = backend as IRenderWindowHost;
     }
 
@@ -42,7 +41,7 @@ internal sealed class RenderLoop : RuntimeBase
         {
             StopToken.ThrowIfCancellationRequested();
 
-            _backend.Initialize(_device);
+            _backend.Initialize();
 
             _pipeline.Initialize(_backend);
 

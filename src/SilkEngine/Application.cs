@@ -9,8 +9,6 @@ public class Application
     public static bool IsEmbed = false;
     public static IRenderBackend RenderBackend;
     public static IRenderPipeline RenderPipeline;
-    public static IGraphicsDevice GraphicsDevice;
-
     public static class LogSetting
     {
         public static bool EnableLog = true;

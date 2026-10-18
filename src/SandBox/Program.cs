@@ -7,13 +7,13 @@ using SilkEngine.Runtime;
 
 Application.RenderBackend = new SilkOpenGLBackend();
 Application.RenderPipeline = new BuiltInPipeline();
-Application.GraphicsDevice = new PrototypeGraphicsDevice();
 var main = ThreadFactory.BuildMainThread();
 
 // IInputContext _input;
 // bool shouldClose = false;
 try
 {
+    // 我操你大爷的，这个好像也得从头写一个胶水层
     // SpinWait.SpinUntil(() => main.RuntimeStage == RuntimeStage.Running);
     // if (Application.RenderBackend is SilkOpenGLBackend skb)
     // {
@@ -32,6 +32,7 @@ try
 
     // Entry thread waits without driving GL. The render owner pumps the prototype window.
 
+    // 反正现在先在这里阻塞吧，以后这东西就是个startup，跑完就结束的。
     SpinWait.SpinUntil(() => !main.IsAlive);
 }
 finally
@@ -51,4 +52,3 @@ finally
 
 // void OnKeyUp(IKeyboard keyboard, Key key, int keyCode) { }
 
-public sealed class PrototypeGraphicsDevice : IGraphicsDevice { }

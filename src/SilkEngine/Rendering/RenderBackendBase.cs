@@ -29,6 +29,7 @@ public abstract class RenderBackendBase : IRenderBackend
     private readonly Queue<CommandBufferStore> _pending = new();
     private readonly HashSet<CommandBufferLease> _issued = new();
     private BackendState _state;
+    private IRenderHardware _hardware;
     private bool _coreDisposed;
     private bool _inCallback;
     private int _ownerThread;
@@ -39,10 +40,15 @@ public abstract class RenderBackendBase : IRenderBackend
     /// <summary>Gets the thread that owns this backend, or zero before <see cref="Initialize"/>.</summary>
     protected int OwnerThread => _ownerThread;
 
+    /// <summary>
+    /// RHI
+    /// </summary>
+    protected IRenderHardware Hardware =>
+        _hardware ?? throw new ObjectDisposedException(GetType().Name);
+
     /// <inheritdoc />
-    public void Initialize(IGraphicsDevice device)
+    public void Initialize()
     {
-        ArgumentNullException.ThrowIfNull(device);
         EnsureOwner();
 
         if (_state == BackendState.Disposed)
@@ -56,7 +62,8 @@ public abstract class RenderBackendBase : IRenderBackend
         _state = BackendState.Initializing;
         try
         {
-            OnInitialize(device);
+            OnInitialize();
+            _hardware = CreateHardware();
             _state = BackendState.Initialized;
         }
         catch (Exception error)
@@ -191,6 +198,7 @@ public abstract class RenderBackendBase : IRenderBackend
             return;
         if (_inCallback || _state == BackendState.Initializing)
             throw new InvalidOperationException("Cannot dispose from an active backend callback.");
+
         _state = BackendState.Disposed;
 
         foreach (var lease in _issued)
@@ -201,9 +209,14 @@ public abstract class RenderBackendBase : IRenderBackend
         _issued.Clear();
 
         while (_pending.Count > 0)
+        {
             _pending.Dequeue().Reset();
+        }
+
         while (_freeStores.Count > 0)
+        {
             _freeStores.Pop().Reset();
+        }
 
         DisposeCoreOnce();
 
@@ -214,7 +227,13 @@ public abstract class RenderBackendBase : IRenderBackend
     }
 
     /// <summary>Initializes device state; throwing faults the backend and triggers one cleanup.</summary>
-    protected abstract void OnInitialize(IGraphicsDevice device);
+    protected abstract void OnInitialize();
+
+    /// <summary>
+    /// A RHI layer hook,called after <see cref="OnInitialize"/>
+    /// </summary>
+    /// <returns></returns>
+    protected abstract IRenderHardware CreateHardware();
 
     /// <summary>Consumes one submitted buffer; the span is valid only during this call.</summary>
     /// <remarks>Copy/translate all CPU command data before returning or throwing. No asynchronous
@@ -268,7 +287,9 @@ public abstract class RenderBackendBase : IRenderBackend
         if (_coreDisposed)
             return;
         _coreDisposed = true;
+
         OnDisposeCore();
+        _hardware = null!;
     }
 
     private CommandBufferLease RequireOwnedLease(ICommandBuffer? buffer)
@@ -294,4 +315,3 @@ public abstract class RenderBackendBase : IRenderBackend
             throw new InvalidOperationException("Backend is not initialized.");
     }
 }
-

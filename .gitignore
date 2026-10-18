@@ -59,3 +59,5 @@ nunit-*.xml
 
 .worktree/
 docs/
+# 测试文件夹，内容懒得放上git了
+tests/

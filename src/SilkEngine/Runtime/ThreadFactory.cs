@@ -51,13 +51,9 @@ public static class ThreadFactory
     /// <param name="device">Graphics device handed to the backend on the render thread.</param>
     /// <returns>The started render runtime; the main loop owns it and must stop and dispose it.</returns>
     /// <exception cref="ArgumentNullException">A dependency is null.</exception>
-    internal static RenderLoop BuildRenderThread(
-        IRenderPipeline pipeline,
-        IRenderBackend backend,
-        IGraphicsDevice device
-    )
+    internal static RenderLoop BuildRenderThread(IRenderPipeline pipeline, IRenderBackend backend)
     {
-        var runtime = new RenderLoop(pipeline, backend, device);
+        var runtime = new RenderLoop(pipeline, backend);
         RuntimeRegistry.Register(runtime);
         runtime.Start();
         return runtime;
