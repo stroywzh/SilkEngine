@@ -42,7 +42,7 @@ public sealed class BuiltInPipeline : RenderPipelineBase
     protected override void RecordCommands(ICommandBuffer commands, RenderContext context)
     {
         // One shared clock for every DEBUG consumer, advanced once per recorded frame.
-        _elapsedSeconds = (_elapsedSeconds + Time.UnscaledDeltaTime) % (Math.PI * 2);
+        _elapsedSeconds = (_elapsedSeconds + Time.UnscaledDeltaTime) % (EngineMath.PI * 2);
 
         DEBUG_SetViewport(commands);
         DEBUG_ClearColor(commands);
@@ -60,9 +60,9 @@ public sealed class BuiltInPipeline : RenderPipelineBase
         if (_width <= 0 || _height <= 0)
             return;
 
-        var scale = 0.5 + 0.5 * Math.Sin(_elapsedSeconds); // 0.5 .. 1.0, always positive
-        var viewWidth = Math.Max(1, (int)(_width * scale));
-        var viewHeight = Math.Max(1, (int)(_height * scale));
+        var scale = 0.5 + 0.5 * EngineMath.Sin((float)_elapsedSeconds); // 0.5 .. 1.0, always positive
+        var viewWidth = EngineMath.Max(1, (int)(_width * scale));
+        var viewHeight = EngineMath.Max(1, (int)(_height * scale));
         var x = (_width - viewWidth) / 2;
         var y = (_height - viewHeight) / 2;
 
@@ -80,11 +80,11 @@ public sealed class BuiltInPipeline : RenderPipelineBase
     /// </remarks>
     public void DEBUG_ClearColor(ICommandBuffer commands)
     {
-        var t = _elapsedSeconds;
+        float t = (float)_elapsedSeconds;
         var color = new Color(
-            (byte)(255 * (0.5 + 0.5 * Math.Sin(t))),
-            (byte)(255 * (0.5 + 0.5 * Math.Sin(t + 2))),
-            (byte)(255 * (0.5 + 0.5 * Math.Sin(t + 4))),
+            (byte)(255 * (0.5 + 0.5 * EngineMath.Sin(t))),
+            (byte)(255 * (0.5 + 0.5 * EngineMath.Sin(t + 2))),
+            (byte)(255 * (0.5 + 0.5 * EngineMath.Sin(t + 4))),
             255
         );
 
