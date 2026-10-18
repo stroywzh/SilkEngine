@@ -5,9 +5,9 @@ using SilkEngine.Rendering.Abstraction;
 
 namespace SilkEngine.Rendering.BuiltIn.Backend;
 
-/// <summary>OpenGL command consumer and Silk window owner, driven by one render thread.</summary>
-/// <remarks>Window/GL calls must stay on the owning render thread. The backend presents its own
-/// frame after consuming commands; there is no window render event and no callback entry.</remarks>
+/// <summary>Silk window owner and CPU command consumer, driven by one render thread.</summary>
+/// <remarks>Window/GL calls must stay on the owning render thread. The RHI built here owns device
+/// work, including presenting the frame; the backend only supplies it and pumps window events.</remarks>
 public sealed class SilkOpenGLBackend : RenderBackendBase, IRenderWindowHost
 {
     private IWindow? _window;
@@ -15,6 +15,18 @@ public sealed class SilkOpenGLBackend : RenderBackendBase, IRenderWindowHost
 
     public override string Name => "Silk.NET OpenGL";
     public bool IsClosing => _window?.IsClosing ?? true;
+
+    public (int Width, int Height) FramebufferSize
+    {
+        get
+        {
+            if (_window is null)
+                return (0, 0);
+
+            var size = _window.FramebufferSize;
+            return (size.X, size.Y);
+        }
+    }
 
     protected override void OnInitialize()
     {
@@ -30,7 +42,8 @@ public sealed class SilkOpenGLBackend : RenderBackendBase, IRenderWindowHost
         _gl = _window.CreateOpenGL();
     }
 
-    protected override IRenderHardware CreateHardware() => new OpenGLHardware(_gl!);
+    protected override IRenderHardware CreateHardware() =>
+        new OpenGLHardware(_gl!, _window!.GLContext!);
 
     /// <summary>Polls native events on the window-owning thread.</summary>
     /// <exception cref="InvalidOperationException">Called on another thread or before initialization.</exception>
@@ -38,27 +51,6 @@ public sealed class SilkOpenGLBackend : RenderBackendBase, IRenderWindowHost
     {
         EnsureOwner();
         (_window ?? throw new InvalidOperationException("Window is unavailable.")).DoEvents();
-    }
-
-    /// <summary>Swaps the back buffer once; called by <see cref="RenderBackendBase.ExecuteRender"/>.</summary>
-    protected override void OnPresent()
-    {
-        EnsureOwner();
-        (
-            _window ?? throw new InvalidOperationException("Window is unavailable.")
-        ).GLContext!.SwapBuffers();
-    }
-
-    protected override void ExecuteCommands(ReadOnlySpan<RenderCommand> commands)
-    {
-        EnsureOwner();
-
-        var ctx = new CommandContext { Render = default, RHI = Hardware };
-        foreach (ref readonly var entry in commands)
-        {
-            
-        }
-            // RenderCommandDispatcher_Generated.Dispatch(entry.Id, entry.Payload, ref ctx);
     }
 
     protected override void OnDisposeCore()

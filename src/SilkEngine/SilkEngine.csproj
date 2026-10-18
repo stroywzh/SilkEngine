@@ -4,6 +4,43 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+
+    <!-- Emit generated sources into obj (never compiled twice). After the build they are mirrored
+         to <repo>/Generated for review; that folder is outside every project directory, so no
+         compile glob or IDE project model can pick the copies up. -->
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <CompilerGeneratedFilesOutputPath>$(BaseIntermediateOutputPath)generated</CompilerGeneratedFilesOutputPath>
   </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SilkEngine.SourceGen\SilkEngine.SourceGen.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <!-- Mirror the emitted sources to <repo>/Generated for inspection. The location is deliberately
+       outside src/, so a stale or double-included copy can never produce a second
+       RenderCommandExtensions type (CS0121). -->
+  <Target
+    Name="MirrorGeneratedSourcesForReview"
+    AfterTargets="Build"
+    Condition="Exists('$(CompilerGeneratedFilesOutputPath)')">
+    <PropertyGroup>
+      <_ReviewOutputDirectory>$(MSBuildProjectDirectory)/../../Generated</_ReviewOutputDirectory>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <_GeneratedSourceForReview Include="$(CompilerGeneratedFilesOutputPath)/**/*.cs" />
+    </ItemGroup>
+
+    <RemoveDir
+      Directories="$(_ReviewOutputDirectory)"
+      Condition="'@(_GeneratedSourceForReview)' != ''" />
+    <Copy
+      SourceFiles="@(_GeneratedSourceForReview)"
+      DestinationFolder="$(_ReviewOutputDirectory)"
+      SkipUnchangedFiles="true"
+      Condition="'@(_GeneratedSourceForReview)' != ''" />
+  </Target>
 
 </Project>

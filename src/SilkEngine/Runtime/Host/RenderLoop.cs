@@ -19,6 +19,8 @@ internal sealed class RenderLoop : RuntimeBase
     private int _stopping;
     private ExceptionDispatchInfo? _fault;
     private int _consecutiveFailures;
+    private int _framebufferWidth = -1;
+    private int _framebufferHeight = -1;
     private SpinWait _idleWait;
 
     public RenderLoop()
@@ -167,6 +169,9 @@ internal sealed class RenderLoop : RuntimeBase
             if (Volatile.Read(ref _stopping) != 0)
                 return;
 
+            // Window events are already pumped, so a pending resize is visible here.
+            SyncFramebufferSize();
+
             var frameId = Volatile.Read(ref _publishedFrameId);
             if (frameId == Volatile.Read(ref _completedFrameId))
             {
@@ -192,6 +197,25 @@ internal sealed class RenderLoop : RuntimeBase
         {
             HandleFrameFailure(error);
         }
+    }
+
+    /// <summary>Propagates a changed drawable size to the pipeline before the next frame records.</summary>
+    /// <remarks>Runs on the render thread, which also owns the pipeline. A zero size is ignored so the
+    /// first unknown frame does not resize to nothing; a resize-hook failure is a single-frame failure.</remarks>
+    private void SyncFramebufferSize()
+    {
+        if (_host is null)
+            return;
+
+        var size = _host.FramebufferSize;
+        if (size.Width <= 0 || size.Height <= 0)
+            return;
+        if (size.Width == _framebufferWidth && size.Height == _framebufferHeight)
+            return;
+
+        _framebufferWidth = size.Width;
+        _framebufferHeight = size.Height;
+        _pipeline.Resize(size.Width, size.Height);
     }
 
     /// <summary>Records a failed frame as consumed, so the publisher can advance, then keeps running.</summary>

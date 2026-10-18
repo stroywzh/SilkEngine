@@ -7,8 +7,8 @@ public class Application
     internal static volatile bool _isRunning = false;
     public static bool IsRunning => _isRunning;
     public static bool IsEmbed = false;
-    public static IRenderBackend RenderBackend;
-    public static IRenderPipeline RenderPipeline;
+    public static IRenderBackend RenderBackend = null!;
+    public static IRenderPipeline RenderPipeline = null!;
     public static class LogSetting
     {
         public static bool EnableLog = true;

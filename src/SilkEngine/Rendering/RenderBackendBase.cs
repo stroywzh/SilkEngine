@@ -29,7 +29,7 @@ public abstract class RenderBackendBase : IRenderBackend
     private readonly Queue<CommandBufferStore> _pending = new();
     private readonly HashSet<CommandBufferLease> _issued = new();
     private BackendState _state;
-    private IRenderHardware _hardware;
+    private IRenderHardware _hardware = null!;
     private bool _coreDisposed;
     private bool _inCallback;
     private int _ownerThread;
@@ -130,7 +130,7 @@ public abstract class RenderBackendBase : IRenderBackend
         if (lease.State != LeaseState.Recording)
             throw new InvalidOperationException("Only a recording buffer can be submitted.");
 
-        if (lease.Store.Commands.Count == 0)
+        if (lease.Store.Entries.Count == 0)
         {
             Log.Warning("You have submited an empty buffer.");
         }
@@ -149,10 +149,23 @@ public abstract class RenderBackendBase : IRenderBackend
         _inCallback = true;
         try
         {
+            CommandContext ctx = default;
+            ctx.RHI = Hardware;
+
+            Hardware.BeginFrame();
+
             while (_pending.Count > 0)
             {
                 var store = _pending.Peek();
-                ExecuteCommands(CollectionsMarshal.AsSpan(store.Commands));
+
+                foreach (ref readonly var entry in CollectionsMarshal.AsSpan(store.Entries))
+                {
+                    RenderCommandDispatcher_Generated.Dispatch(
+                        entry.Id,
+                        new ReadOnlySpan<byte>(store.Arena, entry.Offset, entry.Length),
+                        ref ctx
+                    );
+                }
 
                 _pending.Dequeue();
                 var lease = store.Lease!;
@@ -161,6 +174,8 @@ public abstract class RenderBackendBase : IRenderBackend
                 store.Reset();
                 _freeStores.Push(store);
             }
+
+            Hardware.EndFrame();
         }
         catch
         {
@@ -175,18 +190,13 @@ public abstract class RenderBackendBase : IRenderBackend
                 store.Reset();
                 _freeStores.Push(store);
             }
+
             throw;
         }
         finally
         {
             _inCallback = false;
-            // if (Application.LogSetting.EnableRenderLog)
-            // {
-            //     Log.Debug("Render Backend finished RenderExecute().");
-            // }
         }
-
-        OnPresent();
     }
 
     /// <inheritdoc />
@@ -235,17 +245,6 @@ public abstract class RenderBackendBase : IRenderBackend
     /// <returns></returns>
     protected abstract IRenderHardware CreateHardware();
 
-    /// <summary>Consumes one submitted buffer; the span is valid only during this call.</summary>
-    /// <remarks>Copy/translate all CPU command data before returning or throwing. No asynchronous
-    /// consumer may retain pointers to this span. GPU resource lifetimes remain the backend's
-    /// responsibility and are independent from this CPU store's lifetime. Reentry is rejected.</remarks>
-    protected abstract void ExecuteCommands(ReadOnlySpan<RenderCommand> commands);
-
-    /// <summary>Presents the frame after all pending buffers were consumed; default does nothing.</summary>
-    /// <remarks>Runs once per <see cref="ExecuteRender"/> on the backend's owning thread, outside any
-    /// command iteration. A throw is a single-frame failure: the backend stays usable.</remarks>
-    protected virtual void OnPresent() { }
-
     /// <summary>Releases device state; must tolerate partial initialization and runs at most once.</summary>
     protected virtual void OnDisposeCore() { }
 
@@ -270,16 +269,20 @@ public abstract class RenderBackendBase : IRenderBackend
         EnsureUsable();
         if (lease.State != LeaseState.Recording)
             throw new InvalidOperationException("Command buffer is no longer writable.");
-        return lease.Store.Commands.Count;
+        return lease.Store.Entries.Count;
     }
 
-    internal void Record(CommandBufferLease lease, RenderCommand command)
+    internal void Record(CommandBufferLease lease, int commandId, ReadOnlySpan<byte> payload)
     {
         EnsureOwner();
         EnsureUsable();
+
         if (lease.State != LeaseState.Recording)
             throw new InvalidOperationException("Command buffer is no longer writable.");
-        lease.Store.Commands.Add(command);
+        if ((uint)commandId > byte.MaxValue)
+            throw new ArgumentOutOfRangeException(nameof(commandId));
+
+        lease.Store.Append((byte)commandId, payload);
     }
 
     private void DisposeCoreOnce()
@@ -288,8 +291,20 @@ public abstract class RenderBackendBase : IRenderBackend
             return;
         _coreDisposed = true;
 
-        OnDisposeCore();
+        var hardware = _hardware;
         _hardware = null!;
+
+        try
+        {
+            // Device objects owned by the RHI must be released before the context is destroyed.
+            // The field is null when initialization failed before CreateHardware ran.
+            if (hardware is not null)
+                hardware.Dispose();
+        }
+        finally
+        {
+            OnDisposeCore();
+        }
     }
 
     private CommandBufferLease RequireOwnedLease(ICommandBuffer? buffer)

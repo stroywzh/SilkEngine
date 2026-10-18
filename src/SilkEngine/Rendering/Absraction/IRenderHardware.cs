@@ -1,9 +1,11 @@
 namespace SilkEngine.Rendering.Abstraction;
 
 /// <summary>
-/// A RHI for all rendering.
+/// A RHI for all rendering. Instances own device objects (shaders, buffers, programs) and are
+/// created by a backend after its context exists; the backend disposes the RHI before tearing the
+/// device down.
 /// </summary>
-public interface IRenderHardware
+public interface IRenderHardware : IDisposable
 {
     // 帧管理
     void BeginFrame();
