@@ -58,7 +58,7 @@ public struct Quaternion : IEquatable<Quaternion>, IFormattable
         }
     }
 
-    public float magnitude => MathF.Sqrt(sqrMagnitude);
+    public float magnitude => EngineMath.Sqrt(sqrMagnitude);
     public float sqrMagnitude => X * X + Y * Y + Z * Z + W * W;
     public Quaternion normalized => Normalize(this);
 
@@ -103,8 +103,8 @@ public struct Quaternion : IEquatable<Quaternion>, IFormattable
     /// <summary>Angle in degrees between two rotations (0..180).</summary>
     public static float Angle(Quaternion a, Quaternion b)
     {
-        float dot = MathF.Min(MathF.Abs(Dot(a, b)), 1f);
-        return dot > 0.999999f ? 0f : MathF.Acos(dot) * 2f * EngineMath.Rad2Deg;
+        float dot = EngineMath.Min(EngineMath.Abs(Dot(a, b)), 1f);
+        return dot > 0.999999f ? 0f : EngineMath.Acos(dot) * 2f * EngineMath.Rad2Deg;
     }
 
     /// <summary>Creates a rotation which rotates angle degrees around axis.</summary>
@@ -112,16 +112,16 @@ public struct Quaternion : IEquatable<Quaternion>, IFormattable
     {
         axis = Vector3.Normalize(axis);
         float halfRad = angleDeg * EngineMath.Deg2Rad * 0.5f;
-        float s = MathF.Sin(halfRad);
-        return new Quaternion(axis.X * s, axis.Y * s, axis.Z * s, MathF.Cos(halfRad));
+        float s = EngineMath.Sin(halfRad);
+        return new Quaternion(axis.X * s, axis.Y * s, axis.Z * s, EngineMath.Cos(halfRad));
     }
 
     /// <summary>Decomposes this rotation into (angle in degrees, unit axis).</summary>
     public void ToAngleAxis(out float angleDeg, out Vector3 axis)
     {
         Quaternion q = normalized;
-        angleDeg = 2f * MathF.Acos(MathF.Max(MathF.Min(q.W, 1f), -1f)) * EngineMath.Rad2Deg;
-        float s = MathF.Sqrt(MathF.Max(1f - q.W * q.W, 0f));
+        angleDeg = 2f * EngineMath.Acos(EngineMath.Max(EngineMath.Min(q.W, 1f), -1f)) * EngineMath.Rad2Deg;
+        float s = EngineMath.Sqrt(EngineMath.Max(1f - q.W * q.W, 0f));
         axis = s < EngineMath.kEpsilon ? Vector3.Up : new Vector3(q.X / s, q.Y / s, q.Z / s);
     }
 
@@ -140,20 +140,20 @@ public struct Quaternion : IEquatable<Quaternion>, IFormattable
         {
             Matrix4x4 m = Matrix4x4.Rotate(this);
             float sp = EngineMath.Clamp(m.M02, -1f, 1f);
-            float pitch = MathF.Asin(sp);
-            float cp = MathF.Cos(pitch);
+            float pitch = EngineMath.Asin(sp);
+            float cp = EngineMath.Cos(pitch);
 
             float yaw,
                 roll;
             if (cp > 1e-6f)
             {
-                roll = MathF.Atan2(-m.M12, m.M22);
-                yaw = MathF.Atan2(m.M01, m.M00);
+                roll = EngineMath.Atan2(-m.M12, m.M22);
+                yaw = EngineMath.Atan2(m.M01, m.M00);
             }
             else
             {
                 roll = 0f;
-                yaw = MathF.Atan2(-m.M10, m.M11);
+                yaw = EngineMath.Atan2(-m.M10, m.M11);
             }
 
             return new Vector3(
@@ -176,7 +176,7 @@ public struct Quaternion : IEquatable<Quaternion>, IFormattable
         Vector3 y = Vector3.Cross(z, x);
         if (y.sqrMagnitude < EngineMath.kEpsilonNormalSqrt)
         {
-            Vector3 helper = MathF.Abs(x.Z) < 0.9f ? Vector3.Up : Vector3.Right;
+            Vector3 helper = EngineMath.Abs(x.Z) < 0.9f ? Vector3.Up : Vector3.Right;
             y = Vector3.Cross(Vector3.Normalize(helper), x);
         }
         y = Vector3.Normalize(y);
@@ -217,7 +217,7 @@ public struct Quaternion : IEquatable<Quaternion>, IFormattable
 
         if (dot < -1f + 1e-6f)
         {
-            Vector3 helper = MathF.Abs(a.X) < 0.9f ? Vector3.Up : Vector3.Right;
+            Vector3 helper = EngineMath.Abs(a.X) < 0.9f ? Vector3.Up : Vector3.Right;
             Vector3 axis = Vector3.Normalize(Vector3.Cross(a, helper));
             return AngleAxis(180f, axis);
         }
@@ -236,7 +236,7 @@ public struct Quaternion : IEquatable<Quaternion>, IFormattable
 
         if (trace > 0f)
         {
-            float s = MathF.Sqrt(trace + 1f) * 2f;
+            float s = EngineMath.Sqrt(trace + 1f) * 2f;
             float invS = 1f / s;
             return new Quaternion(
                 (m.M12 - m.M21) * invS,
@@ -248,7 +248,7 @@ public struct Quaternion : IEquatable<Quaternion>, IFormattable
 
         if (m.M00 > m.M11 && m.M00 > m.M22)
         {
-            float s = MathF.Sqrt(1f + m.M00 - m.M11 - m.M22) * 2f;
+            float s = EngineMath.Sqrt(1f + m.M00 - m.M11 - m.M22) * 2f;
             float invS = 1f / s;
             return new Quaternion(
                 0.25f * s,
@@ -260,7 +260,7 @@ public struct Quaternion : IEquatable<Quaternion>, IFormattable
 
         if (m.M11 > m.M22)
         {
-            float s = MathF.Sqrt(1f + m.M11 - m.M00 - m.M22) * 2f;
+            float s = EngineMath.Sqrt(1f + m.M11 - m.M00 - m.M22) * 2f;
             float invS = 1f / s;
             return new Quaternion(
                 (m.M10 + m.M01) * invS,
@@ -271,7 +271,7 @@ public struct Quaternion : IEquatable<Quaternion>, IFormattable
         }
 
         {
-            float s = MathF.Sqrt(1f + m.M22 - m.M00 - m.M11) * 2f;
+            float s = EngineMath.Sqrt(1f + m.M22 - m.M00 - m.M11) * 2f;
             float invS = 1f / s;
             return new Quaternion(
                 (m.M20 + m.M02) * invS,
@@ -320,10 +320,10 @@ public struct Quaternion : IEquatable<Quaternion>, IFormattable
             return Normalize(LerpUnclamped(a, b, t));
 
         dot = EngineMath.Clamp(dot, -1f, 1f);
-        float theta = MathF.Acos(dot);
-        float sinTheta = MathF.Sin(theta);
-        float t1 = MathF.Sin((1f - t) * theta) / sinTheta;
-        float t2 = MathF.Sin(t * theta) / sinTheta;
+        float theta = EngineMath.Acos(dot);
+        float sinTheta = EngineMath.Sin(theta);
+        float t1 = EngineMath.Sin((1f - t) * theta) / sinTheta;
+        float t2 = EngineMath.Sin(t * theta) / sinTheta;
 
         return new Quaternion(
             a.X * t1 + b.X * t2,
@@ -338,7 +338,7 @@ public struct Quaternion : IEquatable<Quaternion>, IFormattable
         float angle = Angle(from, to);
         if (angle == 0f)
             return to;
-        return SlerpUnclamped(from, to, MathF.Min(1f, maxDegreesDelta / angle));
+        return SlerpUnclamped(from, to, EngineMath.Min(1f, maxDegreesDelta / angle));
     }
 
     /// <summary>Quaternion multiplication (composes rotations, applies b first).</summary>

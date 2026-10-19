@@ -162,10 +162,10 @@ public struct Vector3 : IEquatable<Vector3>
     public static Vector3 Slerp(Vector3 a, Vector3 b, float t)
     {
         t = EngineMath.Clamp01(t);
-        float dot = MathF.Max(MathF.Min(Dot(a.normalized, b.normalized), 1f), -1f);
-        float theta = MathF.Acos(dot) * t;
+        float dot = EngineMath.Max(EngineMath.Min(Dot(a.normalized, b.normalized), 1f), -1f);
+        float theta = EngineMath.Acos(dot) * t;
         Vector3 rel = Normalize(b - a * dot);
-        return a * MathF.Cos(theta) + rel * MathF.Sin(theta);
+        return a * EngineMath.Cos(theta) + rel * EngineMath.Sin(theta);
     }
 
     /// <summary>Moves current toward target without exceeding maxDistanceDelta.</summary>
@@ -184,7 +184,7 @@ public struct Vector3 : IEquatable<Vector3>
         float sqr = vector.sqrMagnitude;
         if (sqr > maxLength * maxLength)
         {
-            float mag = MathF.Sqrt(sqr);
+            float mag = EngineMath.Sqrt(sqr);
             return vector / mag * maxLength;
         }
         return vector;
@@ -210,18 +210,18 @@ public struct Vector3 : IEquatable<Vector3>
     /// <summary>Angle in degrees between two vectors (0..180).</summary>
     public static float Angle(Vector3 from, Vector3 to)
     {
-        float denom = MathF.Sqrt(from.sqrMagnitude * to.sqrMagnitude);
+        float denom = EngineMath.Sqrt(from.sqrMagnitude * to.sqrMagnitude);
         if (denom < EngineMath.kEpsilon)
             return 0f;
-        float dot = MathF.Max(MathF.Min(Dot(from, to) / denom, 1f), -1f);
-        return MathF.Acos(dot) * EngineMath.Rad2Deg;
+        float dot = EngineMath.Max(EngineMath.Min(Dot(from, to) / denom, 1f), -1f);
+        return EngineMath.Acos(dot) * EngineMath.Rad2Deg;
     }
 
     /// <summary>Signed angle in degrees between two vectors around the given axis.</summary>
     public static float SignedAngle(Vector3 from, Vector3 to, Vector3 axis)
     {
         float unsigned = Angle(from, to);
-        float sign = MathF.Sign(Dot(axis, Cross(from, to)));
+        float sign = EngineMath.Sign(Dot(axis, Cross(from, to)));
         return unsigned * sign;
     }
 

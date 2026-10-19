@@ -48,7 +48,7 @@ public struct Vector2 : IEquatable<Vector2>
     public static readonly Vector2 Right = new(1f, 0f);
 
     /// <summary>Length of this vector.</summary>
-    public float magnitude => MathF.Sqrt(sqrMagnitude);
+    public float magnitude => EngineMath.Sqrt(sqrMagnitude);
 
     /// <summary>Squared length of this vector.</summary>
     public float sqrMagnitude => X * X + Y * Y;
@@ -137,7 +137,7 @@ public struct Vector2 : IEquatable<Vector2>
         float sqr = vector.sqrMagnitude;
         if (sqr > maxLength * maxLength)
         {
-            float mag = MathF.Sqrt(sqr);
+            float mag = EngineMath.Sqrt(sqr);
             return vector / mag * maxLength;
         }
         return vector;
@@ -153,11 +153,11 @@ public struct Vector2 : IEquatable<Vector2>
     /// <summary>Angle in degrees between two vectors (0..180).</summary>
     public static float Angle(Vector2 from, Vector2 to)
     {
-        float denom = MathF.Sqrt(from.sqrMagnitude * to.sqrMagnitude);
+        float denom = EngineMath.Sqrt(from.sqrMagnitude * to.sqrMagnitude);
         if (denom < EngineMath.kEpsilon)
             return 0f;
-        float dot = MathF.Max(MathF.Min(Dot(from, to) / denom, 1f), -1f);
-        return MathF.Acos(dot) * EngineMath.Rad2Deg;
+        float dot = EngineMath.Max(EngineMath.Min(Dot(from, to) / denom, 1f), -1f);
+        return EngineMath.Acos(dot) * EngineMath.Rad2Deg;
     }
 
     /// <summary>Signed angle in degrees between two vectors (counter-clockwise positive).</summary>
@@ -165,7 +165,7 @@ public struct Vector2 : IEquatable<Vector2>
     {
         float unsigned = Angle(from, to);
         float cross = from.X * to.Y - from.Y * to.X;
-        return unsigned * MathF.Sign(cross);
+        return unsigned * EngineMath.Sign(cross);
     }
 
     public static Vector2 Min(Vector2 a, Vector2 b) =>

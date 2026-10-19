@@ -172,27 +172,27 @@ public struct Matrix4x4
     /// <summary>Rotation matrix around the Z axis (yaw).</summary>
     public static Matrix4x4 Yaw(float degrees)
     {
-        float r = degrees * MathF.PI / 180f;
-        float c = MathF.Cos(r),
-            s = MathF.Sin(r);
+        float r = degrees * EngineMath.PI / 180f;
+        float c = EngineMath.Cos(r),
+            s = EngineMath.Sin(r);
         return new Matrix4x4(c, s, 0, 0, -s, c, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
     }
 
     /// <summary>Rotation matrix around the Y axis (pitch).</summary>
     public static Matrix4x4 Pitch(float degrees)
     {
-        float r = degrees * MathF.PI / 180f;
-        float c = MathF.Cos(r),
-            s = MathF.Sin(r);
+        float r = degrees * EngineMath.PI / 180f;
+        float c = EngineMath.Cos(r),
+            s = EngineMath.Sin(r);
         return new Matrix4x4(c, 0, s, 0, 0, 1, 0, 0, -s, 0, c, 0, 0, 0, 0, 1);
     }
 
     /// <summary>Rotation matrix around the X axis (roll).</summary>
     public static Matrix4x4 Roll(float degrees)
     {
-        float r = degrees * MathF.PI / 180f;
-        float c = MathF.Cos(r),
-            s = MathF.Sin(r);
+        float r = degrees * EngineMath.PI / 180f;
+        float c = EngineMath.Cos(r),
+            s = EngineMath.Sin(r);
         return new Matrix4x4(1, 0, 0, 0, 0, c, -s, 0, 0, s, c, 0, 0, 0, 0, 1);
     }
 
@@ -314,7 +314,7 @@ public struct Matrix4x4
             float b11 = a22 * a33 - a23 * a32;
 
             float det = b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06;
-            if (MathF.Abs(det) < 1e-10f)
+            if (EngineMath.Abs(det) < 1e-10f)
                 throw new InvalidOperationException("Matrix is not invertible (det ≈ 0).");
             float id = 1f / det;
 
