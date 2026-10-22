@@ -8,7 +8,8 @@ public abstract class ObjectBase
 
     protected ObjectBase()
     {
-        EngineObjectManager.Instance.Register(this);
+        //TODO: 我现在感觉这个反而有点过度抽象了（）
+        // EngineObjectManager.Instance.Register(this);
     }
 
     protected internal virtual void OnCreate() { }

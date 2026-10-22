@@ -22,6 +22,7 @@ public sealed class GameObject : ObjectBase
 
     private bool _activeSelf = true;
     private bool _activeInHierarchy = true;
+    internal bool _initialized = false;
     private bool _awake;
     private bool _started;
     private bool _dispatching;
@@ -39,6 +40,7 @@ public sealed class GameObject : ObjectBase
                 AttachInternal(component);
             }
         }
+        _initialized = true;
     }
 
     /// <summary>
@@ -205,7 +207,7 @@ public sealed class GameObject : ObjectBase
     /// <remarks>Component callbacks run in reverse attachment order.</remarks>
     public static void Destroy(GameObject gameObject)
     {
-        EngineObjectManager.Instance.Destroy(gameObject);
+        //TODO:未完成
     }
 
     #endregion
@@ -215,7 +217,7 @@ public sealed class GameObject : ObjectBase
     /// <inheritdoc/>
     protected internal override void OnCreate()
     {
-        base.OnCreate();
+        // ObjectContainer.RegisterGameObject(new WeakReference<GameObject>(this));
         _awake = true;
 
         int count = _components.Count;

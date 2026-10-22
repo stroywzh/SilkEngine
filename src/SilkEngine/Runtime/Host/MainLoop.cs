@@ -8,6 +8,7 @@ namespace SilkEngine.Runtime.Host;
 /// The host owns the supplied pipeline/backend; do not reuse them after start or dispose them externally.</remarks>
 public sealed class MainLoop : RuntimeBase
 {
+    private readonly MainThreadContext runtimeMainThreadContext;
     private readonly IRenderPipeline _pipeline;
     private readonly IRenderBackend _backend;
     private readonly Stopwatch _frameStopwatch = new();
@@ -27,6 +28,7 @@ public sealed class MainLoop : RuntimeBase
     {
         _pipeline = pipeline ?? throw new ArgumentNullException(nameof(pipeline));
         _backend = backend ?? throw new ArgumentNullException(nameof(backend));
+        runtimeMainThreadContext = MainThreadContext.Install();
     }
 
     public override bool IsBackground => false;
@@ -132,7 +134,10 @@ public sealed class MainLoop : RuntimeBase
     /// <summary>
     /// Called after render/output completion and before the stopwatch stops; where process the end logics of this frame.
     /// </summary>
-    private void OnFrameEnded() { }
+    private void OnFrameEnded()
+    {
+        runtimeMainThreadContext.Pump();
+    }
 
     protected override void Shutdown()
     {
