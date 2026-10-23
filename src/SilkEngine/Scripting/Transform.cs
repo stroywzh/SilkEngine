@@ -66,9 +66,15 @@ public sealed class Transform : Component
             // Boundary: an axis whose parent scale is near zero cannot be inverted, so the previous
             // local component is kept instead of writing inf/NaN.
             _localPosition = new Vector3(
-                EngineMath.Abs(parentScale.X) > EngineMath.kEpsilon ? p.X / parentScale.X : _localPosition.X,
-                EngineMath.Abs(parentScale.Y) > EngineMath.kEpsilon ? p.Y / parentScale.Y : _localPosition.Y,
-                EngineMath.Abs(parentScale.Z) > EngineMath.kEpsilon ? p.Z / parentScale.Z : _localPosition.Z
+                EngineMath.Abs(parentScale.X) > EngineMath.kEpsilon
+                    ? p.X / parentScale.X
+                    : _localPosition.X,
+                EngineMath.Abs(parentScale.Y) > EngineMath.kEpsilon
+                    ? p.Y / parentScale.Y
+                    : _localPosition.Y,
+                EngineMath.Abs(parentScale.Z) > EngineMath.kEpsilon
+                    ? p.Z / parentScale.Z
+                    : _localPosition.Z
             );
         }
     }
@@ -82,7 +88,9 @@ public sealed class Transform : Component
     {
         get => GetWorldPose().rotation;
         set =>
-            LocalRotation = _parent is null ? value : Quaternion.Inverse(_parent.GetWorldPose().rotation) * value;
+            LocalRotation = _parent is null
+                ? value
+                : Quaternion.Inverse(_parent.GetWorldPose().rotation) * value;
     }
 
     /// <summary>World scale obtained by multiplying the local scale chain.</summary>
@@ -123,6 +131,11 @@ public sealed class Transform : Component
     /// <summary>World space up direction (+Y).</summary>
     public Vector3 Up => Rotation * Vector3.Up;
 
+    protected internal override void OnDisable()
+    {
+        Enabled = true;
+    }
+
     /// <summary>Changes the parent while optionally preserving the world position and rotation.</summary>
     /// <param name="newParent">New parent; <c>null</c> moves the transform to the root.</param>
     /// <param name="keepWorldPosition">
@@ -135,37 +148,38 @@ public sealed class Transform : Component
     /// </exception>
     public void SetParent(Transform? newParent, bool keepWorldPosition = true)
     {
-        if (_parent == newParent)
-            return;
+        throw new NotImplementedException();
+        // if (_parent == newParent)
+        //     return;
 
-        for (Transform? p = newParent; p is not null; p = p._parent)
-        {
-            if (p == this)
-                throw new InvalidOperationException(
-                    "Transform.SetParent: the attachment would create a cycle."
-                );
-        }
+        // for (Transform? p = newParent; p is not null; p = p._parent)
+        // {
+        //     if (p == this)
+        //         throw new InvalidOperationException(
+        //             "Transform.SetParent: the attachment would create a cycle."
+        //         );
+        // }
 
-        Vector3 oldPos = default;
-        Quaternion oldRot = default;
-        if (keepWorldPosition)
-        {
-            oldPos = Position;
-            oldRot = Rotation;
-        }
+        // Vector3 oldPos = default;
+        // Quaternion oldRot = default;
+        // if (keepWorldPosition)
+        // {
+        //     oldPos = Position;
+        //     oldRot = Rotation;
+        // }
 
-        _parent?._children.Remove(this);
-        _parent = newParent;
-        newParent?._children.Add(this);
+        // _parent?._children.Remove(this);
+        // _parent = newParent;
+        // newParent?._children.Add(this);
 
-        if (keepWorldPosition)
-        {
-            Position = oldPos;
-            Rotation = oldRot;
-        }
+        // if (keepWorldPosition)
+        // {
+        //     Position = oldPos;
+        //     Rotation = oldRot;
+        // }
 
-        // Re-parenting may change the effective active state, so the subtree is refreshed.
-        gameObject.RefreshActivation(newParent?.gameObject?.ActiveInHierarchy ?? true);
+        // // // Re-parenting may change the effective active state, so the subtree is refreshed.
+        // // gameObject.RefreshActivation(newParent?.gameObject?.ActiveInHierarchy ?? true);
     }
 
     /// <summary>Points the world forward direction at a world space position.</summary>

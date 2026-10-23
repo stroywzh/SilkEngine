@@ -1,6 +1,6 @@
 using System;
 
-namespace SilkEngine.Core.EngineObjcetSystem;
+namespace SilkEngine.Core.ObjcetSystem;
 
 public readonly struct ObjectId : IEquatable<ObjectId>
 {

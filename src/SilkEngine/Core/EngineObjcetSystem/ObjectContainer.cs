@@ -1,12 +1,17 @@
-namespace SilkEngine.Core.EngineObjcetSystem;
+namespace SilkEngine.Core.ObjcetSystem;
 
 public class ObjectContainer
 {
-    private static List<GameObject> _gameObjects = new();
+    private List<GameObject> _gameObjects = new();
 
     public GameObject[] ActiveGameObjects => _gameObjects.ToArray();
 
-    public void Register(GameObject go) { }
+    public bool Contains(GameObject go)
+    {
+        return _gameObjects.Contains(go);
+    }
 
-    public void UnRegister(GameObject go) { }
+    public void Add(GameObject go) { }
+
+    public void Remove(GameObject go) { }
 }

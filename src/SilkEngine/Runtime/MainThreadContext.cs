@@ -7,7 +7,6 @@ internal class MainThreadContext : SynchronizationContext
 {
     private readonly ConcurrentQueue<(SendOrPostCallback Callback, object? State)> _queue = new();
     private readonly int _mainThreadId = Environment.CurrentManagedThreadId;
-
     public int MainThreadId => _mainThreadId;
 
     public bool IsMainThread => Environment.CurrentManagedThreadId == _mainThreadId;

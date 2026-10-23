@@ -4,7 +4,7 @@ using System.Threading;
 namespace SilkEngine;
 
 public abstract class Singleton<T>
-    where T : Singleton<T>
+    where T : class
 {
     private static readonly Lazy<T> _instance = new Lazy<T>();
 
@@ -14,4 +14,10 @@ public abstract class Singleton<T>
 }
 
 public class SingletonInstance<T> : Singleton<T>
-    where T : SingletonInstance<T> { }
+    where T : class
+{
+    protected SingletonInstance()
+    {
+        _ = Instance;
+    }
+}

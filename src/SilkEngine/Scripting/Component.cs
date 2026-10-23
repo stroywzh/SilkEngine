@@ -14,47 +14,13 @@ public abstract class Component
     private GameObject _gameObject;
     private bool _enabled = true;
 
-    [Obsolete("Do NOT use this")]
-    private Component()
-    {
-        // Reserved for the future component construction flow; an instance built here would be
-        // unbound and unusable, which the flow is expected to prevent.
-        _gameObject = null!;
-    }
-
-    /// <summary>Creates a component pre-bound to the entity that will own it.</summary>
-    /// <param name="gameObject">Entity that will own the component.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="gameObject"/> is <c>null</c>.</exception>
-    /// <remarks>
-    /// This is the constructor the construction flow behind <see cref="GameObject.AddComponent{T}()"/>
-    /// calls: the component is bound to its owning entity from construction. Constructing a component
-    /// directly does not attach it; <see cref="GameObject.AddComponent{T}()"/> is the only attachment path.
-    /// </remarks>
     protected Component(GameObject gameObject)
     {
         ArgumentNullException.ThrowIfNull(gameObject);
         _gameObject = gameObject;
     }
 
-    /// <summary>Entity that owns this component. Guaranteed non-null once the component is attached.</summary>
-    /// <returns>The owning <see cref="GameObject"/>.</returns>
-    /// <exception cref="InvalidOperationException">
-    /// The component has not been attached through <see cref="GameObject.AddComponent{T}()"/>, or it
-    /// was removed and is now unbound.
-    /// </exception>
-    public GameObject gameObject =>
-        _gameObject
-        ?? throw new InvalidOperationException(
-            $"Component {GetType().Name} is not attached to an entity yet; create it through GameObject.AddComponent."
-        );
-
-    internal GameObject? gameObjectOrNull => _gameObject;
-
-    /// <summary>Binds the owning entity. Called only by <see cref="GameObject.AddComponent{T}()"/>.</summary>
-    internal void Bind(GameObject owner) => _gameObject = owner;
-
-    /// <summary>Clears the binding after the component was removed from its entity.</summary>
-    internal void Unbind() => _gameObject = null!;
+    public GameObject gameObject => _gameObject;
 
     /// <summary>Enable flag of this component.</summary>
     /// <remarks>
@@ -69,6 +35,12 @@ public abstract class Component
         {
             if (_enabled == value)
                 return;
+
+            if (CanBeDisabled() && !value)
+            {
+                Log.Debug("这个组件不允许被禁用");
+                return;
+            }
 
             _enabled = value;
 
@@ -89,11 +61,12 @@ public abstract class Component
 
     /// <summary>Whether this component is enabled and its owner is active in the hierarchy.</summary>
     /// <remarks>Returns <c>false</c> for an unbound component instead of throwing.</remarks>
-    public bool ActiveInHierarchy => _enabled && _gameObject is not null && _gameObject.ActiveInHierarchy;
+    public bool ActiveInHierarchy =>
+        _enabled && _gameObject is not null && _gameObject.ActiveInHierarchy;
 
     #region Hooks
 
-    /// <summary>Called once when the component is attached.</summary>
+    /// <summary>Called once when the component is attached if GameObject is active.</summary>
     /// <remarks>Attaching to an already created entity invokes it immediately.</remarks>
     protected internal virtual void Awake() { }
 
@@ -120,6 +93,8 @@ public abstract class Component
     /// <summary>Called when the component is detached or its owning entity is destroyed.</summary>
     /// <remarks><see cref="gameObject"/> is still usable here.</remarks>
     protected internal virtual void OnDestroy() { }
+
+    protected virtual bool CanBeDisabled() => true;
 
     #endregion
 }

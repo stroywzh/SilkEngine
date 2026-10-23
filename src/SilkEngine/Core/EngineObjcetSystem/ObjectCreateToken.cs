@@ -1,6 +1,6 @@
 using SilkEngine.Runtime;
 
-namespace SilkEngine.Core.EngineObjcetSystem;
+namespace SilkEngine.Core.ObjcetSystem;
 
 internal readonly struct ComponentCreateToken
 {
@@ -16,10 +16,11 @@ internal readonly struct ObjectCreateToken
 {
     internal readonly MainThreadContext MainThreadContext;
     internal readonly ObjectId ObjectId;
+    internal readonly GameObject? Origin;
 
-    public ObjectCreateToken(MainThreadContext cxt, ObjectId id)
+    public ObjectCreateToken(ObjectId id, GameObject? origin = null)
     {
-        MainThreadContext = cxt;
         ObjectId = id;
+        Origin = origin;
     }
 }

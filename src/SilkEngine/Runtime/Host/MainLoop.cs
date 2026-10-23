@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using SilkEngine.Core;
 using SilkEngine.Rendering.Abstraction;
 
 namespace SilkEngine.Runtime.Host;
@@ -30,7 +31,6 @@ public sealed class MainLoop : RuntimeBase
         _backend = backend ?? throw new ArgumentNullException(nameof(backend));
         runtimeMainThreadContext = MainThreadContext.Install();
     }
-
     public override bool IsBackground => false;
     public override string ThreadName => "MainThread";
     internal override bool IsMainThread => true;
@@ -116,12 +116,16 @@ public sealed class MainLoop : RuntimeBase
     {
         _frameId = checked(_frameId + 1);
         Time.BeginFrame(_frameId, LastFrameElapsed.TotalSeconds);
+        UpdateDriver.RefreshSnapshot();
     }
 
     /// <summary>
     /// Called before start rendering this frame.
     /// </summary>
-    private void Update() { }
+    private void Update()
+    {
+        UpdateDriver.UpdateInternal();
+    }
 
     private void OnRendering()
     {
@@ -136,6 +140,7 @@ public sealed class MainLoop : RuntimeBase
     /// </summary>
     private void OnFrameEnded()
     {
+        UpdateDriver.LateUpdateInternal();
         runtimeMainThreadContext.Pump();
     }
 
