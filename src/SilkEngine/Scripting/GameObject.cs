@@ -1,11 +1,12 @@
 using System.Diagnostics.CodeAnalysis;
+using SilkEngine.Core;
 using SilkEngine.Core.ObjcetSystem;
 using SilkEngine.Internal;
 using SilkEngine.Runtime;
 
 namespace SilkEngine;
 
-public sealed class GameObject : IUpdateable
+public sealed class GameObject
 {
     public ObjectId InstanceId { get; init; }
     internal ObjectFlag objectFlag = ObjectFlag.Normal;
@@ -28,27 +29,22 @@ public sealed class GameObject : IUpdateable
 
     public GameObject()
     {
-        throw new InvalidOperationException("不允许直接new一个GameObject");
+        throw new InvalidOperationException("不允许直接 new 一个 GameObject");
     }
 
     private GameObject(ObjectCreateToken token)
     {
-        if (!token.MainThreadContext.IsMainThread)
-        {
-            Log.Warning("你正在尝试通过同步方式从非主线程实例化GameObject");
-        }
-
         if (!token.ObjectId.IsNull)
         {
             InstanceId = token.ObjectId;
 
             _tranform = Transform.Create(this);
             _initialized = true;
-            ObjectManager.Register(this);
         }
         else
         {
-            throw new InvalidOperationException("不允许直接new一个GameObject");
+            _tranform = default!;
+            _initialized = false;
         }
     }
 
@@ -60,21 +56,19 @@ public sealed class GameObject : IUpdateable
         }
     }
 
-    public static GameObject Instantiate(GameObject gameObject, Transform? parent = null)
-    {
-        //BUG: 临时验证路径
-        var id = ObjectId.Null;
-        // ObjectCreateToken token = new(MainThreadContext,id,gameObject)
-        throw new NotImplementedException();
-    }
-
-    private static GameObject CreateNew(ObjectCreateToken token)
+    /// <summary>内部构造入口：仅 ObjectManager 工厂调用。</summary>
+    internal static GameObject CreateNew(ObjectCreateToken token)
     {
         return new(token);
     }
 
-    #region  UpdateHooks
-    public void UpdateInternal()
+    public static GameObject Instantiate(GameObject gameObject) =>
+        GameObjectHelper.Instantiate(gameObject);
+
+    public static void Destroy(GameObject gameObject) => GameObjectHelper.Destroy(gameObject);
+
+    #region UpdateHooks
+    internal void UpdateInternal()
     {
         if (!ActiveInHierarchy)
             return;
@@ -97,7 +91,7 @@ public sealed class GameObject : IUpdateable
         }
     }
 
-    public void FixedUpdateInternal()
+    internal void FixedUpdateInternal()
     {
         if (!ActiveInHierarchy)
             return;
@@ -114,7 +108,7 @@ public sealed class GameObject : IUpdateable
         }
     }
 
-    public void LateUpdateInternal()
+    internal void LateUpdateInternal()
     {
         if (!ActiveInHierarchy)
             return;

@@ -20,7 +20,10 @@ public readonly struct ObjectId : IEquatable<ObjectId>
     internal static ObjectId Create(uint index, uint generation) =>
         new ObjectId(((ulong)generation << 32) | index);
 
-    /// <summary>default 即无效句柄（要求 Generation 从 1 起分配）。</summary>
+    /// <summary>
+    /// default 即无效句柄。因为 Index 从 1 起分配、0 号槽永久保留，
+    /// 任何已分配的 Id 其 Value != 0，因此 Value == 0 等价于"无效"。
+    /// </summary>
     public bool IsNull => Value == 0;
     public static ObjectId Null => default;
 
@@ -34,5 +37,6 @@ public readonly struct ObjectId : IEquatable<ObjectId>
 
     public static bool operator !=(ObjectId a, ObjectId b) => a.Value != b.Value;
 
-    public override string ToString() => $"EntityId(Index={Index}, Gen={Generation})";
+    public override string ToString() =>
+        $"EntityId(Index={Index}, Gen={Generation}, IsNull={this.IsNull})";
 }

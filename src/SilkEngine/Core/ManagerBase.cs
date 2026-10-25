@@ -9,11 +9,29 @@ internal abstract class ManagerBase<TManager> : SingletonInstance<TManager>, IUp
         : base()
     {
         UpdateDriver.Register(this);
+        Initialize();
     }
 
-    public virtual void FixedUpdateInternal() { }
+    void IUpdateable.UpdateInternal()
+    {
+        OnUpdate();
+    }
 
-    public virtual void LateUpdateInternal() { }
+    void IUpdateable.LateUpdateInternal()
+    {
+        OnLateUpdate();
+    }
 
-    public virtual void UpdateInternal() { }
+    void IUpdateable.FixedUpdateInternal()
+    {
+        OnFixedUpdate();
+    }
+
+    protected virtual void Initialize() { }
+
+    protected virtual void OnFixedUpdate() { }
+
+    protected virtual void OnLateUpdate() { }
+
+    protected virtual void OnUpdate() { }
 }

@@ -9,7 +9,7 @@ namespace SilkEngine.Runtime.Host;
 /// The host owns the supplied pipeline/backend; do not reuse them after start or dispose them externally.</remarks>
 public sealed class MainLoop : RuntimeBase
 {
-    private readonly MainThreadContext runtimeMainThreadContext;
+    private static MainThreadContext runtimeMainThreadContext = MainThreadContext.Install();
     private readonly IRenderPipeline _pipeline;
     private readonly IRenderBackend _backend;
     private readonly Stopwatch _frameStopwatch = new();
@@ -29,7 +29,6 @@ public sealed class MainLoop : RuntimeBase
     {
         _pipeline = pipeline ?? throw new ArgumentNullException(nameof(pipeline));
         _backend = backend ?? throw new ArgumentNullException(nameof(backend));
-        runtimeMainThreadContext = MainThreadContext.Install();
     }
     public override bool IsBackground => false;
     public override string ThreadName => "MainThread";

@@ -8,7 +8,6 @@ internal class MainThreadContext : SynchronizationContext
     private readonly ConcurrentQueue<(SendOrPostCallback Callback, object? State)> _queue = new();
     private readonly int _mainThreadId = Environment.CurrentManagedThreadId;
     public int MainThreadId => _mainThreadId;
-
     public bool IsMainThread => Environment.CurrentManagedThreadId == _mainThreadId;
 
     // await 恢复时会调用 Post（通常不带 ConfigureAwait(false) 时）

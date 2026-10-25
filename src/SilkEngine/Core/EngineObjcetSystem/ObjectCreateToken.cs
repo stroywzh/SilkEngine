@@ -1,4 +1,5 @@
 using SilkEngine.Runtime;
+using SilkEngine.Runtime.Host;
 
 namespace SilkEngine.Core.ObjcetSystem;
 
@@ -14,7 +15,6 @@ internal readonly struct ComponentCreateToken
 
 internal readonly struct ObjectCreateToken
 {
-    internal readonly MainThreadContext MainThreadContext;
     internal readonly ObjectId ObjectId;
     internal readonly GameObject? Origin;
 
@@ -22,5 +22,10 @@ internal readonly struct ObjectCreateToken
     {
         ObjectId = id;
         Origin = origin;
+    }
+
+    public override string ToString()
+    {
+        return $"ObjectCreateToken({ObjectId}, Origin={Origin})";
     }
 }

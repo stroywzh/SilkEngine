@@ -4,7 +4,7 @@ namespace SilkEngine.Runtime;
 
 internal static class UpdateDriver
 {
-    private static List<IUpdateable> _snapShot = new();
+    private static readonly List<IUpdateable> _snapShot = new();
     private static readonly HashSet<IUpdateable> _updateables = new();
 
     public static void Register(IUpdateable updateable)
