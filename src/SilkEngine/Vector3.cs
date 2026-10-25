@@ -1,11 +1,21 @@
+using SilkEngine.Mathematics;
+using SilkEngine.Mathematics.Internal;
+
 namespace SilkEngine;
 
 /// <summary>
 /// A 3D vector. Coordinate convention follows Unreal Engine: +X is Forward, +Y is Right, +Z is Up.
 /// </summary>
-public struct Vector3 : IEquatable<Vector3>
+/// <remarks>
+/// Pure value type: <c>readonly struct</c> with <c>public readonly</c> components, no in-place
+/// mutators. <c>operator ==</c>, <see cref="Equals(Vector3)"/> and <see cref="GetHashCode"/> are
+/// exact and mutually consistent; use <see cref="Approximately(in Vector3, in Vector3)"/> when a
+/// tolerance is intended.
+/// </remarks>
+[MathValue("Vector3", "F3", "X", "Y", "Z")]
+public readonly partial struct Vector3 : IEquatable<Vector3>, IFormattable
 {
-    public float X,
+    public readonly float X,
         Y,
         Z;
 
@@ -31,6 +41,21 @@ public struct Vector3 : IEquatable<Vector3>
     /// (1f, 1f, 1f)
     /// </summary>
     public static readonly Vector3 One = new(1f, 1f, 1f);
+
+    /// <summary>
+    /// (1f, 0, 0) — unit basis vector along +X.
+    /// </summary>
+    public static readonly Vector3 UnitX = new(1f, 0f, 0f);
+
+    /// <summary>
+    /// (0, 1f, 0) — unit basis vector along +Y.
+    /// </summary>
+    public static readonly Vector3 UnitY = new(0f, 1f, 0f);
+
+    /// <summary>
+    /// (0, 0, 1f) — unit basis vector along +Z.
+    /// </summary>
+    public static readonly Vector3 UnitZ = new(0f, 0f, 1f);
 
     /// <summary>
     /// (1f, 0, 0)
@@ -71,62 +96,16 @@ public struct Vector3 : IEquatable<Vector3>
     /// <summary>Returns a normalized copy of this vector.</summary>
     public Vector3 normalized => Normalize(this);
 
-    public float this[int i]
-    {
-        get =>
-            i switch
-            {
-                0 => X,
-                1 => Y,
-                2 => Z,
-                _ => throw new IndexOutOfRangeException(),
-            };
-        set
-        {
-            switch (i)
-            {
-                case 0:
-                    X = value;
-                    break;
-                case 1:
-                    Y = value;
-                    break;
-                case 2:
-                    Z = value;
-                    break;
-                default:
-                    throw new IndexOutOfRangeException();
-            }
-        }
-    }
-
-    /// <summary>Normalizes this vector in place.</summary>
-    public void Normalize()
-    {
-        float mag = magnitude;
-        if (mag > EngineMath.kEpsilon)
-        {
-            X /= mag;
-            Y /= mag;
-            Z /= mag;
-        }
-        else
-            this = Zero;
-    }
-
     /// <summary>Returns a normalized copy of the given vector.</summary>
+    /// <param name="v">Vector to normalize.</param>
+    /// <remarks>Returns <see cref="Zero"/> when the length is at or below <see cref="EngineMath.kEpsilon"/>.</remarks>
     public static Vector3 Normalize(Vector3 v)
     {
-        v.Normalize();
-        return v;
-    }
-
-    /// <summary>Multiplies two vectors component-wise.</summary>
-    public void Scale(Vector3 scale)
-    {
-        X *= scale.X;
-        Y *= scale.Y;
-        Z *= scale.Z;
+        float mag = v.magnitude;
+        if (mag <= EngineMath.kEpsilon)
+            return Zero;
+        float inv = 1f / mag;
+        return new Vector3(v.X * inv, v.Y * inv, v.Z * inv);
     }
 
     /// <summary>Returns the component-wise product of two vectors.</summary>
@@ -147,10 +126,14 @@ public struct Vector3 : IEquatable<Vector3>
     /// <summary>Euclidean distance between two points.</summary>
     public static float Distance(Vector3 a, Vector3 b) => (a - b).magnitude;
 
-    /// <summary>Linearly interpolates between two vectors.</summary>
+    /// <summary>Linearly interpolates between two vectors, with t clamped to [0, 1].</summary>
+    /// <remarks>
+    /// REV-016 口径：与 Vector4.Lerp 语义统一（t 夹取到 [0,1]），实现各写一份 —— Mathematics 层不允许
+    /// 引用 <see cref="EngineMath"/>。
+    /// </remarks>
     public static Vector3 Lerp(Vector3 a, Vector3 b, float t)
     {
-        t = t < 0f ? 0f : (t > 1f ? 1f : t);
+        t = EngineMath.Clamp01(t);
         return new Vector3(a.X + (b.X - a.X) * t, a.Y + (b.Y - a.Y) * t, a.Z + (b.Z - a.Z) * t);
     }
 
@@ -159,13 +142,29 @@ public struct Vector3 : IEquatable<Vector3>
         new(a.X + (b.X - a.X) * t, a.Y + (b.Y - a.Y) * t, a.Z + (b.Z - a.Z) * t);
 
     /// <summary>Spherically interpolates between two direction vectors.</summary>
+    /// <param name="a">Start direction; must be non-zero.</param>
+    /// <param name="b">End direction; must be non-zero.</param>
+    /// <param name="t">Interpolation factor, clamped to [0, 1].</param>
+    /// <returns>
+    /// A unit-length direction: <paramref name="a"/>'s direction at t = 0 and <paramref name="b"/>'s
+    /// direction at t = 1. Both inputs are normalized first, so the result never mixes a scaled
+    /// input with a unit vector (REV-015).
+    /// </returns>
+    /// <remarks>
+    /// When the inputs are (anti)parallel the rotation plane is undefined; the result then stays on
+    /// the great circle picked by <see cref="Normalize(Vector3)"/> of the zero residual, i.e. it
+    /// degrades to the start direction scaled by cos(theta).
+    /// </remarks>
     public static Vector3 Slerp(Vector3 a, Vector3 b, float t)
     {
         t = EngineMath.Clamp01(t);
-        float dot = EngineMath.Max(EngineMath.Min(Dot(a.normalized, b.normalized), 1f), -1f);
+
+        Vector3 from = Normalize(a);
+        Vector3 to = Normalize(b);
+        float dot = EngineMath.Max(EngineMath.Min(Dot(from, to), 1f), -1f);
         float theta = EngineMath.Acos(dot) * t;
-        Vector3 rel = Normalize(b - a * dot);
-        return a * EngineMath.Cos(theta) + rel * EngineMath.Sin(theta);
+        Vector3 rel = Normalize(to - from * dot);
+        return from * EngineMath.Cos(theta) + rel * EngineMath.Sin(theta);
     }
 
     /// <summary>Moves current toward target without exceeding maxDistanceDelta.</summary>
@@ -231,6 +230,13 @@ public struct Vector3 : IEquatable<Vector3>
     public static Vector3 Max(Vector3 a, Vector3 b) =>
         new(EngineMath.Max(a.X, b.X), EngineMath.Max(a.Y, b.Y), EngineMath.Max(a.Z, b.Z));
 
+    /// <summary>
+    /// Approximate equality with the shared relative-tolerance policy
+    /// (see <see cref="EngineMath.Approximately(float, float)"/>).
+    /// </summary>
+    public static bool Approximately(in Vector3 a, in Vector3 b) =>
+        Approx.Equal(a.X, a.Y, a.Z, b.X, b.Y, b.Z);
+
     public static Vector3 operator +(Vector3 a, Vector3 b) => new(a.X + b.X, a.Y + b.Y, a.Z + b.Z);
 
     public static Vector3 operator -(Vector3 a, Vector3 b) => new(a.X - b.X, a.Y - b.Y, a.Z - b.Z);
@@ -243,21 +249,15 @@ public struct Vector3 : IEquatable<Vector3>
 
     public static Vector3 operator /(Vector3 a, float d) => new(a.X / d, a.Y / d, a.Z / d);
 
-    public static bool operator !=(Vector3 lhs, Vector3 rhs) => !(lhs == rhs);
+    /// <summary>Explicit Vector3 → Vector4 conversion (w = 0).</summary>
+    /// <remarks>
+    /// Declared on the root side because <see cref="Vector4"/> lives in
+    /// <c>SilkEngine.Mathematics</c> and must not reference the root namespace (layering R4).
+    /// </remarks>
+    public static explicit operator Vector4(Vector3 v) => new(v.X, v.Y, v.Z, 0f);
 
-    public bool Equals(Vector3 other) => X == other.X && Y == other.Y && Z == other.Z;
+    /// <summary>Explicit Vector4 → Vector3 conversion (drops W).</summary>
+    /// <remarks>Declared on the root side for the same layering reason as the conversion above.</remarks>
+    public static explicit operator Vector3(Vector4 v) => new(v.X, v.Y, v.Z);
 
-    public override int GetHashCode() => HashUtil.Of(X, Y, Z);
-
-    public static bool operator ==(Vector3 lhs, Vector3 rhs) =>
-        ApproxEquals.Equal(lhs.X, lhs.Y, lhs.Z, rhs.X, rhs.Y, rhs.Z);
-
-    public override bool Equals(object? obj) => obj is Vector3 v && Equals(v);
-
-    public override string ToString() => ToString(null, null);
-
-    public string ToString(string format) => ToString(format, null);
-
-    public string ToString(string? format, IFormatProvider? formatProvider) =>
-        FormatUtil.Format("F2", format, formatProvider, X, Y, Z);
 }

@@ -1,22 +1,31 @@
 using System.Diagnostics;
-using SilkEngine.Core;
 using SilkEngine.Rendering.Abstraction;
 
 namespace SilkEngine.Runtime.Host;
 
 /// <summary>Main-loop host that measures a complete logical frame including render/output waiting.</summary>
-/// <remarks>Override frame hooks for application logic. All hooks run on the main-loop thread.
+/// <remarks>All hooks run on the main-loop thread.
 /// The host owns the supplied pipeline/backend; do not reuse them after start or dispose them externally.</remarks>
-public sealed class MainLoop : RuntimeBase
+public sealed class MainLoop : EngineThread
 {
-    private static MainThreadContext runtimeMainThreadContext = MainThreadContext.Install();
+    private static readonly MainThreadSynchronizationContext _mainThreadContext =
+        MainThreadSynchronizationContext.Install();
+
+    /// <summary>Fixed simulation step in seconds (60 Hz); not host-configurable in this round.</summary>
+    /// TODO: 解耦，不要硬编码
+    internal const double FixedStepSeconds = 1.0 / 60.0;
+
+    /// <summary>Upper bound of fixed steps per frame, so a long stall cannot spiral.</summary>
+    private const int MaxFixedStepsPerFrame = 8;
+
     private readonly IRenderPipeline _pipeline;
     private readonly IRenderBackend _backend;
     private readonly Stopwatch _frameStopwatch = new();
-    private RenderLoop? _renderLoop;
+    private RenderThread? _renderThread;
     private ulong _frameId;
     private long _lastFrameTicks;
     private int _lastFrameSucceeded = 1;
+    private double _fixedAccumulator;
 
     /// <summary>Creates the main host using registrations frozen before application startup.</summary>
     /// <exception cref="ArgumentNullException">A required Application registration is missing.</exception>
@@ -35,7 +44,7 @@ public sealed class MainLoop : RuntimeBase
     internal override bool IsMainThread => true;
 
     /// <summary>Gets the full duration of the last completed frame; initially zero, safe for cross-thread reads.</summary>
-    /// <remarks>A completed frame may still have failed to render; <see cref="RenderLoop"/> treats such a
+    /// <remarks>A completed frame may still have failed to render; <see cref="RenderThread"/> treats such a
     /// frame as consumed, and <c>LastFrameSucceeded</c> there reports whether its render pass succeeded.</remarks>
     public TimeSpan LastFrameElapsed => TimeSpan.FromTicks(Volatile.Read(ref _lastFrameTicks));
 
@@ -50,14 +59,14 @@ public sealed class MainLoop : RuntimeBase
     protected override void Initialize()
     {
         Time.Reset();
-        var render = ThreadFactory.BuildRenderThread(_pipeline, _backend);
-        Volatile.Write(ref _renderLoop, render);
+        var render = ThreadFactory.StartRenderThread(_pipeline, _backend);
+        Volatile.Write(ref _renderThread, render);
 
         try
         {
             render.WaitUntilReady(StopToken);
         }
-        catch (RenderLoopStoppedException)
+        catch (RenderThreadStoppedException)
         {
             RequestStop();
             StopToken.ThrowIfCancellationRequested();
@@ -72,7 +81,10 @@ public sealed class MainLoop : RuntimeBase
         {
             OnFrameStarted();
 
-            Update();
+            DispatchFixedUpdates();
+            StopToken.ThrowIfCancellationRequested();
+
+            UpdateScheduler.DispatchUpdate();
             StopToken.ThrowIfCancellationRequested();
 
             OnRendering();
@@ -80,13 +92,8 @@ public sealed class MainLoop : RuntimeBase
 
             OnFrameEnded();
             completed = true;
-
-            // if (Application.LogSetting.EnableMainThreadLog)
-            // {
-            //     Log.Debug($"Main loop {Time.FrameCount} finished after {Time.UnscaledDeltaTime}");
-            // }
         }
-        catch (RenderLoopStoppedException)
+        catch (RenderThreadStoppedException)
         {
             RequestStop();
         }
@@ -115,20 +122,37 @@ public sealed class MainLoop : RuntimeBase
     {
         _frameId = checked(_frameId + 1);
         Time.BeginFrame(_frameId, LastFrameElapsed.TotalSeconds);
-        UpdateDriver.RefreshSnapshot();
+        UpdateScheduler.RefreshSnapshot();
     }
 
     /// <summary>
-    /// Called before start rendering this frame.
+    /// Runs every fixed step that elapsed since the previous frame, before the variable update.
     /// </summary>
-    private void Update()
+    /// <remarks>
+    /// The accumulator is clamped to <see cref="MaxFixedStepsPerFrame"/> steps so a long stall yields at
+    /// most that many catch-up steps instead of an unbounded spiral. <see cref="Time.DeltaSeconds"/> is
+    /// the previous completed frame duration, so the first frame contributes nothing.
+    /// </remarks>
+    private void DispatchFixedUpdates()
     {
-        UpdateDriver.UpdateInternal();
+        _fixedAccumulator += Time.DeltaSeconds;
+
+        var maxAccumulated = FixedStepSeconds * MaxFixedStepsPerFrame;
+        if (_fixedAccumulator > maxAccumulated)
+        {
+            _fixedAccumulator = maxAccumulated;
+        }
+
+        while (_fixedAccumulator >= FixedStepSeconds)
+        {
+            _fixedAccumulator -= FixedStepSeconds;
+            UpdateScheduler.DispatchFixedUpdate();
+        }
     }
 
     private void OnRendering()
     {
-        var render = _renderLoop!;
+        var render = _renderThread!;
         render.PublishFrame();
         render.WaitForFrameFinished(StopToken);
         Volatile.Write(ref _lastFrameSucceeded, render.LastFrameSucceeded ? 1 : 0);
@@ -139,13 +163,13 @@ public sealed class MainLoop : RuntimeBase
     /// </summary>
     private void OnFrameEnded()
     {
-        UpdateDriver.LateUpdateInternal();
-        runtimeMainThreadContext.Pump();
+        UpdateScheduler.DispatchLateUpdate();
+        _mainThreadContext.Pump();
     }
 
     protected override void Shutdown()
     {
-        var render = Volatile.Read(ref _renderLoop);
+        var render = Volatile.Read(ref _renderThread);
         if (render is null)
             return;
         render.RequestStop();
@@ -153,10 +177,10 @@ public sealed class MainLoop : RuntimeBase
 
         if (Application.LogSetting.EnableMainThreadLog)
         {
-            Log.Debug($"Main loop Stopped at {Time.FrameCount}");
+            Log.Debug($"Main loop Stopped at {Time.FrameIndex}");
         }
     }
 
     // Called on the disposing thread: signal only. Main Shutdown owns child disposal/join.
-    protected override void DisposeCore() => Volatile.Read(ref _renderLoop)?.RequestStop();
+    protected override void DisposeCore() => Volatile.Read(ref _renderThread)?.RequestStop();
 }

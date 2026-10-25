@@ -1,11 +1,19 @@
+using SilkEngine.Mathematics;
+
 namespace SilkEngine;
 
 /// <summary>
 /// Floating-point RGBA color (usually in [0,1], HDR values may exceed 1). Mirrors UnityEngine.Color.
 /// </summary>
-public struct Color : IEquatable<Color>
+/// <remarks>
+/// Pure value type: <c>readonly struct</c> with <c>public readonly</c> components, no in-place
+/// mutators. <c>operator ==</c>, <see cref="Equals(Color)"/> and <see cref="GetHashCode"/> are exact
+/// and mutually consistent (component-wise float bits).
+/// </remarks>
+[MathValue("RGBA", "F3", "R", "G", "B", "A")]
+public readonly partial struct Color : IEquatable<Color>, IFormattable
 {
-    public float R,
+    public readonly float R,
         G,
         B,
         A;
@@ -28,40 +36,6 @@ public struct Color : IEquatable<Color>
     public static readonly Color Cyan = new(0f, 1f, 1f, 1f);
     public static readonly Color Magenta = new(1f, 0f, 1f, 1f);
     public static readonly Color Gray = new(0.5f, 0.5f, 0.5f, 1f);
-    public static readonly Color Grey = new(0.5f, 0.5f, 0.5f, 1f);
-
-    public float this[int i]
-    {
-        get =>
-            i switch
-            {
-                0 => R,
-                1 => G,
-                2 => B,
-                3 => A,
-                _ => throw new IndexOutOfRangeException(),
-            };
-        set
-        {
-            switch (i)
-            {
-                case 0:
-                    R = value;
-                    break;
-                case 1:
-                    G = value;
-                    break;
-                case 2:
-                    B = value;
-                    break;
-                case 3:
-                    A = value;
-                    break;
-                default:
-                    throw new IndexOutOfRangeException();
-            }
-        }
-    }
 
     /// <summary>Luminance using the standard Rec.601 weights.</summary>
     public float Grayscale => 0.299f * R + 0.587f * G + 0.114f * B;
@@ -89,6 +63,10 @@ public struct Color : IEquatable<Color>
         );
 
     /// <summary>Converts RGB to HSV.</summary>
+    /// <param name="rgbColor">Source color.</param>
+    /// <param name="h">Hue in [0, 1].</param>
+    /// <param name="s">Saturation in [0, 1].</param>
+    /// <param name="v">Value, i.e. the largest component.</param>
     public static void RGBToHSV(Color rgbColor, out float h, out float s, out float v)
     {
         if (rgbColor.B > rgbColor.G && rgbColor.B > rgbColor.R)
@@ -135,28 +113,46 @@ public struct Color : IEquatable<Color>
         }
     }
 
+    /// <summary>Converts HSV to RGB with HDR components allowed.</summary>
     public static Color HSVToRGB(float h, float s, float v) => HSVToRGB(h, s, v, true);
 
+    /// <summary>Converts HSV to RGB, optionally clamping the result into [0, 1].</summary>
+    /// <param name="h">Hue; any real value, wrapped into [0, 1) on entry (so 0 and 1 are the same hue).</param>
+    /// <param name="s">Saturation; usually 0..1, not clamped.</param>
+    /// <param name="v">Value; usually 0..1, not clamped.</param>
+    /// <param name="hdr">
+    /// When <c>false</c>, R/G/B are clamped to [0, 1]; when <c>true</c> the components are returned
+    /// unclamped.
+    /// </param>
+    /// <returns>The color; alpha is always 1.</returns>
+    /// <remarks>
+    /// The hue is wrapped with <c>h -= floor(h)</c> before the sector switch, so wrapping and
+    /// out-of-range hues map to a defined sector (e.g. <c>HSVToRGB(1, 1, 1)</c> is red, not black).
+    /// REV-014.
+    /// </remarks>
     public static Color HSVToRGB(float h, float s, float v, bool hdr)
     {
-        Color retval = White;
+        // Wrap the hue into [0, 1) so the 6-way sector switch is total.
+        h -= EngineMath.Floor(h);
+
+        float r = 0f,
+            g = 0f,
+            b = 0f;
+
         if (s == 0f)
         {
-            retval.R = v;
-            retval.G = v;
-            retval.B = v;
+            r = v;
+            g = v;
+            b = v;
         }
         else if (v == 0f)
         {
-            retval.R = 0f;
-            retval.G = 0f;
-            retval.B = 0f;
+            r = 0f;
+            g = 0f;
+            b = 0f;
         }
         else
         {
-            retval.R = 0f;
-            retval.G = 0f;
-            retval.B = 0f;
             float tS = s,
                 tV = v,
                 tH = h * 6f;
@@ -167,50 +163,74 @@ public struct Color : IEquatable<Color>
             switch (hi)
             {
                 case 0:
-                    retval.R = tV;
-                    retval.G = t3;
-                    retval.B = t1;
+                case 6: // h == 1 after wrapping keeps the same colour as h == 0
+                    r = tV;
+                    g = t3;
+                    b = t1;
                     break;
                 case 1:
-                    retval.R = t2;
-                    retval.G = tV;
-                    retval.B = t1;
+                    r = t2;
+                    g = tV;
+                    b = t1;
                     break;
                 case 2:
-                    retval.R = t1;
-                    retval.G = tV;
-                    retval.B = t3;
+                    r = t1;
+                    g = tV;
+                    b = t3;
                     break;
                 case 3:
-                    retval.R = t1;
-                    retval.G = t2;
-                    retval.B = tV;
+                    r = t1;
+                    g = t2;
+                    b = tV;
                     break;
                 case 4:
-                    retval.R = t3;
-                    retval.G = t1;
-                    retval.B = tV;
+                    r = t3;
+                    g = t1;
+                    b = tV;
                     break;
                 case 5:
-                    retval.R = tV;
-                    retval.G = t1;
-                    retval.B = t2;
+                    r = tV;
+                    g = t1;
+                    b = t2;
+                    break;
+                default:
+                    // Unreachable for finite h after wrapping; NaN/Infinity land on black.
                     break;
             }
         }
+
         if (!hdr)
         {
-            retval.R = EngineMath.Clamp01(retval.R);
-            retval.G = EngineMath.Clamp01(retval.G);
-            retval.B = EngineMath.Clamp01(retval.B);
-            retval.A = EngineMath.Clamp01(retval.A);
+            r = EngineMath.Clamp01(r);
+            g = EngineMath.Clamp01(g);
+            b = EngineMath.Clamp01(b);
         }
-        return retval;
+
+        return new Color(r, g, b, 1f);
     }
 
+    /// <summary>Implicit Color → Vector4 conversion (RGBA layout, no precision loss).</summary>
+    /// <remarks>Declared on the root side: <see cref="Vector4"/> lives in <c>SilkEngine.Mathematics</c>.</remarks>
     public static implicit operator Vector4(Color c) => new(c.R, c.G, c.B, c.A);
 
-    public static implicit operator Color(Vector4 v) => new(v.X, v.Y, v.Z, v.W);
+    /// <summary>Explicit Vector4 → Color conversion (the reverse direction is narrowing: no alpha default).</summary>
+    /// <remarks>Q9: the implicit reverse conversion was removed so overload resolution stays predictable.</remarks>
+    public static explicit operator Color(Vector4 v) => new(v.X, v.Y, v.Z, v.W);
+
+    /// <summary>Implicit Color32 → Color conversion (byte components widened to floats).</summary>
+    /// <remarks>Declared on the root side: <see cref="Color32"/> lives in <c>SilkEngine.Mathematics</c>.</remarks>
+    public static implicit operator Color(Color32 c) =>
+        new(c.R / 255f, c.G / 255f, c.B / 255f, c.A / 255f);
+
+    /// <summary>Explicit Color → Color32 conversion (quantises to 8 bits per channel).</summary>
+    /// <remarks>Q9: the quantisation point must be visible at the call site, so this is explicit.</remarks>
+    public static explicit operator Color32(Color c) =>
+        new(
+            Color32.ToByte(c.R * 255f),
+            Color32.ToByte(c.G * 255f),
+            Color32.ToByte(c.B * 255f),
+            Color32.ToByte(c.A * 255f)
+        );
 
     /// <summary>Component-wise addition (including alpha).</summary>
     public static Color operator +(Color a, Color b) =>
@@ -231,21 +251,4 @@ public struct Color : IEquatable<Color>
 
     public static Color operator /(Color a, float d) => new(a.R / d, a.G / d, a.B / d, a.A / d);
 
-    public static bool operator ==(Color lhs, Color rhs) =>
-        lhs.R == rhs.R && lhs.G == rhs.G && lhs.B == rhs.B && lhs.A == rhs.A;
-
-    public static bool operator !=(Color lhs, Color rhs) => !(lhs == rhs);
-
-    public bool Equals(Color other) => R == other.R && G == other.G && B == other.B && A == other.A;
-
-    public override bool Equals(object? obj) => obj is Color c && Equals(c);
-
-    public override int GetHashCode() => HashUtil.Of(R, G, B, A);
-
-    public override string ToString() => ToString(null, null);
-
-    public string ToString(string format) => ToString(format, null);
-
-    public string ToString(string? format, IFormatProvider? formatProvider) =>
-        FormatUtil.Format("RGBA", "F3", format, formatProvider, R, G, B, A);
 }

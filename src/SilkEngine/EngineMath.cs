@@ -1,4 +1,5 @@
 using System;
+using SilkEngine.Mathematics.Internal;
 
 namespace SilkEngine;
 
@@ -7,10 +8,25 @@ namespace SilkEngine;
 /// Angles are in degrees. Methods with a "Deg" suffix take/return degrees;
 /// all other trigonometric methods take/return radians.
 /// </summary>
+/// <remarks>
+/// <para>
+/// 预留 API（当前仓内无调用方，MATH-L-1）：以下成员保留 Unity 兼容面，仓内没有任何 EngineMath 成员引用，
+/// 删留由 API 策略决定而非「死代码」。实测口径 = 全仓（除本文件）按单词边界检索无引用：
+/// 方法 19 个 —— Pow、Ceil、CeilToInt、RoundToInt、Tan、Atan、SinDeg、CosDeg、TanDeg、AsinDeg、
+/// AcosDeg、AtanDeg、Atan2Deg、Exp、Log10、InverseLerp、SmoothStep、Repeat、PingPong；
+/// 常量 4 个 —— TwoPI、HalfPI、E、NegativeInfinity。
+/// </para>
+/// <para>
+/// 分层口径（MATH-Q-3 / REV-016）：SilkEngine.Mathematics 不得引用本类型，因此 Clamp01 与 kEpsilon
+/// 位于 Mathematics.Internal 的同一语义层；根侧与 Mathematics 侧的 Lerp/MoveTowards 语义统一
+/// （同样的夹取与零阈值），但实现按层各写一份，不追求「同一实现」。
+/// </para>
+/// </remarks>
 public static class EngineMath
 {
     /// <summary>Default tolerance for approximate float comparison.</summary>
-    public const float kEpsilon = 0.00001f;
+    /// <remarks>The value has a single definition in <see cref="Approx.kEpsilon"/> (lowest layer).</remarks>
+    public const float kEpsilon = Approx.kEpsilon;
 
     /// <summary>Tiny value used to compare "squared length near zero" without underflowing before sqrt.</summary>
     public const float kEpsilonNormalSqrt = 1e-15f;
@@ -40,16 +56,15 @@ public static class EngineMath
     public const float NegativeInfinity = float.NegativeInfinity;
 
     /// <summary>
-    /// Relative-tolerance approximate equality.
+    /// Relative-tolerance approximate equality — the one tolerance policy of the engine.
     /// Returns true when |a-b| is below a magnitude-scaled tolerance;
     /// large values get more slack, values near zero use the floor kEpsilon*8.
     /// </summary>
-    public static bool Approximately(float a, float b) =>
-        MathF.Abs(b - a)
-        < MathF.Max(kEpsilon * MathF.Max(MathF.Abs(a), MathF.Abs(b)), kEpsilon * 8f);
-
-    /// <summary>Absolute-tolerance approximate equality: |a-b| &lt; epsilon.</summary>
-    public static bool Approximately(float a, float b, float epsilon) => MathF.Abs(a - b) < epsilon;
+    /// <remarks>
+    /// Approximate comparison is opt-in: <c>operator ==</c> on math value types is exact.
+    /// The strict-greater tolerance floor means two identical values are always approximately equal.
+    /// </remarks>
+    public static bool Approximately(float a, float b) => Approx.Equal(a, b);
 
     /// <summary>Absolute value (float).</summary>
     public static float Abs(float v) => MathF.Abs(v);

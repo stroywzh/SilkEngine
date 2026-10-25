@@ -5,21 +5,76 @@ using SilkEngine.Core.LogSystem;
 
 namespace SilkEngine;
 
+/// <summary>Severity of a log record; larger values are more severe.</summary>
 public enum LogLevel : byte
 {
     Debug = 0,
     Info = 1,
-    Warn = 2,
+    Warning = 2,
     Error = 3,
-    Exception = 4,
 }
 
+/// <summary>
+/// The single logging facade. Every record goes through the installed <see cref="ILogSink"/>; the
+/// default sink writes to the console.
+/// </summary>
+/// <remarks>
+/// Gating has two independent switches: <see cref="MinLevel"/> (severity) and
+/// <see cref="Application.LogSetting"/>. There deliberately is no <c>Log.Enable(category)</c> API now.
+/// </remarks>
 public static class Log
 {
-    private static LogDriver _logger = new();
-    internal static LogLevel MinLevel { get; set; } = LogLevel.Debug;
+    private static ILogSink _sink = new ConsoleLogSink();
+    private static FileLogSink? _fileSink;
 
-    [Conditional("DEBUG")]
+    /// <summary>Minimum level that is written; records below it are dropped.</summary>
+    public static LogLevel MinLevel { get; set; } = LogLevel.Debug;
+
+    /// <summary>Replaces the log sink.</summary>
+    /// <param name="sink">New sink, or <c>null</c> to restore the default console sink.</param>
+    /// <remarks>The previous sink is flushed (best effort through its own implementation) before the swap.</remarks>
+    public static void SetSink(ILogSink? sink)
+    {
+        var next = sink ?? new ConsoleLogSink();
+        var previous = Interlocked.Exchange(ref _sink, next);
+        previous.Flush();
+    }
+
+    /// <summary>
+    /// Installs a file sink so records are also written to disk; returns the file receiving them.
+    /// <br/> Will create default Log directory if no other dir is in.
+    /// </summary>
+    /// <returns>Absolute path of the log file that receives new records.</returns>
+    /// <exception cref="ArgumentException"><paramref name="directory"/> is empty or whitespace.</exception>
+    public static string EnableFileLog(string? directory = null)
+    {
+        var path = string.IsNullOrEmpty(directory) ? LogPaths.GetLogPath() : directory!;
+        var sink = new FileLogSink(path);
+        var previous = Interlocked.Exchange(ref _fileSink, sink);
+
+        SetSink(sink);
+        previous?.Dispose();
+        return sink.LogFile;
+    }
+
+    /// <summary>Stops file logging: flushes and disposes the file sink and restores the console sink.</summary>
+    public static void DisableFileLog()
+    {
+        var previous = Interlocked.Exchange(ref _fileSink, null);
+        if (previous is null)
+            return;
+
+        SetSink(null);
+        previous.Dispose();
+    }
+
+    /// <summary>Flushes the installed sink (waits for buffered records to reach their destination).</summary>
+    public static void Flush() => Volatile.Read(ref _sink).Flush();
+
+    /*
+    * 下面的 API 不需要加入任何注释，内容也是约定的内容
+    *
+    */
     public static void Debug(
         object message,
         [CallerMemberName] string callerName = "",
@@ -42,7 +97,7 @@ public static class Log
         object message,
         [CallerMemberName] string callerName = "",
         [CallerFilePath] string callerFile = ""
-    ) => Write(LogLevel.Warn, message, callerName, callerFile);
+    ) => Write(LogLevel.Warning, message, callerName, callerFile);
 
     public static void Error(
         object message,
@@ -50,30 +105,22 @@ public static class Log
         [CallerFilePath] string callerFile = ""
     ) => Write(LogLevel.Error, message, callerName, callerFile);
 
-    /* this ver is not completed yet.
     public static void Exception(
-        Exception ex,
+        Exception exception,
         [CallerMemberName] string callerName = "",
         [CallerFilePath] string callerFile = ""
-    ) => StackTree(LogLevel.Exception, ex, callerName, callerFile);
-    */
+    ) => WriteWithException(LogLevel.Error, exception, callerName, callerFile);
 
-    public static void Exception(
-        object message,
-        [CallerMemberName] string callerName = "",
-        [CallerFilePath] string callerFile = ""
-    ) => StackTree(LogLevel.Exception, message, callerName, callerFile);
-
-    internal static void StackTree(
+    /// <summary>Formats an exception plus the calling stack and writes it at <paramref name="level"/>.</summary>
+    private static void WriteWithException(
         LogLevel level,
-        object message,
+        Exception exception,
         string callerName = "",
         string callerFile = ""
     )
     {
-        var st = new StackTrace(1, true);
-        var frames = st.GetFrames();
-        var sb = new StringBuilder(message?.ToString() ?? "null").AppendLine();
+        var sb = new StringBuilder(exception?.ToString() ?? "null").AppendLine();
+        var frames = new StackTrace(1, true).GetFrames();
         if (frames != null)
         {
             foreach (var f in frames)
@@ -90,10 +137,14 @@ public static class Log
         if (level < MinLevel)
             return;
 
-        string text = message?.ToString() ?? "null";
-        var now = DateTime.Now;
-        string line = $"[{now:HH:mm:ss.fff}]{callerName}: {text}\n{callerFile}";
+        var record = new LogRecord(
+            level,
+            message?.ToString() ?? "null",
+            callerName,
+            callerFile,
+            DateTime.Now
+        );
 
-        _logger.Record(line);
+        Volatile.Read(ref _sink).Write(in record);
     }
 }

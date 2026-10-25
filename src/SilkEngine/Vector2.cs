@@ -1,11 +1,21 @@
+using SilkEngine.Mathematics;
+using SilkEngine.Mathematics.Internal;
+
 namespace SilkEngine;
 
 /// <summary>
 /// A 2D vector (typically the X/Y plane).
 /// </summary>
-public struct Vector2 : IEquatable<Vector2>
+/// <remarks>
+/// Pure value type: <c>readonly struct</c> with <c>public readonly</c> components, no in-place
+/// mutators. <c>operator ==</c>, <see cref="Equals(Vector2)"/> and <see cref="GetHashCode"/> are
+/// exact and mutually consistent; use <see cref="Approximately(in Vector2, in Vector2)"/> when a
+/// tolerance is intended.
+/// </remarks>
+[MathValue("Vector2", "F3", "X", "Y")]
+public readonly partial struct Vector2 : IEquatable<Vector2>, IFormattable
 {
-    public float X,
+    public readonly float X,
         Y;
 
     public Vector2(float x, float y)
@@ -28,24 +38,16 @@ public struct Vector2 : IEquatable<Vector2>
     public static readonly Vector2 One = new(1f, 1f);
 
     /// <summary>
-    /// (0, 1f)
+    /// (1f, 0) — +X basis of the XY plane.
     /// </summary>
-    public static readonly Vector2 Up = new(0f, 1f);
+    /// <remarks>2D vectors use pure component names: the 2D plane is XY, so "up" here is +Y.</remarks>
+    public static readonly Vector2 UnitX = new(1f, 0f);
 
     /// <summary>
-    /// (0, -1f)
+    /// (0, 1f) — +Y basis of the XY plane.
     /// </summary>
-    public static readonly Vector2 Down = new(0f, -1f);
-
-    /// <summary>
-    /// (-1f, 0)
-    /// </summary>
-    public static readonly Vector2 Left = new(-1f, 0f);
-
-    /// <summary>
-    /// (1f, 0)
-    /// </summary>
-    public static readonly Vector2 Right = new(1f, 0f);
+    /// <remarks>Not the same axis as the 3D up (+Z); this is why the 3D names are not reused here.</remarks>
+    public static readonly Vector2 UnitY = new(0f, 1f);
 
     /// <summary>Length of this vector.</summary>
     public float magnitude => EngineMath.Sqrt(sqrMagnitude);
@@ -56,52 +58,19 @@ public struct Vector2 : IEquatable<Vector2>
     /// <summary>Returns a normalized copy of this vector.</summary>
     public Vector2 normalized => Normalize(this);
 
-    public float this[int i]
-    {
-        get =>
-            i switch
-            {
-                0 => X,
-                1 => Y,
-                _ => throw new IndexOutOfRangeException(),
-            };
-        set
-        {
-            if (i == 0)
-                X = value;
-            else if (i == 1)
-                Y = value;
-            else
-                throw new IndexOutOfRangeException();
-        }
-    }
-
     /// <summary>Returns a normalized copy of the given vector.</summary>
+    /// <param name="v">Vector to normalize.</param>
+    /// <remarks>Returns <see cref="Zero"/> when the length is at or below <see cref="EngineMath.kEpsilon"/>.</remarks>
     public static Vector2 Normalize(Vector2 v)
     {
-        v.Normalize();
-        return v;
+        float mag = v.magnitude;
+        if (mag <= EngineMath.kEpsilon)
+            return Zero;
+        float inv = 1f / mag;
+        return new Vector2(v.X * inv, v.Y * inv);
     }
 
-    /// <summary>Normalizes this vector in place.</summary>
-    public void Normalize()
-    {
-        float mag = magnitude;
-        if (mag > EngineMath.kEpsilon)
-        {
-            X /= mag;
-            Y /= mag;
-        }
-        else
-            this = Zero;
-    }
-
-    public void Scale(Vector2 scale)
-    {
-        X *= scale.X;
-        Y *= scale.Y;
-    }
-
+    /// <summary>Returns the component-wise product of two vectors.</summary>
     public static Vector2 Scale(Vector2 a, Vector2 b) => new(a.X * b.X, a.Y * b.Y);
 
     /// <summary>Dot product of two vectors.</summary>
@@ -110,10 +79,14 @@ public struct Vector2 : IEquatable<Vector2>
     /// <summary>Euclidean distance between two points.</summary>
     public static float Distance(Vector2 a, Vector2 b) => (a - b).magnitude;
 
-    /// <summary>Linearly interpolates between two vectors.</summary>
+    /// <summary>Linearly interpolates between two vectors, with t clamped to [0, 1].</summary>
+    /// <remarks>
+    /// REV-016 口径：与 Vector4.Lerp 语义统一（t 夹取到 [0,1]），实现各写一份 —— Mathematics 层不允许
+    /// 引用 <see cref="EngineMath"/>。
+    /// </remarks>
     public static Vector2 Lerp(Vector2 a, Vector2 b, float t)
     {
-        t = t < 0f ? 0f : (t > 1f ? 1f : t);
+        t = EngineMath.Clamp01(t);
         return new Vector2(a.X + (b.X - a.X) * t, a.Y + (b.Y - a.Y) * t);
     }
 
@@ -147,7 +120,7 @@ public struct Vector2 : IEquatable<Vector2>
     public static Vector2 Reflect(Vector2 inDirection, Vector2 inNormal) =>
         -2f * Dot(inNormal, inDirection) * inNormal + inDirection;
 
-    /// <summary>Returns the perpendicular of this vector (rotated 90° counter-clockwise).</summary>
+    /// <summary>Returns the perpendicular of a vector (rotated 90° counter-clockwise).</summary>
     public static Vector2 Perpendicular(Vector2 inDirection) => new(-inDirection.Y, inDirection.X);
 
     /// <summary>Angle in degrees between two vectors (0..180).</summary>
@@ -174,6 +147,13 @@ public struct Vector2 : IEquatable<Vector2>
     public static Vector2 Max(Vector2 a, Vector2 b) =>
         new(EngineMath.Max(a.X, b.X), EngineMath.Max(a.Y, b.Y));
 
+    /// <summary>
+    /// Approximate equality with the shared relative-tolerance policy
+    /// (see <see cref="EngineMath.Approximately(float, float)"/>).
+    /// </summary>
+    public static bool Approximately(in Vector2 a, in Vector2 b) =>
+        Approx.Equal(a.X, a.Y, b.X, b.Y);
+
     public static Vector2 operator +(Vector2 a, Vector2 b) => new(a.X + b.X, a.Y + b.Y);
 
     public static Vector2 operator -(Vector2 a, Vector2 b) => new(a.X - b.X, a.Y - b.Y);
@@ -186,22 +166,4 @@ public struct Vector2 : IEquatable<Vector2>
 
     public static Vector2 operator /(Vector2 a, float d) => new(a.X / d, a.Y / d);
 
-    public static bool operator ==(Vector2 lhs, Vector2 rhs) =>
-        ApproxEquals.Equal(lhs.X, lhs.Y, rhs.X, rhs.Y);
-
-    public static bool operator !=(Vector2 lhs, Vector2 rhs) => !(lhs == rhs);
-
-    public bool Equals(Vector2 other) => this == other;
-
-    public override bool Equals(object? other) => other is Vector2 v && this == v;
-
-    public override int GetHashCode() => HashUtil.Of(X, Y);
-
-    public override string ToString() => ToString(null, null);
-
-    public string ToString(string format) => ToString(format, null);
-
-    /// <summary>Formats the vector using an optional numeric format and culture, e.g. <c>v.ToString("F4")</c>.</summary>
-    public string ToString(string? format, IFormatProvider? formatProvider) =>
-        FormatUtil.Format("F2", format, formatProvider, X, Y);
 }

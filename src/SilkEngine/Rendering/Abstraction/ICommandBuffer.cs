@@ -5,8 +5,9 @@ namespace SilkEngine.Rendering.Abstraction;
 /// submission, return, execution, fault, or backend disposal.
 /// </summary>
 /// <remarks>
-/// Recording is command-agnostic: one command is an id plus the raw bytes of its struct. The buffer
-/// copies the payload, so the caller's span may die immediately after this call returns.
+/// Recording is command-agnostic—each command is an id plus the raw bytes of its struct, the buffer copies 
+/// the payload so the caller’s span may die immediately after the call returns, and it is single-threaded, 
+/// meaning a lease belongs to the thread that rented it from its backend and must be submitted/returned there, with no locking.
 /// </remarks>
 public interface ICommandBuffer
 {

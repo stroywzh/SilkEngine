@@ -2,14 +2,20 @@ using SilkEngine.Rendering.Abstraction;
 
 namespace SilkEngine.Rendering.BuiltIn;
 
-/// <summary>Explicit prototype target registration shared by the built-in pipeline and GL RHI.</summary>
-public static class BuiltInTargets
+/// <summary>
+/// Prototype target registration shared by the built-in pipeline and the GL device.
+/// </summary>
+/// <remarks>
+/// Internal : the ids are an implementation detail of the built-in pipeline, not a
+/// public contract. Typed handles carry <c>uint Id</c>.
+/// </remarks>
+internal static class BuiltInRenderTargets
 {
     /// <summary>
     /// Prototype window target. It is used directly as the GL framebuffer name, so 0 is the
     /// default framebuffer.
     /// </summary>
-    public const ushort Window = 0;
+    internal const uint Window = 0;
 }
 
 /// <summary>
@@ -20,14 +26,33 @@ public sealed class BuiltInPipeline : RenderPipelineBase
     private double _elapsedSeconds;
     private int _width;
     private int _height;
+    private BufferHandle _triangleBuffer;
+    private bool _triangleReady;
 
     public override string Name => "Built-In Pipeline";
 
-    protected override void OnInitialize() { }
+    //<intetrhoic/>
+    protected override void OnInitializeCore()
+    {
+        var device =
+            Backend.Device
+            ?? throw new InvalidOperationException($"{Name}: the backend has no device.");
 
-    /// <summary>Remembers the drawable size the render loop reported after a window resize.</summary>
-    /// <remarks>The render loop calls this on the render thread as soon as the host size changes, so
-    /// the next recorded frame already uses the new size.</remarks>
+        _triangleBuffer = DebugTriangle.Create(device);
+        _triangleReady = true;
+    }
+
+    //<intetrhoic/>
+    protected override void OnDisposeCore()
+    {
+        if (!_triangleReady)
+            return;
+
+        _triangleReady = false;
+        Backend.Device?.DestroyBuffer(_triangleBuffer);
+    }
+
+    //<intetrhoic/>
     protected override void OnResize(int width, int height)
     {
         _width = width;
@@ -39,23 +64,18 @@ public sealed class BuiltInPipeline : RenderPipelineBase
         }
     }
 
-    protected override void RecordCommands(ICommandBuffer commands, RenderContext context)
+    protected override void RecordCommands(ICommandBuffer commands, FrameContext context)
     {
         // One shared clock for every DEBUG consumer, advanced once per recorded frame.
-        _elapsedSeconds = (_elapsedSeconds + Time.UnscaledDeltaTime) % (EngineMath.PI * 2);
+        _elapsedSeconds = (_elapsedSeconds + Time.DeltaSeconds) % (EngineMath.PI * 2);
 
-        DEBUG_SetViewport(commands);
-        DEBUG_ClearColor(commands);
-        DEBUG_DrawTriangle(commands);
+        RecordDebugViewport(commands);
+        RecordDebugClearColor(commands);
+        RecordDebugTriangle(commands);
     }
 
-    /// <summary>
-    /// DEBUG ONLY: records a viewport that pulses between 50% and 100% of the drawable, centred,
-    /// driven by the same elapsed time as the clear color. Delete this method once Program supplies
-    /// its own command content.
-    /// </summary>
-    /// <param name="commands">Writable buffer for the current frame.</param>
-    public void DEBUG_SetViewport(ICommandBuffer commands)
+    //DEBUG_Only
+    private void RecordDebugViewport(ICommandBuffer commands)
     {
         if (_width <= 0 || _height <= 0)
             return;
@@ -70,15 +90,8 @@ public sealed class BuiltInPipeline : RenderPipelineBase
         commands.Record(in command);
     }
 
-    /// <summary>
-    /// DEBUG ONLY: stands in for business-provided recording. Delete this method once Program
-    /// supplies its own command content.
-    /// </summary>
-    /// <param name="commands">Writable buffer for the current frame.</param>
-    /// <remarks>
-    /// The target handle it passes is the "mapping data" business would provide later.
-    /// </remarks>
-    public void DEBUG_ClearColor(ICommandBuffer commands)
+    //DEBUG_Only
+    private void RecordDebugClearColor(ICommandBuffer commands)
     {
         float t = (float)_elapsedSeconds;
         var color = new Color(
@@ -88,19 +101,19 @@ public sealed class BuiltInPipeline : RenderPipelineBase
             255
         );
 
-        var command = new ClearColorCommand(new RenderTargetHandle(BuiltInTargets.Window), color);
+        var command = new ClearColorCommand(
+            new RenderTargetHandle(BuiltInRenderTargets.Window),
+            color
+        );
         commands.Record(in command);
     }
 
-    /// <summary>
-    /// DEBUG ONLY: draws the RHI's built-in triangle. Because it runs after the pulsing viewport
-    /// command, the triangle is the visible proof that the viewport animation reaches the device.
-    /// Delete this method once Program supplies its own command content.
-    /// </summary>
-    /// <param name="commands">Writable buffer for the current frame.</param>
-    public void DEBUG_DrawTriangle(ICommandBuffer commands)
+    //DEBUG_Only
+    private void RecordDebugTriangle(ICommandBuffer commands)
     {
-        var command = new DrawCommand(3, 0);
-        commands.Record(in command);
+        if (!_triangleReady)
+            return;
+
+        DebugTriangle.Record(commands, _triangleBuffer);
     }
 }

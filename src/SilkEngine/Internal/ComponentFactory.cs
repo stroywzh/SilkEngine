@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
 using System.Reflection;
+using SilkEngine.Scripting;
 
 namespace SilkEngine.Internal;
 
@@ -26,7 +27,7 @@ internal static class ComponentFactory<
 
     /// <summary>Creates a new <typeparamref name="T"/> bound to <paramref name="owner"/>.</summary>
     /// <param name="owner">Entity that will own the component.</param>
-    /// <returns>A new component instance whose <see cref="Component.gameObject"/> is <paramref name="owner"/>.</returns>
+    /// <returns>A new component instance whose <see cref="Component.GameObject"/> is <paramref name="owner"/>.</returns>
     /// <exception cref="InvalidOperationException">
     /// <typeparamref name="T"/> does not declare a public constructor taking a <see cref="GameObject"/>.
     /// </exception>

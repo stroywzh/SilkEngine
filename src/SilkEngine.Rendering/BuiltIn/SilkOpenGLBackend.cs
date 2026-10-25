@@ -3,32 +3,33 @@ using Silk.NET.OpenGL;
 using Silk.NET.Windowing;
 using SilkEngine.Rendering.Abstraction;
 
-namespace SilkEngine.Rendering.BuiltIn.Backend;
+namespace SilkEngine.Rendering.BuiltIn;
 
-/// <summary>Silk window owner and CPU command consumer, driven by one render thread.</summary>
-/// <remarks>Window/GL calls must stay on the owning render thread. The RHI built here owns device
-/// work, including presenting the frame; the backend only supplies it and pumps window events.</remarks>
-public sealed class SilkOpenGLBackend : RenderBackendBase, IRenderWindowHost
+/// <summary>Silk.NET window/context factory and CPU command consumer, driven by one render thread.</summary>
+/// <remarks>
+/// Window, GL context and presentation are owned by the device created in <see cref="CreateDevice"/>
+/// (C-06); the backend keeps only the factory and the command queue. Window events are pumped through
+/// the device, which is why this type no longer implements <see cref="IRenderWindowHost"/>.
+/// </remarks>
+public sealed class SilkOpenGLBackend : RenderBackendBase
 {
-    private IWindow? _window;
-    private GL? _gl;
-
+    /// <inheritdoc />
     public override string Name => "Silk.NET OpenGL";
-    public bool IsClosing => _window?.IsClosing ?? true;
 
-    public (int Width, int Height) FramebufferSize
-    {
-        get
-        {
-            if (_window is null)
-                return (0, 0);
+    // REN-N-01 override template (kept as a comment, not code): an implementation assembly that
+    // declares [RenderCommand] structs gets a populated RenderCommandTable; before the first command it
+    // gets an empty one, so this override always compiles:
+    //
+    //   protected override bool Dispatch(byte id, ReadOnlySpan<byte> payload, ref CommandContext ctx) =>
+    //       RenderCommandTable.TryDispatch(id, payload, ref ctx) || base.Dispatch(id, payload, ref ctx);
+    //
+    // Recording uses the generated assembly-local RenderCommandRecorder.Record(buffer, in command)
+    // (not an extension method, which would collide with the engine's extensions across assemblies).
 
-            var size = _window.FramebufferSize;
-            return (size.X, size.Y);
-        }
-    }
-
-    protected override void OnInitialize()
+    /// <summary>Creates the window, its GL context and the device that owns both.</summary>
+    /// <returns>The created device; the backend disposes it.</returns>
+    /// <exception cref="InvalidOperationException">The window has no GL context.</exception>
+    protected override IRenderDevice CreateDevice()
     {
         var options = WindowOptions.Default;
         options.Size = new Vector2D<int>(800, 600);
@@ -36,59 +37,26 @@ public sealed class SilkOpenGLBackend : RenderBackendBase, IRenderWindowHost
         options.ShouldSwapAutomatically = false;
         options.VSync = true;
 
-        _window = Window.Create(options);
-        _window.Initialize();
-        _window.GLContext!.MakeCurrent();
-        _gl = _window.CreateOpenGL();
-    }
-
-    protected override IRenderHardware CreateHardware() =>
-        new OpenGLHardware(_gl!, _window!.GLContext!);
-
-    /// <summary>Polls native events on the window-owning thread.</summary>
-    /// <exception cref="InvalidOperationException">Called on another thread or before initialization.</exception>
-    public void PumpEvents()
-    {
-        EnsureOwner();
-        (_window ?? throw new InvalidOperationException("Window is unavailable.")).DoEvents();
-    }
-
-    protected override void OnDisposeCore()
-    {
-        var errors = new List<Exception>();
-
-        void Cleanup(Action action)
+        var window = Window.Create(options);
+        try
         {
+            window.Initialize();
+            window.GLContext!.MakeCurrent();
+            var gl = window.CreateOpenGL();
             try
             {
-                action();
+                return new OpenGLDevice(window, gl);
             }
-            catch (Exception error)
+            catch
             {
-                errors.Add(error);
+                gl.Dispose();
+                throw;
             }
         }
-
-        var window = _window;
-        var gl = _gl;
-
-        if (gl is not null)
+        catch
         {
-            Cleanup(gl.Finish);
-            Cleanup(gl.Dispose);
+            window.Dispose();
+            throw;
         }
-
-        if (window is not null)
-        {
-            // A recording fault can leave prior GL work queued. Best-effort device cleanup must
-            // not depend on any public synchronization method accepting that state.
-            Cleanup(() => window.GLContext?.MakeCurrent());
-            Cleanup(window.Dispose);
-        }
-
-        _gl = null;
-        _window = null;
-        if (errors.Count > 0)
-            throw new AggregateException("GL cleanup failed.", errors);
     }
 }

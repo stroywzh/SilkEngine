@@ -2,19 +2,18 @@
 using SilkEngine;
 using SilkEngine.Rendering.Abstraction;
 using SilkEngine.Rendering.BuiltIn;
-using SilkEngine.Rendering.BuiltIn.Backend;
 using SilkEngine.Runtime;
 
 Application.RenderBackend = new SilkOpenGLBackend();
 Application.RenderPipeline = new BuiltInPipeline();
-var main = ThreadFactory.BuildMainThread();
+var main = ThreadFactory.StartMainThread();
 
 // IInputContext _input;
 // bool shouldClose = false;
 try
 {
     // 我操你大爷的，这个好像也得从头写一个胶水层
-    // SpinWait.SpinUntil(() => main.RuntimeStage == RuntimeStage.Running);
+    // SpinWait.SpinUntil(() => main.State == EngineThreadState.Running);
     // if (Application.RenderBackend is SilkOpenGLBackend skb)
     // {
     //     // Running is entered before Initialize, so the window may still be null here.
@@ -37,7 +36,7 @@ try
 }
 finally
 {
-    RuntimeRegistry.StopMainThread();
+    ThreadRegistry.StopMainThread();
     Log.Info("All stopped.");
 }
 

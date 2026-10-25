@@ -1,32 +1,41 @@
-namespace SilkEngine;
+namespace SilkEngine.Scripting;
 
 /// <summary>
 /// Base class for a behaviour carrier attached to an entity.
 /// </summary>
 /// <remarks>
-/// <para>Every hook is <c>protected internal virtual</c>. Override only what is needed; hooks that
-/// are not overridden are still invoked by the <see cref="GameObject"/> dispatch loop, which costs
-/// a negligible empty virtual call.</para>
-/// <para>All base implementations are empty, so overrides must not call <c>base.*</c>.</para>
+/// <para>Two layers. Layer A is the business surface: the eight Unity-like hooks
+/// (<see cref="Awake"/>, <see cref="Start"/>, <see cref="Update"/>, <see cref="LateUpdate"/>,
+/// <see cref="FixedUpdate"/>, <see cref="OnEnable"/>, <see cref="OnDisable"/>, <see cref="OnDestroy"/>),
+/// <c>protected virtual</c>, never called by user code.</para>
+/// <para>Only the engine calls method named as <c> bussiness name + "Internal"</c>, they migrate state first and 
+/// then invoke the business hook.</para>
+/// <para>All base implementations are empty, so overrides could not call <c>base.*</c>.</para>
 /// </remarks>
 public abstract class Component
 {
     private GameObject _gameObject;
     private bool _enabled = true;
+    private bool _destroyed;
 
-    protected Component(GameObject gameObject)
+    /// <summary>Creates a component bound to <paramref name="owner"/>.</summary>
+    /// <param name="owner">Entity that owns the component; must not be null.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="owner"/> is null.</exception>
+    protected Component(GameObject owner)
     {
-        ArgumentNullException.ThrowIfNull(gameObject);
-        _gameObject = gameObject;
+        ArgumentNullException.ThrowIfNull(owner);
+        _gameObject = owner;
     }
 
-    public GameObject gameObject => _gameObject;
+    /// <summary>The entity that owns this component.</summary>
+    public GameObject GameObject => _gameObject;
 
     /// <summary>Enable flag of this component.</summary>
     /// <remarks>
     /// <see cref="OnEnable"/> and <see cref="OnDisable"/> fire only when the value actually changes,
     /// the component is attached, and the owning entity is active in the hierarchy. Setting the flag
-    /// before attachment (for example inside the constructor) is a no-op.
+    /// on an inactive entity only changes the state (no callback). Components whose
+    /// <see cref="IsDisableAllowed"/> returns <c>false"/> keep this flag set.
     /// </remarks>
     public bool Enabled
     {
@@ -36,65 +45,172 @@ public abstract class Component
             if (_enabled == value)
                 return;
 
-            if (CanBeDisabled() && !value)
+            if (!IsDisableAllowed() && !value)
             {
                 Log.Debug("这个组件不允许被禁用");
                 return;
             }
 
-            _enabled = value;
-
-            // Unbound components have no effective state to switch; only attached ones dispatch.
-            if (_gameObject is null || !_gameObject.ActiveInHierarchy)
+            // Inactive hierarchy: the state still changes, but no lifecycle callback fires.
+            if (!_gameObject.ActiveInHierarchy)
+            {
+                _enabled = value;
                 return;
+            }
 
             if (value)
             {
-                OnEnable();
+                OnEnableInternal();
             }
             else
             {
-                OnDisable();
+                OnDisableInternal();
             }
         }
     }
 
+    /// <summary>Whether this component has already received its destroy notification.</summary>
+    /// <remarks>Once destroyed a component receives no further dispatch; the flag also makes
+    /// <see cref="OnDestroyInternal"/> idempotent when both detach and entity teardown reach it.</remarks>
+    internal bool IsDestroyed => _destroyed;
+
     /// <summary>Whether this component is enabled and its owner is active in the hierarchy.</summary>
-    /// <remarks>Returns <c>false</c> for an unbound component instead of throwing.</remarks>
-    public bool ActiveInHierarchy =>
-        _enabled && _gameObject is not null && _gameObject.ActiveInHierarchy;
+    /// <remarks>
+    /// The name is deliberately different from the hierarchy flag of <see cref="GameObject"/>: the
+    /// two members used to share one name while meaning different things. The owner is always present
+    /// (the constructor rejects <c>null</c>), so no unbound state exists to report (CORE-N-10).
+    /// </remarks>
+    public bool IsActiveAndEnabled => _enabled && _gameObject.ActiveInHierarchy;
 
     #region Hooks
 
     /// <summary>Called once when the component is attached if GameObject is active.</summary>
     /// <remarks>Attaching to an already created entity invokes it immediately.</remarks>
-    protected internal virtual void Awake() { }
+    protected virtual void Awake() { }
 
     /// <summary>Called once before the first dispatch of the owning entity.</summary>
-    protected internal virtual void Start() { }
+    protected virtual void Start() { }
 
     /// <summary>Called once per frame.</summary>
     /// <remarks>Use <see cref="FixedUpdate"/> for logic that must run on a fixed step.</remarks>
-    protected internal virtual void Update() { }
+    protected virtual void Update() { }
 
-    /// <summary>Called once per frame, after <see cref="Update"/>.</summary>
+    /// <summary>Called once per frame, after <see cref="Update"/> and after this frame's rendering.</summary>
     /// <remarks>Intended for logic that depends on final positions, such as camera follow.</remarks>
-    protected internal virtual void LateUpdate() { }
+    protected virtual void LateUpdate() { }
 
     /// <summary>Called on a fixed step; may run zero or several times per frame.</summary>
-    protected internal virtual void FixedUpdate() { }
+    protected virtual void FixedUpdate() { }
 
     /// <summary>Called when the effective active state changes from <c>false</c> to <c>true</c>.</summary>
-    protected internal virtual void OnEnable() { }
+    protected virtual void OnEnable() { }
 
     /// <summary>Called when the effective active state changes from <c>true</c> to <c>false</c>.</summary>
-    protected internal virtual void OnDisable() { }
+    protected virtual void OnDisable() { }
 
     /// <summary>Called when the component is detached or its owning entity is destroyed.</summary>
-    /// <remarks><see cref="gameObject"/> is still usable here.</remarks>
+    /// <remarks><see cref="GameObject"/> is still usable here.</remarks>
     protected internal virtual void OnDestroy() { }
 
-    protected virtual bool CanBeDisabled() => true;
+    /// <summary>
+    /// Whether <see cref="Enabled"/> may be set to <c>false</c>. Components that must stay enabled
+    /// (for example <see cref="Transform"/>) override this and return <c>false</c>.
+    /// </summary>
+    protected virtual bool IsDisableAllowed() => true;
+
+    #endregion
+
+    #region Internal notifications
+
+    /// <summary>Engine-only mount notification; runs <see cref="Awake"/>.</summary>
+    /// <remarks>Called by <see cref="GameObject.AddComponent{T}"/> right after attachment.</remarks>
+    internal void AwakeInternal() => Awake();
+
+    /// <summary>Engine-only first-dispatch notification; gated by <see cref="IsActiveAndEnabled"/>.</summary>
+    internal void StartInternal()
+    {
+        if (!IsActiveAndEnabled)
+            return;
+
+        Start();
+    }
+
+    /// <summary>Engine-only per-frame notification; gated by <see cref="IsActiveAndEnabled"/>.</summary>
+    internal void UpdateInternal()
+    {
+        if (!IsActiveAndEnabled)
+            return;
+
+        Update();
+    }
+
+    /// <summary>Engine-only late-frame notification; gated by <see cref="IsActiveAndEnabled"/>.</summary>
+    internal void LateUpdateInternal()
+    {
+        if (!IsActiveAndEnabled)
+            return;
+
+        LateUpdate();
+    }
+
+    /// <summary>Engine-only fixed-step notification; gated by <see cref="IsActiveAndEnabled"/>.</summary>
+    internal void FixedUpdateInternal()
+    {
+        if (!IsActiveAndEnabled)
+            return;
+
+        FixedUpdate();
+    }
+
+    /// <summary>Engine-only enable notification: migrates <see cref="Enabled"/> first, then runs the hook.</summary>
+    internal void OnEnableInternal()
+    {
+        _enabled = true;
+        OnEnable();
+    }
+
+    /// <summary>Engine-only disable notification: migrates <see cref="Enabled"/> first, then runs the hook.</summary>
+    internal void OnDisableInternal()
+    {
+        _enabled = false;
+        OnDisable();
+    }
+
+    /// <summary>Engine-only detach/destroy notification; runs <see cref="OnDestroy"/> once.</summary>
+    internal void OnDestroyInternal()
+    {
+        if (_destroyed)
+            return;
+
+        _destroyed = true;
+        OnDestroy();
+    }
+
+    /// <summary>
+    /// Engine-only hierarchy activation notification: the owner (or an ancestor) became active, so an
+    /// enabled component enters its enable state. <see cref="Enabled"/> is not modified, because the
+    /// component's own flag is independent of the hierarchy.
+    /// </summary>
+    internal void ActivateInternal()
+    {
+        if (!_enabled || _destroyed)
+            return;
+
+        OnEnable();
+    }
+
+    /// <summary>
+    /// Engine-only hierarchy deactivation notification: the owner (or an ancestor) became inactive.
+    /// <see cref="Enabled"/> is not modified; <see cref="OnDisable"/> fires only for enabled components,
+    /// mirroring the enable path.
+    /// </summary>
+    internal void DeactivateInternal()
+    {
+        if (!_enabled || _destroyed)
+            return;
+
+        OnDisable();
+    }
 
     #endregion
 }

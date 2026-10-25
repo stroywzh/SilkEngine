@@ -17,11 +17,11 @@ public readonly struct DrawCommand
     }
 }
 
-public static class DrawCommandExecutor
+internal static class DrawCommandExecutor
 {
     public static void Execute(ReadOnlySpan<byte> param, ref CommandContext ctx)
     {
         var cmd = MemoryMarshal.Read<DrawCommand>(param);
-        ctx.RHI.Draw(cmd.VertexCount, cmd.FirstVertex);
+        ctx.Device.Draw(cmd.VertexCount, cmd.FirstVertex);
     }
 }

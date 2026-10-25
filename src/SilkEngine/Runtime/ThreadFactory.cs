@@ -3,6 +3,7 @@ using SilkEngine.Runtime.Host;
 
 namespace SilkEngine.Runtime;
 
+/// <summary>Creates and starts engine-owned threads.</summary>
 public static class ThreadFactory
 {
     /// <summary>
@@ -31,30 +32,34 @@ public static class ThreadFactory
         };
     }
 
-    public static T RuntimeBuilder<T>()
-        where T : RuntimeBase, new()
+    /// <summary>Creates, registers and starts an engine thread of type <typeparamref name="T"/>.</summary>
+    /// <typeparam name="T">Concrete engine thread type.</typeparam>
+    /// <returns>The started thread.</returns>
+    public static T Start<T>()
+        where T : EngineThread, new()
     {
         var runtime = new T();
-        RuntimeRegistry.Register(runtime);
+        ThreadRegistry.Register(runtime);
         runtime.Start();
         return runtime;
     }
 
-    public static MainLoop BuildMainThread()
+    /// <summary>Creates, registers and starts the main loop.</summary>
+    /// <returns>The started main loop.</returns>
+    public static MainLoop StartMainThread()
     {
-        return RuntimeBuilder<MainLoop>();
+        return Start<MainLoop>();
     }
 
     /// <summary>Creates, registers and starts the render thread owned by a main loop.</summary>
     /// <param name="pipeline">Pipeline driven on the render thread; must not be initialized yet.</param>
     /// <param name="backend">Backend owner of the render thread; must not be initialized yet.</param>
-    /// <param name="device">Graphics device handed to the backend on the render thread.</param>
-    /// <returns>The started render runtime; the main loop owns it and must stop and dispose it.</returns>
+    /// <returns>The started render thread; the main loop owns it and must stop and dispose it.</returns>
     /// <exception cref="ArgumentNullException">A dependency is null.</exception>
-    internal static RenderLoop BuildRenderThread(IRenderPipeline pipeline, IRenderBackend backend)
+    internal static RenderThread StartRenderThread(IRenderPipeline pipeline, IRenderBackend backend)
     {
-        var runtime = new RenderLoop(pipeline, backend);
-        RuntimeRegistry.Register(runtime);
+        var runtime = new RenderThread(pipeline, backend);
+        ThreadRegistry.Register(runtime);
         runtime.Start();
         return runtime;
     }

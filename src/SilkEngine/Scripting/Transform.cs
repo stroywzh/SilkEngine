@@ -1,4 +1,6 @@
-namespace SilkEngine;
+using System.Collections.ObjectModel;
+
+namespace SilkEngine.Scripting;
 
 /// <summary>
 /// Spatial transform of an entity: local TRS, world space accessors and parent/child hierarchy.
@@ -7,18 +9,26 @@ public sealed class Transform : Component
 {
     private Transform? _parent;
     private readonly List<Transform> _children = new();
+    private readonly ReadOnlyCollection<Transform> _childrenView;
     private Vector3 _localPosition;
     private Quaternion _localRotation = Quaternion.Identity;
     private Vector3 _localScale = Vector3.One;
 
+    private Transform(GameObject go)
+        : base(go)
+    {
+        _childrenView = _children.AsReadOnly();
+    }
+
     /// <summary>Parent transform, or <c>null</c> when this transform sits at the root.</summary>
     public Transform? Parent => _parent;
 
-    /// <summary>Direct child transforms in attachment order.</summary>
-    public Transform[] Children => _children.ToArray();
-
-    private Transform(GameObject go)
-        : base(go) { }
+    /// <summary>Direct child transforms in attachment order, as a read-only live view.</summary>
+    /// <remarks>
+    /// The view reflects later re-parenting; it cannot be modified by callers. Changing the parent goes
+    /// through <see cref="SetParent"/>.
+    /// </remarks>
+    public IReadOnlyList<Transform> Children => _childrenView;
 
     /// <summary>Position relative to the parent. Equals the world position when the parent is <c>null</c>.</summary>
     public Vector3 LocalPosition
@@ -122,19 +132,17 @@ public sealed class Transform : Component
         return (position, rotation, scale);
     }
 
-    /// <summary>World space forward direction (+Z).</summary>
+    /// <summary>World space forward direction (+X, Unreal-style axes).</summary>
     public Vector3 Forward => Rotation * Vector3.Forward;
 
-    /// <summary>World space right direction (+X).</summary>
+    /// <summary>World space right direction (+Y, Unreal-style axes).</summary>
     public Vector3 Right => Rotation * Vector3.Right;
 
-    /// <summary>World space up direction (+Y).</summary>
+    /// <summary>World space up direction (+Z, Unreal-style axes).</summary>
     public Vector3 Up => Rotation * Vector3.Up;
 
-    protected internal override void OnDisable()
-    {
-        Enabled = true;
-    }
+    /// <summary>A transform can never be disabled; it stays active for the entity's lifetime.</summary>
+    protected override bool IsDisableAllowed() => false;
 
     /// <summary>Changes the parent while optionally preserving the world position and rotation.</summary>
     /// <param name="newParent">New parent; <c>null</c> moves the transform to the root.</param>
@@ -148,43 +156,54 @@ public sealed class Transform : Component
     /// </exception>
     public void SetParent(Transform? newParent, bool keepWorldPosition = true)
     {
-        throw new NotImplementedException();
-        // if (_parent == newParent)
-        //     return;
+        if (_parent == newParent)
+            return;
 
-        // for (Transform? p = newParent; p is not null; p = p._parent)
-        // {
-        //     if (p == this)
-        //         throw new InvalidOperationException(
-        //             "Transform.SetParent: the attachment would create a cycle."
-        //         );
-        // }
+        // Cycle check: walking up from the new parent must never reach this transform.
+        for (Transform? ancestor = newParent; ancestor is not null; ancestor = ancestor._parent)
+        {
+            if (ReferenceEquals(ancestor, this))
+            {
+                throw new InvalidOperationException(
+                    "Transform.SetParent: the attachment would create a cycle."
+                );
+            }
+        }
 
-        // Vector3 oldPos = default;
-        // Quaternion oldRot = default;
-        // if (keepWorldPosition)
-        // {
-        //     oldPos = Position;
-        //     oldRot = Rotation;
-        // }
+        Vector3 oldPosition = default;
+        Quaternion oldRotation = default;
+        if (keepWorldPosition)
+        {
+            oldPosition = Position;
+            oldRotation = Rotation;
+        }
 
-        // _parent?._children.Remove(this);
-        // _parent = newParent;
-        // newParent?._children.Add(this);
+        var wasActive = GameObject.ActiveInHierarchy;
 
-        // if (keepWorldPosition)
-        // {
-        //     Position = oldPos;
-        //     Rotation = oldRot;
-        // }
+        _parent?._children.Remove(this);
+        _parent = newParent;
+        newParent?._children.Add(this);
 
-        // // // Re-parenting may change the effective active state, so the subtree is refreshed.
-        // // gameObject.RefreshActivation(newParent?.gameObject?.ActiveInHierarchy ?? true);
+        if (keepWorldPosition)
+        {
+            Position = oldPosition;
+            Rotation = oldRotation;
+        }
+
+        var isActive = GameObject.ActiveInHierarchy;
+        if (wasActive != isActive)
+        {
+            // Re-parenting changed the effective active state of the whole moved subtree.
+            GameObject.ApplyActiveState(wasActive, isActive);
+        }
     }
 
     /// <summary>Points the world forward direction at a world space position.</summary>
     /// <param name="worldPosition">Target position.</param>
-    /// <param name="worldUp">Up reference used to remove the roll degree of freedom.</param>
+    /// <param name="worldUp">
+    /// Up reference used to remove the roll degree of freedom; +Z is the engine's up axis. When it is
+    /// (anti)parallel to the view direction, a fallback axis is chosen instead of throwing.
+    /// </param>
     /// <remarks>When the target is too close (near zero vector) the current rotation is kept.</remarks>
     public void LookAt(Vector3 worldPosition, Vector3 worldUp)
     {
@@ -197,7 +216,7 @@ public sealed class Transform : Component
         Rotation = Quaternion.LookRotation(dir, worldUp);
     }
 
-    /// <summary>Points the world forward direction at a world space position, using world +Y as up.</summary>
+    /// <summary>Points the world forward direction at a world space position, using world +Z as up.</summary>
     /// <param name="worldPosition">Target position.</param>
     /// <remarks>When the target is too close the current rotation is kept.</remarks>
     public void LookAt(Vector3 worldPosition) => LookAt(worldPosition, Vector3.Up);

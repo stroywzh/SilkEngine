@@ -1,12 +1,23 @@
+using SilkEngine.Mathematics;
+using SilkEngine.Mathematics.Internal;
+
 namespace SilkEngine;
 
 /// <summary>
 /// A unit quaternion used for representing 3D rotations.
 /// Axis convention matches Unreal: +X Forward, +Y Right, +Z Up.
 /// </summary>
-public struct Quaternion : IEquatable<Quaternion>, IFormattable
+/// <remarks>
+/// Pure value type: <c>readonly struct</c> with <c>public readonly</c> components, no in-place
+/// mutators. <c>operator ==</c>, <see cref="Equals(Quaternion)"/> and <see cref="GetHashCode"/> are
+/// exact and mutually consistent; use <see cref="Approximately(in Quaternion, in Quaternion)"/> when
+/// a tolerance is intended. <c>q</c> and <c>-q</c> are different values under that contract even
+/// though they represent the same rotation.
+/// </remarks>
+[MathValue("Quaternion", "F3", "X", "Y", "Z", "W")]
+public readonly partial struct Quaternion : IEquatable<Quaternion>, IFormattable
 {
-    public float X,
+    public readonly float X,
         Y,
         Z,
         W;
@@ -25,62 +36,20 @@ public struct Quaternion : IEquatable<Quaternion>, IFormattable
     /// </summary>
     public static readonly Quaternion Identity = new(0f, 0f, 0f, 1f);
 
-    public float this[int i]
-    {
-        get =>
-            i switch
-            {
-                0 => X,
-                1 => Y,
-                2 => Z,
-                3 => W,
-                _ => throw new IndexOutOfRangeException(),
-            };
-        set
-        {
-            switch (i)
-            {
-                case 0:
-                    X = value;
-                    break;
-                case 1:
-                    Y = value;
-                    break;
-                case 2:
-                    Z = value;
-                    break;
-                case 3:
-                    W = value;
-                    break;
-                default:
-                    throw new IndexOutOfRangeException();
-            }
-        }
-    }
-
     public float magnitude => EngineMath.Sqrt(sqrMagnitude);
     public float sqrMagnitude => X * X + Y * Y + Z * Z + W * W;
     public Quaternion normalized => Normalize(this);
 
-    public void Normalize()
-    {
-        float mag = magnitude;
-        if (mag < EngineMath.kEpsilon)
-        {
-            this = Identity;
-            return;
-        }
-        float inv = 1f / mag;
-        X *= inv;
-        Y *= inv;
-        Z *= inv;
-        W *= inv;
-    }
-
+    /// <summary>Returns a normalized copy of the given quaternion.</summary>
+    /// <param name="q">Quaternion to normalize.</param>
+    /// <remarks>Returns <see cref="Identity"/> when the magnitude is below <see cref="EngineMath.kEpsilon"/>.</remarks>
     public static Quaternion Normalize(Quaternion q)
     {
-        q.Normalize();
-        return q;
+        float mag = q.magnitude;
+        if (mag < EngineMath.kEpsilon)
+            return Identity;
+        float inv = 1f / mag;
+        return new Quaternion(q.X * inv, q.Y * inv, q.Z * inv, q.W * inv);
     }
 
     /// <summary>Returns the conjugate of this quaternion.</summary>
@@ -125,43 +94,53 @@ public struct Quaternion : IEquatable<Quaternion>, IFormattable
         axis = s < EngineMath.kEpsilon ? Vector3.Up : new Vector3(q.X / s, q.Y / s, q.Z / s);
     }
 
-    /// <summary>
-    /// Create a quaternion from a euler angel.
-    /// </summary>
-    public static Quaternion Euler(float pitchDeg, float yawDeg, float rollDeg) =>
-        FromMatrix(Matrix4x4.FromRotator(pitchDeg, yawDeg, rollDeg));
+    /// <summary>Creates a rotation from Euler angles, expressed as a <see cref="Rotator"/>.</summary>
+    /// <param name="rotator">Pitch/yaw/roll in degrees (Unreal sign convention).</param>
+    /// <returns>The equivalent rotation.</returns>
+    /// <remarks>Wraps <see cref="Rotator.ToQuaternion"/>; keeps the single conversion chain.</remarks>
+    public static Quaternion FromRotator(in Rotator rotator) => rotator.ToQuaternion();
 
-    /// <summary>
-    /// Return this quaternion as a eular angel.
-    /// </summary>
-    public Vector3 eulerAngles
+    /// <summary>Returns this rotation as Euler angles (pitch/yaw/roll in degrees).</summary>
+    /// <returns>The equivalent <see cref="Rotator"/>.</returns>
+    public Rotator ToRotator() => Rotator.FromQuaternion(this);
+
+    /// <summary>Builds a row-vector rotation matrix (v * M == q * v).</summary>
+    /// <returns>The rotation matrix.</returns>
+    /// <remarks>Inverse of <see cref="FromMatrix"/>.</remarks>
+    public Float4x4 ToMatrix()
     {
-        get
-        {
-            Matrix4x4 m = Matrix4x4.Rotate(this);
-            float sp = EngineMath.Clamp(m.M02, -1f, 1f);
-            float pitch = EngineMath.Asin(sp);
-            float cp = EngineMath.Cos(pitch);
+        float x = X,
+            y = Y,
+            z = Z,
+            w = W;
+        float xx = x * 2f * x,
+            yy = y * 2f * y,
+            zz = z * 2f * z;
+        float xy = x * 2f * y,
+            xz = x * 2f * z,
+            yz = y * 2f * z;
+        float wx = w * 2f * x,
+            wy = w * 2f * y,
+            wz = w * 2f * z;
 
-            float yaw,
-                roll;
-            if (cp > 1e-6f)
-            {
-                roll = EngineMath.Atan2(-m.M12, m.M22);
-                yaw = EngineMath.Atan2(m.M01, m.M00);
-            }
-            else
-            {
-                roll = 0f;
-                yaw = EngineMath.Atan2(-m.M10, m.M11);
-            }
-
-            return new Vector3(
-                pitch * EngineMath.Rad2Deg,
-                yaw * EngineMath.Rad2Deg,
-                roll * EngineMath.Rad2Deg
-            );
-        }
+        return new Float4x4(
+            1f - (yy + zz),
+            xy + wz,
+            xz - wy,
+            0f,
+            xy - wz,
+            1f - (xx + zz),
+            yz + wx,
+            0f,
+            xz + wy,
+            yz - wx,
+            1f - (xx + yy),
+            0f,
+            0f,
+            0f,
+            0f,
+            1f
+        );
     }
 
     /// <summary>
@@ -182,7 +161,7 @@ public struct Quaternion : IEquatable<Quaternion>, IFormattable
         y = Vector3.Normalize(y);
         z = Vector3.Cross(x, y);
 
-        Matrix4x4 m = new Matrix4x4(
+        Float4x4 m = new Float4x4(
             x.X,
             x.Y,
             x.Z,
@@ -227,10 +206,10 @@ public struct Quaternion : IEquatable<Quaternion>, IFormattable
     }
 
     /// <summary>
-    /// Extracts a quaternion from a row-vector matrix (as used by <see cref="Matrix4x4"/>),
-    /// where v * M == q * v. Inverse of <see cref="Matrix4x4.Rotate"/>.
+    /// Extracts a quaternion from a row-vector matrix (as produced by <see cref="ToMatrix"/>),
+    /// where v * M == q * v.
     /// </summary>
-    public static Quaternion FromMatrix(Matrix4x4 m)
+    public static Quaternion FromMatrix(in Float4x4 m)
     {
         float trace = m.M00 + m.M11 + m.M22;
 
@@ -373,22 +352,11 @@ public struct Quaternion : IEquatable<Quaternion>, IFormattable
         );
     }
 
-    public static bool operator ==(Quaternion lhs, Quaternion rhs) =>
-        ApproxEquals.Equal(lhs.X, lhs.Y, lhs.Z, lhs.W, rhs.X, rhs.Y, rhs.Z, rhs.W);
+    /// <summary>
+    /// Approximate equality with the shared relative-tolerance policy
+    /// (see <see cref="EngineMath.Approximately(float, float)"/>).
+    /// </summary>
+    public static bool Approximately(in Quaternion a, in Quaternion b) =>
+        Approx.Equal(a.X, a.Y, a.Z, a.W, b.X, b.Y, b.Z, b.W);
 
-    public static bool operator !=(Quaternion lhs, Quaternion rhs) => !(lhs == rhs);
-
-    public override int GetHashCode() => HashUtil.Of(X, Y, Z, W);
-
-    public bool Equals(Quaternion other) =>
-        X == other.X && Y == other.Y && Z == other.Z && W == other.W;
-
-    public override bool Equals(object? obj) => obj is Quaternion q && Equals(q);
-
-    public override string ToString() => ToString(null, null);
-
-    public string ToString(string format) => ToString(format, null);
-
-    public string ToString(string? format, IFormatProvider? formatProvider) =>
-        FormatUtil.Format("F3", format, formatProvider, X, Y, Z, W);
 }

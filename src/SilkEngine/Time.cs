@@ -10,42 +10,41 @@ namespace SilkEngine;
 /// </remarks>
 public static class Time
 {
-    private static long _unscaledDeltaBits;
-    private static ulong _frameCountBits;
+    private static long _deltaSecondsBits;
+    private static ulong _frameIndexBits;
 
     /// <summary>
     /// Gets the duration of the previous completed whole frame in seconds; zero before the first
     /// completed frame. A frame counts as completed even when its render pass failed.
     /// </summary>
-    public static double UnscaledDeltaTime =>
-        BitConverter.Int64BitsToDouble(Volatile.Read(ref _unscaledDeltaBits));
+    public static double DeltaSeconds =>
+        BitConverter.Int64BitsToDouble(Volatile.Read(ref _deltaSecondsBits));
 
     /// <summary>
-    /// Gets the 1-based number of the frame currently being processed; zero before the first frame.
+    /// Gets the 1-based index of the frame currently being processed; zero before the first frame.
     /// </summary>
-    /// <remarks>Matches <see cref="Rendering.RenderContext.FrameId"/> of the frame published after
-    /// this value is read.</remarks>
-    public static ulong FrameCount => (ulong)Volatile.Read(ref _frameCountBits);
+    /// <remarks>
+    /// The value announced here is snapshotted by the render thread when it publishes the next frame,
+    /// so it describes the frame published <em>after</em> this read.
+    /// </remarks>
+    public static ulong FrameIndex => (ulong)Volatile.Read(ref _frameIndexBits);
 
     /// <summary>Publishes the values for the frame that is about to be updated.</summary>
-    /// <param name="frameCount">1-based id of the frame being processed.</param>
-    /// <param name="unscaledDeltaSeconds">Duration of the previous completed frame, in seconds.</param>
+    /// <param name="frameIndex">1-based index of the frame being processed (same name as the property).</param>
+    /// <param name="deltaSeconds">Duration of the previous completed frame, in seconds.</param>
     /// <exception cref="ArgumentOutOfRangeException">The delta is negative or not finite.</exception>
-    internal static void BeginFrame(ulong frameCount, double unscaledDeltaSeconds)
+    internal static void BeginFrame(ulong frameIndex, double deltaSeconds)
     {
-        if (!double.IsFinite(unscaledDeltaSeconds) || unscaledDeltaSeconds < 0)
-            throw new ArgumentOutOfRangeException(nameof(unscaledDeltaSeconds));
-        Volatile.Write(ref _frameCountBits, frameCount);
-        Volatile.Write(
-            ref _unscaledDeltaBits,
-            BitConverter.DoubleToInt64Bits(unscaledDeltaSeconds)
-        );
+        if (!double.IsFinite(deltaSeconds) || deltaSeconds < 0)
+            throw new ArgumentOutOfRangeException(nameof(deltaSeconds));
+        Volatile.Write(ref _frameIndexBits, frameIndex);
+        Volatile.Write(ref _deltaSecondsBits, BitConverter.DoubleToInt64Bits(deltaSeconds));
     }
 
     /// <summary>Clears the facade when a host starts, so no frame is reported as processed yet.</summary>
     internal static void Reset()
     {
-        Volatile.Write(ref _unscaledDeltaBits, 0L);
-        Volatile.Write(ref _frameCountBits, 0L);
+        Volatile.Write(ref _deltaSecondsBits, 0L);
+        Volatile.Write(ref _frameIndexBits, 0L);
     }
 }

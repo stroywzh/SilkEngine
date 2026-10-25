@@ -20,11 +20,14 @@ public interface IRenderPipeline : IDisposable
     /// <exception cref="ObjectDisposedException">The pipeline was disposed.</exception>
     void Resize(int width, int height);
 
-    /// <summary>Records and submits one frame; empty frames return their buffer without submitting.</summary>
+    /// <summary>Records one frame and submits the resulting buffer when it is non-empty.</summary>
+    /// <param name="context">Read-only snapshot of the frame being recorded.</param>
     /// <exception cref="InvalidOperationException">The pipeline is unavailable or a callback is active.</exception>
     /// <exception cref="ObjectDisposedException">The pipeline was disposed.</exception>
-    /// <remarks>Recording/backend failures propagate. Does not call ExecuteRender or wait for the GPU.
-    /// Dispose is idempotent but must not be called from an active lifecycle hook.</remarks>
-    void RenderFrame(RenderContext ctx);
+    /// <remarks>
+    /// Recording only: this method never executes or presents. Recording/backend failures propagate.
+    /// Empty frames return their buffer without submitting. Dispose is idempotent but must not be
+    /// called from an active lifecycle hook.
+    /// </remarks>
+    void RecordFrame(in FrameContext context);
 }
-

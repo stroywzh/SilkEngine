@@ -1,13 +1,26 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+
+    <!-- REN-N-01: the backend assembly now hosts generated command code (its own table/recorder);
+         emit it under obj/generated so the "declare a command in a backend" path stays inspectable. -->
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <CompilerGeneratedFilesOutputPath>$(BaseIntermediateOutputPath)generated</CompilerGeneratedFilesOutputPath>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\SilkEngine\SilkEngine.csproj" />
+  </ItemGroup>
+
+  <!-- PR-A: the same analyzer assembly is attached to both runtime projects. Generators must emit
+       no files and report no diagnostics when their inputs are absent (B6). -->
+  <ItemGroup>
+    <ProjectReference Include="..\SilkEngine.SourceGen\SilkEngine.SourceGen.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>

@@ -11,19 +11,14 @@ namespace SilkEngine.Rendering;
 /// member must be called from that thread; calls from any other thread throw
 /// <see cref="InvalidOperationException"/>. There is no locking on the render path.
 /// </remarks>
-public abstract class RenderPipelineBase : IRenderPipeline
+public abstract class RenderPipelineBase : RenderLifecycleBase, IRenderPipeline
 {
     private IRenderBackend? _backend;
     private PipelineState _state;
-    private bool _coreDisposed;
-    private int _ownerThread;
-
-    /// <inheritdoc />
-    public virtual string Name => GetType().Name;
 
     /// <summary>Gets the backend supplied to <see cref="Initialize"/>.</summary>
     protected IRenderBackend Backend =>
-        _backend ?? throw new InvalidOperationException("Pipeline is not initialized.");
+        _backend ?? throw new InvalidOperationException($"{Name} is not initialized.");
 
     /// <inheritdoc />
     public void Initialize(IRenderBackend backend)
@@ -32,39 +27,21 @@ public abstract class RenderPipelineBase : IRenderPipeline
         EnsureOwner();
 
         if (_state == PipelineState.Disposed)
-            throw new ObjectDisposedException(GetType().Name);
+            throw new ObjectDisposedException(Name);
+        if (_state == PipelineState.Faulted)
+            throw new InvalidOperationException($"{Name} is faulted.");
         if (_state != PipelineState.Created)
-            throw new InvalidOperationException("Pipeline has already been initialized.");
+            throw new InvalidOperationException($"{Name} has already been initialized.");
 
-        _ownerThread = Environment.CurrentManagedThreadId;
         _backend = backend;
+        CaptureOwnerThread();
         _state = PipelineState.Initializing;
-        try
-        {
-            OnInitialize();
-            _state = PipelineState.Initialized;
-        }
-        catch (Exception error)
-        {
-            _state = PipelineState.Faulted;
-            try
-            {
-                DisposeCoreOnce();
-            }
-            catch (Exception cleanupError)
-            {
-                throw new AggregateException(
-                    "Pipeline initialization and cleanup failed.",
-                    error,
-                    cleanupError
-                );
-            }
-            throw;
-        }
+        RunInitializeCore(onFaulted: () => _state = PipelineState.Faulted, core: OnInitializeCore);
+        _state = PipelineState.Initialized;
     }
 
     /// <inheritdoc />
-    public void RenderFrame(RenderContext ctx)
+    public void RecordFrame(in FrameContext context)
     {
         EnsureOwner();
         EnsureInitialized();
@@ -76,7 +53,7 @@ public abstract class RenderPipelineBase : IRenderPipeline
             var submitted = false;
             try
             {
-                RecordCommands(buffer, ctx);
+                RecordCommands(buffer, context);
                 if (buffer.CommandsCount > 0)
                 {
                     Backend.Submit(buffer);
@@ -136,7 +113,7 @@ public abstract class RenderPipelineBase : IRenderPipeline
     }
 
     /// <inheritdoc />
-    public void Dispose()
+    public override void Dispose()
     {
         EnsureOwner();
 
@@ -149,7 +126,7 @@ public abstract class RenderPipelineBase : IRenderPipeline
                 or PipelineState.Resizing
         )
             throw new InvalidOperationException(
-                "Cannot dispose from an active pipeline callback."
+                $"Cannot dispose {Name} from an active pipeline callback."
             );
 
         _state = PipelineState.Disposed;
@@ -164,48 +141,22 @@ public abstract class RenderPipelineBase : IRenderPipeline
     }
 
     /// <summary>Initializes pipeline-owned resources after the backend is assigned.</summary>
-    protected abstract void OnInitialize();
+    protected abstract void OnInitializeCore();
 
     /// <summary>Records semantic commands for one frame.</summary>
-    protected abstract void RecordCommands(ICommandBuffer commands, RenderContext ctx);
+    protected abstract void RecordCommands(ICommandBuffer commands, FrameContext context);
 
     /// <summary>Handles a drawable size change; default does nothing.</summary>
     protected virtual void OnResize(int width, int height) { }
 
-    /// <summary>Releases pipeline resources; must tolerate partial initialization and runs at most once.</summary>
-    protected virtual void DisposeCore() { }
-
-    /// <summary>Throws unless the caller is the thread that initialized this pipeline.</summary>
-    /// <remarks>Skips the check before the first <see cref="Initialize"/>, so <see cref="Dispose"/>
-    /// stays available for an object that was never initialized.</remarks>
-    /// <exception cref="InvalidOperationException">Called from a thread other than the owner.</exception>
-    protected void EnsureOwner()
-    {
-        var owner = _ownerThread;
-        if (owner == 0 || owner == Environment.CurrentManagedThreadId)
-            return;
-
-        throw new InvalidOperationException(
-            $"Pipeline is owned by thread {owner}; call it from that thread only."
-        );
-    }
-
-    private void DisposeCoreOnce()
-    {
-        if (_coreDisposed)
-            return;
-        _coreDisposed = true;
-        DisposeCore();
-    }
-
     private void EnsureInitialized()
     {
         if (_state == PipelineState.Disposed)
-            throw new ObjectDisposedException(GetType().Name);
+            throw new ObjectDisposedException(Name);
         if (_state == PipelineState.Faulted)
-            throw new InvalidOperationException("Pipeline is faulted.");
+            throw new InvalidOperationException($"{Name} is faulted.");
         if (_state != PipelineState.Initialized)
-            throw new InvalidOperationException("Pipeline is not initialized.");
+            throw new InvalidOperationException($"{Name} is not initialized.");
     }
 
     private enum PipelineState : byte
