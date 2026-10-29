@@ -14,23 +14,23 @@ internal static class RenderCommandTable
     {
         switch (id)
         {
-            case 0:
-                global::SilkEngine.Rendering.ClearCommandExecutor.Execute(payload, ref ctx);
-                return true;
-            case 1:
+            case 30:
                 global::SilkEngine.Rendering.SetViewportExecutor.Execute(payload, ref ctx);
                 return true;
-            case 2:
-                global::SilkEngine.Rendering.DrawCommandExecutor.Execute(payload, ref ctx);
-                return true;
-            case 3:
+            case 40:
                 global::SilkEngine.Rendering.BindVertexBufferExecutor.Execute(payload, ref ctx);
                 return true;
-            case 4:
+            case 41:
                 global::SilkEngine.Rendering.BindIndexBufferExecutor.Execute(payload, ref ctx);
                 return true;
-            case 5:
+            case 43:
                 global::SilkEngine.Rendering.BindTextureExecutor.Execute(payload, ref ctx);
+                return true;
+            case 50:
+                global::SilkEngine.Rendering.DrawCommandExecutor.Execute(payload, ref ctx);
+                return true;
+            case 74:
+                global::SilkEngine.Rendering.ClearColorCommandExecutor.Execute(payload, ref ctx);
                 return true;
             default:
                 return false;

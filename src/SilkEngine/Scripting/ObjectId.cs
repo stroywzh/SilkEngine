@@ -7,10 +7,6 @@ namespace SilkEngine;
 /// Identity of an engine object: a 32-bit slot index (low half) plus a 32-bit generation counter
 /// (high half). The generation invalidates handles of recycled slots.
 /// </summary>
-/// <remarks>
-/// The value is stored inline (<c>ulong</c>) and does not use <c>Handle&lt;T&gt;</c>; the payload is
-/// therefore exactly 8 bytes and independent of the resource-handle layer (C-02).
-/// </remarks>
 public readonly struct ObjectId : IEquatable<ObjectId>
 {
     private readonly ulong _value;

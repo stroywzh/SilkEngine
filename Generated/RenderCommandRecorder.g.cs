@@ -5,44 +5,44 @@ namespace SilkEngine.Rendering;
 /// <summary>Assembly-local recording helpers for [RenderCommand] structs (REN-N-01).</summary>
 internal static class RenderCommandRecorder
 {
-    public static void Record(global::SilkEngine.Rendering.Abstraction.ICommandBuffer buffer, in global::SilkEngine.Rendering.ClearColorCommand command)
-    {
-        buffer.Record(0,
-            global::System.Runtime.InteropServices.MemoryMarshal.AsBytes(
-                global::System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(
-                    ref global::System.Runtime.CompilerServices.Unsafe.AsRef(in command), 1)));
-    }
     public static void Record(global::SilkEngine.Rendering.Abstraction.ICommandBuffer buffer, in global::SilkEngine.Rendering.SetViewportCommand command)
     {
-        buffer.Record(1,
-            global::System.Runtime.InteropServices.MemoryMarshal.AsBytes(
-                global::System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(
-                    ref global::System.Runtime.CompilerServices.Unsafe.AsRef(in command), 1)));
-    }
-    public static void Record(global::SilkEngine.Rendering.Abstraction.ICommandBuffer buffer, in global::SilkEngine.Rendering.DrawCommand command)
-    {
-        buffer.Record(2,
+        buffer.Record(30,
             global::System.Runtime.InteropServices.MemoryMarshal.AsBytes(
                 global::System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(
                     ref global::System.Runtime.CompilerServices.Unsafe.AsRef(in command), 1)));
     }
     public static void Record(global::SilkEngine.Rendering.Abstraction.ICommandBuffer buffer, in global::SilkEngine.Rendering.BindVertexBufferCommand command)
     {
-        buffer.Record(3,
+        buffer.Record(40,
             global::System.Runtime.InteropServices.MemoryMarshal.AsBytes(
                 global::System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(
                     ref global::System.Runtime.CompilerServices.Unsafe.AsRef(in command), 1)));
     }
     public static void Record(global::SilkEngine.Rendering.Abstraction.ICommandBuffer buffer, in global::SilkEngine.Rendering.BindIndexBufferCommand command)
     {
-        buffer.Record(4,
+        buffer.Record(41,
             global::System.Runtime.InteropServices.MemoryMarshal.AsBytes(
                 global::System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(
                     ref global::System.Runtime.CompilerServices.Unsafe.AsRef(in command), 1)));
     }
     public static void Record(global::SilkEngine.Rendering.Abstraction.ICommandBuffer buffer, in global::SilkEngine.Rendering.BindTextureCommand command)
     {
-        buffer.Record(5,
+        buffer.Record(43,
+            global::System.Runtime.InteropServices.MemoryMarshal.AsBytes(
+                global::System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(
+                    ref global::System.Runtime.CompilerServices.Unsafe.AsRef(in command), 1)));
+    }
+    public static void Record(global::SilkEngine.Rendering.Abstraction.ICommandBuffer buffer, in global::SilkEngine.Rendering.DrawCommand command)
+    {
+        buffer.Record(50,
+            global::System.Runtime.InteropServices.MemoryMarshal.AsBytes(
+                global::System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(
+                    ref global::System.Runtime.CompilerServices.Unsafe.AsRef(in command), 1)));
+    }
+    public static void Record(global::SilkEngine.Rendering.Abstraction.ICommandBuffer buffer, in global::SilkEngine.Rendering.ClearColorCommand command)
+    {
+        buffer.Record(74,
             global::System.Runtime.InteropServices.MemoryMarshal.AsBytes(
                 global::System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(
                     ref global::System.Runtime.CompilerServices.Unsafe.AsRef(in command), 1)));

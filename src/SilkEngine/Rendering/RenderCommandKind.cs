@@ -3,21 +3,53 @@ namespace SilkEngine.Rendering;
 /// <summary>Identifies the semantic operation stored in a recorded command payload.</summary>
 public enum RenderCommandKind : byte
 {
-    /// <summary>Clears a render target to a color.</summary>
-    ClearColor = 0,
+    // —— 管线与资源绑定 ——
+    SetPipeline = 10,
+    SetBindGroup = 11,
+    SetPushConstants = 12,
+    SetShaderKeyword = 13,
 
-    /// <summary>Sets the viewport rectangle.</summary>
-    SetViewport = 1,
+    // —— 渲染通道 ——
+    BeginRenderPass = 20,
+    EndRenderPass = 21,
+    NextSubpass = 22,
+    SetRenderTargets = 23, // 用于非 RenderPass 风格的 API
 
-    /// <summary>Draws a range of vertices from the currently bound geometry.</summary>
-    Draw = 2,
+    // —— 视口与裁剪 ——
+    SetViewport = 30,
+    SetScissorRect = 31,
 
-    /// <summary>Binds a vertex buffer with a stride.</summary>
-    BindVertexBuffer = 3,
+    // —— 几何绑定 ——
+    BindVertexBuffer = 40,
+    BindIndexBuffer = 41,
+    BindUnorderedAccessView = 42,
+    BindTexture = 43,
 
-    /// <summary>Binds an index buffer with an element format.</summary>
-    BindIndexBuffer = 4,
+    // —— 绘制（光栅化）——
+    Draw = 50,
+    DrawIndexed = 51,
+    DrawInstanced = 52,
+    DrawIndexedInstanced = 53,
+    DrawIndexedIndirect = 54,
+    DrawIndexedIndirectCount = 55,
 
-    /// <summary>Binds a texture to a texture slot.</summary>
-    BindTexture = 5,
+    // —— 计算 ——
+    Dispatch = 60,
+    DispatchIndirect = 61,
+
+    // —— 传输与清除 ——
+    CopyBuffer = 70,
+    CopyBufferToTexture = 71,
+    CopyTextureToBuffer = 72,
+    CopyTexture = 73,
+    ClearColor = 74,
+    ClearDepthStencil = 75,
+    ClearUnorderedAccessView = 76,
+
+    // —— 同步与屏障 ——
+    ResourceBarrier = 80,
+    UAVBarrier = 81,
+    GPUFence = 82,
+    WaitOnGPUFence = 83,
+
 }

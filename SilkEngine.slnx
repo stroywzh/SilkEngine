@@ -9,9 +9,5 @@
     <Folder Name="/src/SilkEngine/Runtime/">
         <Project Path="src/SilkEngine/SilkEngine.csproj" />
     </Folder>
-    <Folder Name="/tests/">
-        <Project Path="tests/SilkEngine.Rendering.Tests/SilkEngine.Rendering.Tests.csproj" />
-        <Project Path="tests/SilkEngine.Verify/SilkEngine.Verify.csproj" />
-        <Project Path="tests/SilkEngine.Verify.Rendering/SilkEngine.Verify.Rendering.csproj" />
-     </Folder>
+    <Folder Name="/tests/" />
 </Solution>
