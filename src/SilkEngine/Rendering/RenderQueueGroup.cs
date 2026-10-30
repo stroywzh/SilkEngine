@@ -3,10 +3,6 @@ using System.Runtime.CompilerServices;
 namespace SilkEngine.Rendering;
 
 /// <summary>Queue buckets packed into the render-item sort key.</summary>
-/// <remarks>
-/// Values live in the 16-bit queue space and are ordered: a larger value draws later. They are part of
-/// the packed sort key, so renumbering a member reorders existing recordings.
-/// </remarks>
 public enum RenderQueueGroup : ushort
 {
     /// <summary>Background geometry (1000): drawn before everything else.</summary>
@@ -25,14 +21,10 @@ public enum RenderQueueGroup : ushort
     Overlay = 4000,
 }
 
-/// <summary>
-/// Single source of the transparent-queue threshold. Internal because the CPU sorting queue that
-/// consumes it is not public yet; the predicate must not be duplicated per consumer.
-/// </summary>
+/// <summary>Single source of the transparent-queue threshold.</summary>
 internal static class RenderQueueGroupExtensions
 {
     /// <summary>Whether <paramref name="queue"/> belongs to the transparent range.</summary>
-    /// <param name="queue">Queue value in the 16-bit queue space.</param>
     internal static bool IsTransparent(this ushort queue) =>
         queue >= (ushort)RenderQueueGroup.Transparent;
 }

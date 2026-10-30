@@ -2,19 +2,12 @@ using SilkEngine.Rendering.Abstraction;
 
 namespace SilkEngine.Rendering;
 
-/// <summary>
-/// Rents one buffer per frame, records semantic commands, submits non-empty buffers, and returns
-/// buffers on empty, recording-failure, and submit-failure paths.
-/// </summary>
-/// <remarks>
-/// Thread affinity: <see cref="Initialize"/> captures the calling thread as the owner. Every other
-/// member must be called from that thread; calls from any other thread throw
-/// <see cref="InvalidOperationException"/>. There is no locking on the render path.
-/// </remarks>
+/// <summary>Rents one buffer per frame, records commands and submits non-empty buffers.</summary>
 public abstract class RenderPipelineBase : RenderLifecycleBase, IRenderPipeline
 {
     private IRenderBackend? _backend;
     private PipelineState _state;
+
 
     /// <summary>Gets the backend supplied to <see cref="Initialize"/>.</summary>
     protected IRenderBackend Backend =>

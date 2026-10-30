@@ -11,30 +11,14 @@ internal enum BackendState : byte
     Disposed,
 }
 
-/// <summary>
-/// Owns the backend state machine and its device; the command-buffer protocol itself lives in
-/// <see cref="CommandQueue"/>. A derived backend creates the device; the device owns the
-/// context, window events and presentation.
-/// </summary>
-/// <remarks>
-/// <para>
-/// Thread affinity: <see cref="Initialize"/> captures the calling thread as the owner. Every other
-/// member, including the internal recording entry points, must be called from that thread; calls from
-/// any other thread throw <see cref="InvalidOperationException"/>. There is no locking on the render
-/// path, so violating the contract is detected, never silently serialized.
-/// </para>
-/// <para>
-/// Recording is single-threaded: the recording entry points call <see cref="EnsureRecordThread"/>,
-/// whose default requires the owner thread. A backend that records on a dedicated recorder thread 
-/// overrides that hook; multi-threaded recording stays out of scope.
-/// </para>
-/// </remarks>
+/// <summary>Owns the backend state machine and its device.</summary>
 public abstract class RenderBackendBase : RenderLifecycleBase, IRenderBackend
 {
     private readonly CommandQueue _queue;
     private BackendState _state;
     private IRenderDevice? _device;
     private bool _inCallback;
+
 
     protected RenderBackendBase()
     {
@@ -45,7 +29,6 @@ public abstract class RenderBackendBase : RenderLifecycleBase, IRenderBackend
     public IRenderDevice? Device => _device;
 
     /// <summary>Gets the device, throwing when the backend is not initialized.</summary>
-    /// <exception cref="ObjectDisposedException">The backend has no device (disposed or not initialized).</exception>
     protected IRenderDevice RequireDevice() => _device ?? throw new ObjectDisposedException(Name);
 
     /// <inheritdoc />
@@ -161,26 +144,13 @@ public abstract class RenderBackendBase : RenderLifecycleBase, IRenderBackend
     /// <summary>
     /// Dispatches one recorded command through this assembly's command table.
     /// </summary>
-    /// <param name="id">Recorded command id.</param>
-    /// <param name="payload">Raw bytes of the command struct.</param>
-    /// <param name="context">Execution context.</param>
     /// <returns><c>true</c> when an executor ran; <c>false</c> when the id is unknown to this assembly.</returns>
-    /// <remarks>
-    /// The engine assembly table is used by default. A backend that declares its own commands overrides
-    /// this to try its own table first and then fall back to <c>base.Dispatch</c>.
-    /// </remarks>
     protected virtual bool Dispatch(byte id, ReadOnlySpan<byte> payload, ref CommandContext ctx) =>
         RenderCommandTable.TryDispatch(id, payload, ref ctx);
 
     /// <summary>
     /// Verifies that the calling thread may record or execute commands (single-thread recording).
     /// </summary>
-    /// <remarks>
-    /// Default: the recording thread must be the backend's owner thread. The hook exists so a backend
-    /// that owns a dedicated recorder thread can override it without changing the public surface; the
-    /// command queue itself never performs thread checks.
-    /// </remarks>
-    /// <exception cref="InvalidOperationException">The caller is not the recording thread.</exception>
     protected virtual void EnsureRecordThread() => EnsureOwner();
 
     /// <summary>Bridge used by <see cref="CommandQueue"/> to reach the virtual dispatch table.</summary>

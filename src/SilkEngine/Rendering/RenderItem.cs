@@ -10,15 +10,7 @@ internal enum RenderItemSortMode : byte
     Transparent = 1,
 }
 
-/// <summary>
-/// A single draw item, tagged with a sort key for ordering by the (not yet implemented) CPU
-/// sorting queue.
-/// </summary>
-/// <remarks>
-/// Mesh and material are typed handles: the previous <c>int</c>/<c>ushort</c> pair let an id
-/// from one table be passed where the other was expected. The sort key still packs a 16-bit material
-/// hash, so only the low 16 bits of <see cref="MaterialHandle.Id"/> influence ordering.
-/// </remarks>
+/// <summary>A single draw item with a sort key.</summary>
 public readonly struct RenderItem
 {
     /// <summary>Mesh drawn by this item.</summary>
@@ -37,10 +29,6 @@ public readonly struct RenderItem
     internal readonly RenderItemSortKey SortKey;
 
     /// <summary>Creates a render item; <paramref name="depth01"/> must be a normalized depth.</summary>
-    /// <exception cref="ArgumentOutOfRangeException">
-    /// <paramref name="depth01"/> is outside [0, 1]; the sort key packs the raw float bits, so an
-    /// out-of-range value would silently reorder the whole queue (REV-047).
-    /// </exception>
     private RenderItem(
         RenderItemSortMode mode,
         ushort queue,

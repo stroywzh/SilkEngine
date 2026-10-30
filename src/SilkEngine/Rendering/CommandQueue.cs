@@ -3,15 +3,7 @@ using SilkEngine.Rendering.Abstraction;
 
 namespace SilkEngine.Rendering;
 
-/// <summary>
-/// Owns the command-buffer pool, the pending submissions and the issued leases, i.e. the whole
-/// record -&gt; submit -&gt; execute protocol.
-/// </summary>
-/// <remarks>
-/// <see cref="RenderBackendBase"/> keeps the public contract (thread affinity, state machine,
-/// diagnostics) and delegates the buffers here; the queue itself performs no thread checking, so the
-/// backend remains the single place that decides which thread may record.
-/// </remarks>
+/// <summary>Owns the command-buffer pool, pending submissions and issued leases.</summary>
 internal sealed class CommandQueue
 {
     private readonly RenderBackendBase _owner;
@@ -20,8 +12,6 @@ internal sealed class CommandQueue
     private readonly HashSet<CommandBufferLease> _issued = new();
 
     /// <summary>Creates the queue of one backend.</summary>
-    /// <param name="owner">Backend that owns the leases and dispatches the commands.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="owner"/> is null.</exception>
     internal CommandQueue(RenderBackendBase owner)
     {
         ArgumentNullException.ThrowIfNull(owner);
@@ -73,13 +63,6 @@ internal sealed class CommandQueue
     }
 
     /// <summary>Executes every pending submission and presents the frame.</summary>
-    /// <param name="device">Device the commands run on.</param>
-    /// <param name="frameContext">Snapshot of the frame being executed.</param>
-    /// <remarks>
-    /// Order: <c>MakeCurrent</c> -&gt; dispatch every pending command -&gt; <c>Present</c>. 
-    /// <br/>An empty queue still makes the context current and still presents. A failing frame drops everything still
-    /// queued and keeps the backend usable.
-    /// </remarks>
     internal void Execute(IRenderDevice device, in FrameContext frameContext)
     {
         ArgumentNullException.ThrowIfNull(device);

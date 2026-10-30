@@ -5,16 +5,11 @@ namespace SilkEngine.Rendering.Internal;
 
 internal static class SortKeyPacker
 {
-    /// <summary>
-    /// 把 float 转成单调递增的 uint 位模式。
-    /// 前提：f ∈ [0, 1]（Depth01 的约定）。此时 IEEE 754 正数的位模式本身就是单调递增的，
-    /// 直接取 bits 即可，不需要翻转。
-    /// 若允许负数，必须加符号处理：bits & 0x80000000 != 0 ? ~bits : bits | 0x80000000。
-    /// </summary>
+    /// <summary>Converts a float in [0,1] to a monotonically increasing uint bit pattern.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static uint MonotonicFloatBits(float f)
     {
-        // 约定 f ∈ [0,1]；Debug 断言防越界，Release 下无开销
+        // Contract f ∈ [0,1]; Debug asserts guard the range, no cost in Release.
         System.Diagnostics.Debug.Assert(f >= 0f && f <= 1f, "Depth01 越界，排序会错");
 
         return BitConverter.SingleToUInt32Bits(f);
