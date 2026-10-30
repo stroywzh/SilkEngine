@@ -1,8 +1,6 @@
 namespace SilkEngine.Rendering.Abstraction;
 
-// Minimum viable resource set : buffers, textures, shaders and one pipeline
-// state. Samplers, MRT, compute and indirect remain out of scope.
-// TODO : 把这些东西作为实际资源，通过AssetSystem传递句柄
+// TODO: route these through AssetSystem handles as real resources.
 
 
 /// <summary>Intended usage of a buffer allocation.</summary>
@@ -68,8 +66,6 @@ public enum BlendMode : byte
 public readonly struct BufferDesc
 {
     /// <summary>Creates a buffer description.</summary>
-    /// <param name="sizeBytes">Allocation size in bytes; must be positive.</param>
-    /// <param name="usage">Intended usage, which selects the binding target.</param>
     public BufferDesc(int sizeBytes, BufferUsage usage = BufferUsage.Vertex)
     {
         SizeBytes = sizeBytes;
@@ -84,15 +80,9 @@ public readonly struct BufferDesc
 }
 
 /// <summary>Creation parameters of <see cref="IRenderDevice.CreateShader"/>.</summary>
-/// <remarks>
-/// Prototype scope: both stages are GLSL 330 sources, because the built-in backend is the only
-/// implementation. A cross-backend shader language stays out of scope (P3+).
-/// </remarks>
 public readonly struct ShaderDesc
 {
     /// <summary>Creates a shader description.</summary>
-    /// <param name="vertexSource">Vertex-stage source.</param>
-    /// <param name="fragmentSource">Fragment-stage source.</param>
     public ShaderDesc(string vertexSource, string fragmentSource)
     {
         VertexSource = vertexSource;
@@ -110,12 +100,6 @@ public readonly struct ShaderDesc
 public readonly struct PipelineStateDesc
 {
     /// <summary>Creates a pipeline-state description.</summary>
-    /// <param name="shader">Linked shader program to use.</param>
-    /// <param name="topology">Primitive topology.</param>
-    /// <param name="cull">Face-culling mode.</param>
-    /// <param name="depthTest">Whether depth testing is enabled.</param>
-    /// <param name="depthWrite">Whether depth writes are enabled.</param>
-    /// <param name="blend">Colour blending mode.</param>
     public PipelineStateDesc(
         ShaderHandle shader,
         PrimitiveTopology topology = PrimitiveTopology.TriangleList,
@@ -153,22 +137,18 @@ public readonly struct PipelineStateDesc
 }
 
 /// <summary>
-/// What the device can actually do. Resource operations outside this set will throw <see cref="System.NotSupportedException"/>.
+/// Capabilities actually implemented by this device.
 /// </summary>
 public readonly struct RenderCapabilities
 {
     /// <summary>Creates a capability set.</summary>
-    /// <param name="buffers">Whether buffer creation/binding is implemented.</param>
-    /// <param name="textures">Whether texture creation/binding is implemented.</param>
-    /// <param name="shaders">Whether shader compilation is implemented.</param>
-    /// <param name="pipelineState">Whether pipeline-state objects are implemented.</param>
-    /// <param name="barrier">Whether <see cref="IRenderDevice.Barrier"/> is implemented.</param>
     public RenderCapabilities(
         bool buffers,
         bool textures,
         bool shaders,
         bool pipelineState,
-        bool barrier = false
+        bool barrier = false,
+        bool constantBuffers = false
     )
     {
         SupportsBuffers = buffers;
@@ -176,6 +156,7 @@ public readonly struct RenderCapabilities
         SupportsShaders = shaders;
         SupportsPipelineState = pipelineState;
         SupportsBarrier = barrier;
+        SupportsConstantBuffers = constantBuffers;
     }
 
     /// <summary>Whether buffer creation/binding is implemented.</summary>
@@ -192,4 +173,7 @@ public readonly struct RenderCapabilities
 
     /// <summary>Whether <see cref="IRenderDevice.Barrier"/> is implemented (not implemented by GL).</summary>
     public bool SupportsBarrier { get; }
+
+    /// <summary>Whether uniform-buffer binding through <c>IRenderDeviceV2.BindConstantBuffer</c> is implemented.</summary>
+    public bool SupportsConstantBuffers { get; }
 }

@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -16,6 +16,12 @@
     <ProjectReference Include="..\SilkEngine.SourceGen\SilkEngine.SourceGen.csproj"
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <!-- 仅开发期导入工具与测试可访问内部实现（PNG 解码器、纹理加载器）；业务程序集不开放。 -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="SilkEngine.Asset" />
+    <InternalsVisibleTo Include="SilkEngine.Asset.Tests" />
   </ItemGroup>
 
   <!-- Mirror the emitted sources to <repo>/Generated for inspection. The location is deliberately

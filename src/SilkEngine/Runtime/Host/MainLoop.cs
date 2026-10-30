@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using SilkEngine.Core.AssetSystem;
 using SilkEngine.Rendering.Abstraction;
 
 namespace SilkEngine.Runtime.Host;
@@ -11,29 +12,28 @@ public sealed class MainLoop : EngineThread
     private static readonly MainThreadSynchronizationContext _mainThreadContext =
         MainThreadSynchronizationContext.Install();
 
-    /// <summary>Fixed simulation step in seconds (60 Hz); not host-configurable in this round.</summary>
-    /// TODO: 解耦，不要硬编码
+    // TODO: decouple; do not hardcode.
     internal const double FixedStepSeconds = 1.0 / 60.0;
 
-    /// <summary>Upper bound of fixed steps per frame, so a long stall cannot spiral.</summary>
     private const int MaxFixedStepsPerFrame = 8;
+
+    private const int MaxConsecutiveFailedFrames = 120;
 
     private readonly IRenderPipeline _pipeline;
     private readonly IRenderBackend _backend;
     private readonly Stopwatch _frameStopwatch = new();
     private RenderThread? _renderThread;
+    private AssetThread? _assetThread;
     private ulong _frameId;
     private long _lastFrameTicks;
     private int _lastFrameSucceeded = 1;
+    private int _consecutiveFailures;
     private double _fixedAccumulator;
 
     /// <summary>Creates the main host using registrations frozen before application startup.</summary>
-    /// <exception cref="ArgumentNullException">A required Application registration is missing.</exception>
     public MainLoop()
         : this(Application.RenderPipeline, Application.RenderBackend) { }
 
-    /// <summary>Creates the main host with explicitly owned rendering dependencies.</summary>
-    /// <exception cref="ArgumentNullException">A dependency is null.</exception>
     internal MainLoop(IRenderPipeline pipeline, IRenderBackend backend)
     {
         _pipeline = pipeline ?? throw new ArgumentNullException(nameof(pipeline));
@@ -44,8 +44,8 @@ public sealed class MainLoop : EngineThread
     internal override bool IsMainThread => true;
 
     /// <summary>Gets the full duration of the last completed frame; initially zero, safe for cross-thread reads.</summary>
-    /// <remarks>A completed frame may still have failed to render; <see cref="RenderThread"/> treats such a
-    /// frame as consumed, and <c>LastFrameSucceeded</c> there reports whether its render pass succeeded.</remarks>
+    /// <remarks>A completed frame may still have failed to render: its duration is published anyway, and
+    /// <see cref="LastFrameSucceeded"/> reports whether the render pass succeeded.</remarks>
     public TimeSpan LastFrameElapsed => TimeSpan.FromTicks(Volatile.Read(ref _lastFrameTicks));
 
     /// <summary>
@@ -59,6 +59,11 @@ public sealed class MainLoop : EngineThread
     protected override void Initialize()
     {
         Time.Reset();
+
+        // The asset worker starts first so requests submitted before startup begin loading immediately.
+        var assets = ThreadFactory.StartAssetThread();
+        Volatile.Write(ref _assetThread, assets);
+
         var render = ThreadFactory.StartRenderThread(_pipeline, _backend);
         Volatile.Write(ref _renderThread, render);
 
@@ -73,13 +78,27 @@ public sealed class MainLoop : EngineThread
         }
     }
 
+    private enum FrameStage
+    {
+        PreStart = 0,
+        Starting = 1,
+        Rendered = 2,
+        Ending = 3,
+    }
+
     protected override void Run()
     {
         _frameStopwatch.Restart();
-        var completed = false;
+
+        var stage = FrameStage.PreStart;
+        var publishElapsed = false;
+
         try
         {
             OnFrameStarted();
+            stage = FrameStage.Starting;
+
+            UpdateScheduler.RefreshSnapshot();
 
             DispatchFixedUpdates();
             StopToken.ThrowIfCancellationRequested();
@@ -88,22 +107,32 @@ public sealed class MainLoop : EngineThread
             StopToken.ThrowIfCancellationRequested();
 
             OnRendering();
+            stage = FrameStage.Rendered;
             StopToken.ThrowIfCancellationRequested();
 
+            stage = FrameStage.Ending;
             OnFrameEnded();
-            completed = true;
+            publishElapsed = true;
+
+            Interlocked.Exchange(ref _consecutiveFailures, 0);
         }
         catch (RenderThreadStoppedException)
         {
             RequestStop();
         }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception error)
+        {
+            publishElapsed = HandleFrameFailure(error, stage);
+        }
         finally
         {
             _frameStopwatch.Stop();
 
-            // The elapsed time was really spent even when the frame failed to render,
-            // so every completed frame publishes it; success is tracked separately.
-            if (completed)
+            if (publishElapsed)
             {
                 Interlocked.Exchange(ref _lastFrameTicks, _frameStopwatch.Elapsed.Ticks);
             }
@@ -115,24 +144,12 @@ public sealed class MainLoop : EngineThread
         }
     }
 
-    /// <summary>
-    /// Called after frame timing starts; hook failures end the loop without publishing a successful duration.
-    /// </summary>
     private void OnFrameStarted()
     {
         _frameId = checked(_frameId + 1);
         Time.BeginFrame(_frameId, LastFrameElapsed.TotalSeconds);
-        UpdateScheduler.RefreshSnapshot();
     }
 
-    /// <summary>
-    /// Runs every fixed step that elapsed since the previous frame, before the variable update.
-    /// </summary>
-    /// <remarks>
-    /// The accumulator is clamped to <see cref="MaxFixedStepsPerFrame"/> steps so a long stall yields at
-    /// most that many catch-up steps instead of an unbounded spiral. <see cref="Time.DeltaSeconds"/> is
-    /// the previous completed frame duration, so the first frame contributes nothing.
-    /// </remarks>
     private void DispatchFixedUpdates()
     {
         _fixedAccumulator += Time.DeltaSeconds;
@@ -158,22 +175,97 @@ public sealed class MainLoop : EngineThread
         Volatile.Write(ref _lastFrameSucceeded, render.LastFrameSucceeded ? 1 : 0);
     }
 
-    /// <summary>
-    /// Called after render/output completion and before the stopwatch stops; where process the end logics of this frame.
-    /// </summary>
     private void OnFrameEnded()
     {
         UpdateScheduler.DispatchLateUpdate();
+
+        // Asset completions run on the main thread; the budget keeps the frame bounded.
+        AssetSystem.DrainCompletions(Application.AssetSetting.CompletionPumpBudget);
         _mainThreadContext.Pump();
+    }
+
+    private bool HandleFrameFailure(Exception error, FrameStage stage)
+    {
+        Log.Exception(error);
+
+        var failures = Interlocked.Increment(ref _consecutiveFailures);
+
+        if (stage == FrameStage.PreStart)
+        {
+            Log.Error("Main loop stopped: the frame failed before its id was announced.");
+            RequestStop();
+            return false;
+        }
+
+        if (stage != FrameStage.Ending)
+        {
+            if (stage == FrameStage.Starting && !TryRenderFailedFrame())
+            {
+                Log.Error("Main loop stopped: the failed frame could not finish on the render thread.");
+                RequestStop();
+                return false;
+            }
+
+            TryEndFailedFrame();
+        }
+
+        if (failures >= MaxConsecutiveFailedFrames)
+        {
+            Log.Error($"Main loop stopped after {failures} consecutive failed frames.");
+            RequestStop();
+        }
+
+        return true;
+    }
+
+    private bool TryRenderFailedFrame()
+    {
+        try
+        {
+            OnRendering();
+            return true;
+        }
+        catch (RenderThreadStoppedException)
+        {
+            RequestStop();
+            return false;
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Log.Exception(error);
+            return false;
+        }
+    }
+
+    private void TryEndFailedFrame()
+    {
+        try
+        {
+            OnFrameEnded();
+        }
+        catch (RenderThreadStoppedException)
+        {
+            RequestStop();
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            Log.Exception(error);
+        }
     }
 
     protected override void Shutdown()
     {
+        // Render first: GPU consumers stop before the asset side stops publishing ready/release ids.
         var render = Volatile.Read(ref _renderThread);
-        if (render is null)
-            return;
-        render.RequestStop();
-        render.Dispose();
+        render?.RequestStop();
+        render?.Dispose();
+
+        var assets = Volatile.Read(ref _assetThread);
+        assets?.RequestStop();
+        assets?.Dispose();
+
+        // The worker completes pending requests while stopping; pump them so no caller keeps waiting.
+        AssetSystem.DrainCompletions(int.MaxValue);
 
         if (Application.LogSetting.EnableMainThreadLog)
         {
@@ -181,6 +273,9 @@ public sealed class MainLoop : EngineThread
         }
     }
 
-    // Called on the disposing thread: signal only. Main Shutdown owns child disposal/join.
-    protected override void DisposeCore() => Volatile.Read(ref _renderThread)?.RequestStop();
+    protected override void DisposeCore()
+    {
+        Volatile.Read(ref _renderThread)?.RequestStop();
+        Volatile.Read(ref _assetThread)?.RequestStop();
+    }
 }

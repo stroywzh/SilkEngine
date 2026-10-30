@@ -15,8 +15,6 @@ public readonly struct BindIndexBufferCommand
     public readonly IndexFormat Format;
 
     /// <summary>Creates the command.</summary>
-    /// <param name="buffer">Index buffer to bind.</param>
-    /// <param name="format">Element format of the index buffer.</param>
     public BindIndexBufferCommand(BufferHandle buffer, IndexFormat format)
     {
         Buffer = buffer;

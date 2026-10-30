@@ -28,9 +28,6 @@ internal static class ComponentFactory<
     /// <summary>Creates a new <typeparamref name="T"/> bound to <paramref name="owner"/>.</summary>
     /// <param name="owner">Entity that will own the component.</param>
     /// <returns>A new component instance whose <see cref="Component.GameObject"/> is <paramref name="owner"/>.</returns>
-    /// <exception cref="InvalidOperationException">
-    /// <typeparamref name="T"/> does not declare a public constructor taking a <see cref="GameObject"/>.
-    /// </exception>
     public static T Create(GameObject owner) => Factory.Value(owner);
 
     private static Func<GameObject, T> Compile()

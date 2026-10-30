@@ -14,19 +14,19 @@ internal class MainThreadSynchronizationContext : SynchronizationContext
     public int MainThreadId => _mainThreadId;
     public bool IsMainThread => Environment.CurrentManagedThreadId == _mainThreadId;
 
-    // await 恢复时会调用 Post（通常不带 ConfigureAwait(false) 时）
+    // Post is called when an await resumes (without ConfigureAwait(false) by default).
     public override void Post(SendOrPostCallback d, object? state)
     {
         ArgumentNullException.ThrowIfNull(d);
         _queue.Enqueue((d, state));
     }
 
-    // 同步调度：非主线程调用会阻塞等待主线程 Pump 执行
+    // Synchronous dispatch: a non-main-thread call blocks until the main thread pumps it.
     public override void Send(SendOrPostCallback d, object? state)
     {
         ArgumentNullException.ThrowIfNull(d);
 
-        // 已经在主线程，直接内联执行，避免自己等自己造成死锁
+        // Already on the main thread: execute inline to avoid self-deadlock.
         if (IsMainThread)
         {
             d(state);
@@ -63,10 +63,10 @@ internal class MainThreadSynchronizationContext : SynchronizationContext
             ExceptionDispatchInfo.Capture(error).Throw();
     }
 
-    // 让上下文能传播到线程池线程：那边 await 后也会排回主线程队列
+    // Let the context flow into thread-pool threads: their awaits also queue back to the main thread.
     public override SynchronizationContext CreateCopy() => this;
 
-    /// <summary>主循环每帧调用，执行已排队的续体。</summary>
+    /// <summary>Called by the main loop each frame to execute queued continuations.</summary>
     internal void Pump(int maxPerFrame = int.MaxValue)
     {
         if (!IsMainThread)
@@ -87,7 +87,7 @@ internal class MainThreadSynchronizationContext : SynchronizationContext
         }
     }
 
-    /// <summary>在主线程安装此上下文，返回实例供主循环持有。</summary>
+    /// <summary>Installs this context on the main thread; returns the instance for the main loop to hold.</summary>
     public static MainThreadSynchronizationContext Install()
     {
         var ctx = new MainThreadSynchronizationContext();

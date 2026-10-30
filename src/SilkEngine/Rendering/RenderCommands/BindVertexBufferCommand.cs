@@ -15,8 +15,6 @@ public readonly struct BindVertexBufferCommand
     public readonly uint Stride;
 
     /// <summary>Creates the command.</summary>
-    /// <param name="buffer">Vertex buffer to bind.</param>
-    /// <param name="stride">Bytes between consecutive vertices.</param>
     public BindVertexBufferCommand(BufferHandle buffer, uint stride)
     {
         Buffer = buffer;

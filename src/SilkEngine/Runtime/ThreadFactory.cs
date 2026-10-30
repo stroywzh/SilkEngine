@@ -14,7 +14,6 @@ public static class ThreadFactory
     /// <param name="isBackground"></param>
     /// <param name="priority"></param>
     /// <returns></returns>
-    /// <exception cref="ArgumentNullException"></exception>
     public static Thread CreateThread(
         Action entry,
         string name,
@@ -51,11 +50,20 @@ public static class ThreadFactory
         return Start<MainLoop>();
     }
 
+    /// <summary>Creates, registers and starts the asset worker owned by the engine.</summary>
+    /// <returns>The started worker; the main loop stops and disposes it.</returns>
+    internal static AssetThread StartAssetThread()
+    {
+        var runtime = new AssetThread();
+        ThreadRegistry.Register(runtime);
+        runtime.Start();
+        return runtime;
+    }
+
     /// <summary>Creates, registers and starts the render thread owned by a main loop.</summary>
     /// <param name="pipeline">Pipeline driven on the render thread; must not be initialized yet.</param>
     /// <param name="backend">Backend owner of the render thread; must not be initialized yet.</param>
     /// <returns>The started render thread; the main loop owns it and must stop and dispose it.</returns>
-    /// <exception cref="ArgumentNullException">A dependency is null.</exception>
     internal static RenderThread StartRenderThread(IRenderPipeline pipeline, IRenderBackend backend)
     {
         var runtime = new RenderThread(pipeline, backend);

@@ -21,10 +21,6 @@ public readonly struct SetViewportCommand
     public readonly int Height;
 
     /// <summary>Creates the command.</summary>
-    /// <param name="x">Left edge in pixels.</param>
-    /// <param name="y">Bottom edge in pixels.</param>
-    /// <param name="width">Viewport width in pixels.</param>
-    /// <param name="height">Viewport height in pixels.</param>
     public SetViewportCommand(int x, int y, int width, int height)
     {
         X = x;

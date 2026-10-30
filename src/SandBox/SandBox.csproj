@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -10,6 +10,11 @@
   <ItemGroup>
     <ProjectReference Include="..\SilkEngine.Rendering\SilkEngine.Rendering.csproj" />
     <ProjectReference Include="..\SilkEngine\SilkEngine.csproj" />
+    <ProjectReference Include="..\SilkEngine.Asset\SilkEngine.Asset.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Assets\**\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

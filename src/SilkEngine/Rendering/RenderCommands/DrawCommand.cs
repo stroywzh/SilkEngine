@@ -7,9 +7,13 @@ namespace SilkEngine.Rendering;
 [RenderCommand((int)RenderCommandKind.Draw, typeof(DrawCommandExecutor))]
 public readonly struct DrawCommand
 {
+    /// <summary>Number of vertices to draw.</summary>
     public readonly int VertexCount;
+
+    /// <summary>Index of the first vertex in the bound vertex buffer.</summary>
     public readonly int FirstVertex;
 
+    /// <summary>Creates the command.</summary>
     public DrawCommand(int vertexCount, int firstVertex)
     {
         VertexCount = vertexCount;

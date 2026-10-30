@@ -3,11 +3,16 @@
         <Project Path="src/SandBox/SandBox.csproj" />
         <Project Path="src/SilkEngine.SourceGen/SilkEngine.SourceGen.csproj" />
     </Folder>
+    <Folder Name="/src/SilkEngine.Asset/">
+        <Project Path="src/SilkEngine.Asset/SilkEngine.Asset.csproj" />
+    </Folder>
     <Folder Name="/src/SilkEngine/">
         <Project Path="src/SilkEngine.Rendering/SilkEngine.Rendering.csproj" />
     </Folder>
     <Folder Name="/src/SilkEngine/Runtime/">
         <Project Path="src/SilkEngine/SilkEngine.csproj" />
     </Folder>
-    <Folder Name="/tests/" />
+    <Folder Name="/tests/">
+        <Project Path="tests/SilkEngine.Asset.Tests/SilkEngine.Asset.Tests.csproj" />
+    </Folder>
 </Solution>

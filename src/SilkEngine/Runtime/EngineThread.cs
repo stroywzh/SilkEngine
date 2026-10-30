@@ -61,7 +61,7 @@ public abstract class EngineThread : IDisposable
     /// <summary>
     /// Start the host thread
     /// </summary>
-    /// <exception cref="EngineThreadStateException">宿主已启动过。</exception>
+    /// <exception cref="EngineThreadStateException">The host has already been started.</exception>
     public void Start()
     {
         if (!TryEnter(EngineThreadState.Starting))

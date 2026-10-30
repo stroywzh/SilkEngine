@@ -32,7 +32,12 @@ public static class Log
 
     /// <summary>Replaces the log sink.</summary>
     /// <param name="sink">New sink, or <c>null</c> to restore the default console sink.</param>
-    /// <remarks>The previous sink is flushed (best effort through its own implementation) before the swap.</remarks>
+    /// <remarks>
+    /// The installed sink is replaced as a whole, including the console+file pair that
+    /// <see cref="EnableFileLog"/> installs; the file sink itself keeps running until
+    /// <see cref="DisableFileLog"/> or the next <see cref="EnableFileLog"/>. The previous sink is
+    /// flushed (best effort through its own implementation) before the swap.
+    /// </remarks>
     public static void SetSink(ILogSink? sink)
     {
         var next = sink ?? new ConsoleLogSink();
@@ -41,18 +46,22 @@ public static class Log
     }
 
     /// <summary>
-    /// Installs a file sink so records are also written to disk; returns the file receiving them.
+    /// Writes records to the console and to a file; returns the file receiving them.
     /// <br/> Will create default Log directory if no other dir is in.
     /// </summary>
     /// <returns>Absolute path of the log file that receives new records.</returns>
-    /// <exception cref="ArgumentException"><paramref name="directory"/> is empty or whitespace.</exception>
     public static string EnableFileLog(string? directory = null)
     {
+        // Pending lines belong to the current file: write them before the sink is replaced.
+        _fileSink?.DrainOnOwnerThread(int.MaxValue);
+
         var path = string.IsNullOrEmpty(directory) ? LogPaths.GetLogPath() : directory!;
         var sink = new FileLogSink(path);
         var previous = Interlocked.Exchange(ref _fileSink, sink);
 
-        SetSink(sink);
+        // Fan out instead of replacing: the console keeps the records visible while the file keeps
+        // them durable.
+        SetSink(new CompositeLogSink(new ConsoleLogSink(), sink));
         previous?.Dispose();
         return sink.LogFile;
     }
@@ -71,8 +80,18 @@ public static class Log
     /// <summary>Flushes the installed sink (waits for buffered records to reach their destination).</summary>
     public static void Flush() => Volatile.Read(ref _sink).Flush();
 
+    /// <summary>Makes the calling thread the owner of file IO; called by the asset worker when it starts.</summary>
+    internal static void AttachIoOwner() => LogIoQueue.AttachOwner();
+
+    /// <summary>Releases file IO ownership so later records fall back to direct writes.</summary>
+    internal static void DetachIoOwner() => LogIoQueue.DetachOwner();
+
+    /// <summary>Writes queued file records on the IO owner thread, bounded so a burst cannot delay its work.</summary>
+    internal static void PumpFileIo(int maxLines = LogIoQueue.DrainBudget) =>
+        _fileSink?.DrainOnOwnerThread(maxLines);
+
     /*
-    * 下面的 API 不需要加入任何注释，内容也是约定的内容
+    * The APIs below deliberately carry no XML documentation: their behaviour is the agreed contract.
     *
     */
     public static void Debug(

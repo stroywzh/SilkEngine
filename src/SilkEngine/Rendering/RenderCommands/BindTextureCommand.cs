@@ -15,8 +15,6 @@ public readonly struct BindTextureCommand
     public readonly uint Slot;
 
     /// <summary>Creates the command.</summary>
-    /// <param name="texture">Texture to bind.</param>
-    /// <param name="slot">Zero-based texture slot.</param>
     public BindTextureCommand(TextureHandle texture, uint slot)
     {
         Texture = texture;
