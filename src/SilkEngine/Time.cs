@@ -32,7 +32,6 @@ public static class Time
     /// <summary>Publishes the values for the frame that is about to be updated.</summary>
     /// <param name="frameIndex">1-based index of the frame being processed (same name as the property).</param>
     /// <param name="deltaSeconds">Duration of the previous completed frame, in seconds.</param>
-    /// <exception cref="ArgumentOutOfRangeException">The delta is negative or not finite.</exception>
     internal static void BeginFrame(ulong frameIndex, double deltaSeconds)
     {
         if (!double.IsFinite(deltaSeconds) || deltaSeconds < 0)

@@ -127,10 +127,6 @@ public readonly partial struct Vector3 : IEquatable<Vector3>, IFormattable
     public static float Distance(Vector3 a, Vector3 b) => (a - b).magnitude;
 
     /// <summary>Linearly interpolates between two vectors, with t clamped to [0, 1].</summary>
-    /// <remarks>
-    /// REV-016 口径：与 Vector4.Lerp 语义统一（t 夹取到 [0,1]），实现各写一份 —— Mathematics 层不允许
-    /// 引用 <see cref="EngineMath"/>。
-    /// </remarks>
     public static Vector3 Lerp(Vector3 a, Vector3 b, float t)
     {
         t = EngineMath.Clamp01(t);
@@ -147,8 +143,7 @@ public readonly partial struct Vector3 : IEquatable<Vector3>, IFormattable
     /// <param name="t">Interpolation factor, clamped to [0, 1].</param>
     /// <returns>
     /// A unit-length direction: <paramref name="a"/>'s direction at t = 0 and <paramref name="b"/>'s
-    /// direction at t = 1. Both inputs are normalized first, so the result never mixes a scaled
-    /// input with a unit vector (REV-015).
+    /// direction at t = 1. 
     /// </returns>
     /// <remarks>
     /// When the inputs are (anti)parallel the rotation plane is undefined; the result then stays on

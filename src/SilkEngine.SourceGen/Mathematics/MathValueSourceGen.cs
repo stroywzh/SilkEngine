@@ -14,7 +14,7 @@ namespace SilkEngine.SourceGen.Mathematics
 {
     /// <summary>
     /// Generates the mechanical skeleton of the math value types: the component indexer, exact
-    /// equality, hashing and <see cref="System.IFormattable"/> formatting (proposal-01 §9 / D8).
+    /// equality, hashing and <see cref="System.IFormattable"/> formatting.
     /// Mathematical operations, constants and conversions stay handwritten.
     /// </summary>
     /// <remarks>

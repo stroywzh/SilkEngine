@@ -4,7 +4,7 @@ namespace SilkEngine;
 
 /// <summary>Base class of every exception the engine itself throws.</summary>
 /// <remarks>
-/// C-10: the base lives in the root namespace; each subsystem adds its own sealed family next to the
+/// The base lives in the root namespace; each subsystem adds its own sealed family next to the
 /// type that throws it. Exceptions that must keep a BCL semantic (for example
 /// <c>RenderThreadStoppedException</c>, which is an <see cref="OperationCanceledException"/>) do not
 /// derive from this type.

@@ -80,10 +80,6 @@ public readonly partial struct Vector2 : IEquatable<Vector2>, IFormattable
     public static float Distance(Vector2 a, Vector2 b) => (a - b).magnitude;
 
     /// <summary>Linearly interpolates between two vectors, with t clamped to [0, 1].</summary>
-    /// <remarks>
-    /// REV-016 口径：与 Vector4.Lerp 语义统一（t 夹取到 [0,1]），实现各写一份 —— Mathematics 层不允许
-    /// 引用 <see cref="EngineMath"/>。
-    /// </remarks>
     public static Vector2 Lerp(Vector2 a, Vector2 b, float t)
     {
         t = EngineMath.Clamp01(t);

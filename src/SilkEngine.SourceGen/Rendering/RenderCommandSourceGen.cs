@@ -15,10 +15,10 @@ namespace SilkEngine.SourceGen.Rendering
 {
     /// <summary>
     /// Generates the per-assembly command table, the assembly-local recorder and the typed recording
-    /// extensions for every <c>[RenderCommand]</c> declaration (C-07, REN-N-01).
+    /// extensions for every <c>[RenderCommand]</c> declaration.
     /// </summary>
     /// <remarks>
-    /// Inputs are kept as two incremental outputs (REN-N-02): the table depends only on the collected
+    /// Inputs are kept as two incremental outputs: the table depends only on the collected
     /// commands plus the "hosts a backend" gate, the extensions additionally on the compilation owning
     /// <c>ICommandBuffer</c>.
     /// </remarks>
@@ -67,7 +67,7 @@ namespace SilkEngine.SourceGen.Rendering
             );
         }
 
-        // ───────────────────────── 提取 & 校验 ─────────────────────────
+        // ---------- Extraction & validation ----------
         private static CommandModel? Extract(
             GeneratorAttributeSyntaxContext ctx,
             CancellationToken ct
@@ -171,7 +171,7 @@ namespace SilkEngine.SourceGen.Rendering
             )
                 return false;
 
-            // p1: ref CommandContext（命名空间不限，类型完整名由签名提取）
+            // p1: ref CommandContext (namespace-agnostic; full type name extracted from the signature)
             var p1 = m.Parameters[1];
             if (p1.RefKind != RefKind.Ref)
                 return false;
@@ -186,7 +186,7 @@ namespace SilkEngine.SourceGen.Rendering
             return true;
         }
 
-        // ───────────────────────── 生成 ─────────────────────────
+        // ---------- Emit ----------
         private static void EmitTable(
             SourceProductionContext spc,
             ImmutableArray<CommandModel> models,
@@ -221,7 +221,7 @@ namespace SilkEngine.SourceGen.Rendering
 
             var valid = ValidModels(models, spc);
 
-            // ④ ctxFullName 一致性（仍产出表，避免后端因缺表再报 CS0103）
+            // ④ ctxFullName consistency (still emit the table so a backend missing it does not also report CS0103)
             var ctxNames = valid.Select(c => c.CommandContextFullName!).Distinct().ToList();
             if (ctxNames.Count > 1)
             {
@@ -237,7 +237,7 @@ namespace SilkEngine.SourceGen.Rendering
             var ctxFullName =
                 ctxNames.FirstOrDefault() ?? "global::SilkEngine.Rendering.CommandContext";
 
-            // ⑤ 命令表：即使没有有效命令也产出（空表 TryDispatch 返回 false，基类据此抛 RenderDeviceException）
+            // ⑤ Command table: emit even without valid commands (empty table TryDispatch returns false; base class throws RenderDeviceException)
             var tableNamespace = valid
                 .Select(c => c.CommandNamespace)
                 .FirstOrDefault(ns => !string.IsNullOrEmpty(ns));
@@ -258,7 +258,7 @@ namespace SilkEngine.SourceGen.Rendering
 
         /// <summary>
         /// Whether this compilation needs a command table even without any [RenderCommand] declaration:
-        /// it hosts a render backend (REN-N-01). Detected from the syntax (a type deriving from
+        /// it hosts a render backend. Detected from the syntax (a type deriving from
         /// RenderBackendBase), so the gate stays a cheap boolean input for the incremental pipeline.
         /// </summary>
         private static bool NeedsEmptyTable(Compilation compilation)
@@ -295,7 +295,7 @@ namespace SilkEngine.SourceGen.Rendering
         /// <summary>
         /// Emits the assembly-local recorder: one static method per command, taking the buffer and the
         /// command by <c>in</c>. Deliberately not extension methods — a second extension class is the
-        /// CS0433 trap the extensions split was made to avoid (C-07).
+        /// CS0433 trap the extensions split was made to avoid.
         /// </summary>
         private static SourceText EmitRecorder(List<CommandModel> cmds, string ns)
         {
@@ -327,7 +327,7 @@ namespace SilkEngine.SourceGen.Rendering
 
         /// <summary>
         /// Emits the strongly typed recording extensions, only in the assembly that owns
-        /// <c>ICommandBuffer</c> (C-07), grouped by command namespace.
+        /// <c>ICommandBuffer</c>, grouped by command namespace.
         /// </summary>
         private static void EmitExtensions(
             SourceProductionContext spc,
@@ -381,12 +381,12 @@ namespace SilkEngine.SourceGen.Rendering
             SourceProductionContext? sink
         )
         {
-            // ① 先过滤，只对无 Error 的模型查重
+            // ① Filter first; only error-free models participate in duplicate-id checks
             var errorFree = models
                 .Where(m => !m.Diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error))
                 .ToList();
 
-            // ② 在 errorFree 上查重复 ID
+            // ② Check duplicate ids among errorFree
             var duplicateIds = new HashSet<int>();
             foreach (var g in errorFree.GroupBy(x => x.Id))
             {
@@ -398,7 +398,7 @@ namespace SilkEngine.SourceGen.Rendering
                     sink?.ReportDiagnostic(
                         Diagnostic.Create(
                             Diags.IdDuplicate,
-                            dup.Loc ?? Location.None, // ← 不是 dup.Locations
+                            dup.Loc ?? Location.None, // not dup.Locations
                             dup.TypeName,
                             first,
                             dup.Id
@@ -406,7 +406,7 @@ namespace SilkEngine.SourceGen.Rendering
                     );
             }
 
-            // ③ valid：errorFree 减去 duplicateIds
+            // ③ valid: errorFree minus duplicateIds
             return errorFree
                 .Where(m => m.CommandContextFullName is not null)
                 .Where(m => !duplicateIds.Contains(m.Id))
@@ -455,7 +455,7 @@ namespace SilkEngine.SourceGen.Rendering
         }
 
         /// <summary>
-        /// Emits this assembly's command table. One table per assembly (C-07): two assemblies may each
+        /// Emits this assembly's command table. One table per assembly: two assemblies may each
         /// declare their own internal table with the same name, and each resolves to its own.
         /// </summary>
         private static SourceText EmitCommandTable(
@@ -501,7 +501,7 @@ namespace SilkEngine.SourceGen.Rendering
             return SourceText.From(sb.ToString(), Encoding.UTF8);
         }
 
-        // ───────────────────────── 模型 & 诊断 ─────────────────────────
+        // ---------- Model & diagnostics ----------
 
         /// <summary>
         /// Comparable source position of a command declaration. Participates in the incremental

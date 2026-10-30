@@ -20,7 +20,6 @@ public abstract class Component
 
     /// <summary>Creates a component bound to <paramref name="owner"/>.</summary>
     /// <param name="owner">Entity that owns the component; must not be null.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="owner"/> is null.</exception>
     protected Component(GameObject owner)
     {
         ArgumentNullException.ThrowIfNull(owner);
@@ -78,7 +77,7 @@ public abstract class Component
     /// <remarks>
     /// The name is deliberately different from the hierarchy flag of <see cref="GameObject"/>: the
     /// two members used to share one name while meaning different things. The owner is always present
-    /// (the constructor rejects <c>null</c>), so no unbound state exists to report (CORE-N-10).
+    /// (the constructor rejects <c>null</c>), so no unbound state exists to report.
     /// </remarks>
     public bool IsActiveAndEnabled => _enabled && _gameObject.ActiveInHierarchy;
 

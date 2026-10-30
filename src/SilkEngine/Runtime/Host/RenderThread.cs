@@ -81,8 +81,6 @@ internal sealed class RenderThread : EngineThread
     }
 
     /// <summary>Publishes the frame announced by <see cref="Time"/> into the single slot.</summary>
-    /// <exception cref="InvalidOperationException">The loop is not ready or a frame is still in flight.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">The announced id is not the next consecutive id.</exception>
     /// <remarks>Main thread only; it is the sole writer of <c>_publishedFrameId</c>.</remarks>
     internal void PublishFrame()
     {
@@ -106,7 +104,6 @@ internal sealed class RenderThread : EngineThread
     }
 
     /// <summary>Waits for the frame currently published in the single slot to finish.</summary>
-    /// <exception cref="OperationCanceledException">The wait was canceled, the loop stopped, or it faulted.</exception>
     /// <remarks>Only the publishing thread calls this, so the slot holds exactly the frame to wait for.
     /// A stop published after this frame was consumed still counts as completion.</remarks>
     internal void WaitForFrameFinished(CancellationToken token)

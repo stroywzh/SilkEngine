@@ -13,10 +13,10 @@ namespace SilkEngine.Scripting;
 /// </remarks>
 public sealed class GameObject
 {
-    /// <summary>Identity of this entity; fixed at construction (CORE-N-10: no external <c>init</c>).</summary>
+    /// <summary>Identity of this entity; fixed at construction, with no external <c>init</c>.</summary>
     public ObjectId Id { get; }
 
-    /// <summary>Lifetime scope fixed at allocation time (CORE-N-06: never changes after registration).</summary>
+    /// <summary>Lifetime scope fixed at allocation time; never changes after registration.</summary>
     internal ObjectScope Scope { get; }
     private Transform _transform;
     private readonly List<Component> _components = new();
@@ -97,7 +97,6 @@ public sealed class GameObject
     /// TODO: Copy scope: all components include <see cref="Transform"/> will be copied.
     /// <br/>Now only copy <see cref="Transform"/>.
     /// </remarks>
-    /// <exception cref="InvalidOperationException">The new entity could not be registered.</exception>
     public static GameObject Create(GameObject? origin = null)
     {
         var entity = ObjectManager.Instance.Create();
@@ -129,9 +128,6 @@ public sealed class GameObject
     /// <summary>Creates a component and attaches it to this entity.</summary>
     /// <typeparam name="T">Component type with a public <c>(GameObject)</c> constructor.</typeparam>
     /// <returns>The attached component.</returns>
-    /// <exception cref="InvalidOperationException">
-    /// <typeparamref name="T"/> cannot be constructed through <see cref="ComponentFactory{T}"/>.
-    /// </exception>
     /// <remarks>
     /// Call order: construct → attach → <c>AwakeInternal</c> → (when the entity is active)
     /// <c>OnEnableInternal</c> and other frame loop method.
@@ -144,7 +140,7 @@ public sealed class GameObject
         if (origin is not null)
         {
             component.Enabled = origin.Enabled;
-            //TODO: 数据的序列化复制逻辑，现在暂时用Enabled占位
+            //TODO: serialization copy; Enabled is a placeholder for now.
         }
 
         _components.Add(component);

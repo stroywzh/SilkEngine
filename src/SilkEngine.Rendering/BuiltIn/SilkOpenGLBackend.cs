@@ -8,7 +8,7 @@ namespace SilkEngine.Rendering.BuiltIn;
 /// <summary>Silk.NET window/context factory and CPU command consumer, driven by one render thread.</summary>
 /// <remarks>
 /// Window, GL context and presentation are owned by the device created in <see cref="CreateDevice"/>
-/// (C-06); the backend keeps only the factory and the command queue. Window events are pumped through
+/// the backend keeps only the factory and the command queue. Window events are pumped through
 /// the device, which is why this type no longer implements <see cref="IRenderWindowHost"/>.
 /// </remarks>
 public sealed class SilkOpenGLBackend : RenderBackendBase
@@ -28,11 +28,10 @@ public sealed class SilkOpenGLBackend : RenderBackendBase
 
     /// <summary>Creates the window, its GL context and the device that owns both.</summary>
     /// <returns>The created device; the backend disposes it.</returns>
-    /// <exception cref="InvalidOperationException">The window has no GL context.</exception>
     protected override IRenderDevice CreateDevice()
     {
         var options = WindowOptions.Default;
-        options.Size = new Vector2D<int>(800, 600);
+        options.Size = Application.WindowInitialSize.ToSilk();
         options.FramesPerSecond = 0;
         options.ShouldSwapAutomatically = false;
         options.VSync = true;
@@ -59,4 +58,11 @@ public sealed class SilkOpenGLBackend : RenderBackendBase
             throw;
         }
     }
+}
+
+internal static class SilkVector2DConversions
+{
+    internal static Vector2D<int> ToSilk(this Vector2Int value) => new(value.X, value.Y);
+
+    internal static Vector2Int ToVector2Int(this Vector2D<int> value) => new(value.X, value.Y);
 }

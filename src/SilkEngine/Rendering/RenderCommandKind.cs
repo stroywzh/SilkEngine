@@ -3,29 +3,30 @@ namespace SilkEngine.Rendering;
 /// <summary>Identifies the semantic operation stored in a recorded command payload.</summary>
 public enum RenderCommandKind : byte
 {
-    // —— 管线与资源绑定 ——
+    // Pipeline and resource binding
     SetPipeline = 10,
     SetBindGroup = 11,
     SetPushConstants = 12,
     SetShaderKeyword = 13,
+    SetConstantBuffer = 14,
 
-    // —— 渲染通道 ——
+    // Render passes
     BeginRenderPass = 20,
     EndRenderPass = 21,
     NextSubpass = 22,
-    SetRenderTargets = 23, // 用于非 RenderPass 风格的 API
+    SetRenderTargets = 23, // for APIs without a RenderPass style
 
-    // —— 视口与裁剪 ——
+    // Viewport and scissor
     SetViewport = 30,
     SetScissorRect = 31,
 
-    // —— 几何绑定 ——
+    // Geometry binding
     BindVertexBuffer = 40,
     BindIndexBuffer = 41,
     BindUnorderedAccessView = 42,
     BindTexture = 43,
 
-    // —— 绘制（光栅化）——
+    // Draw (rasterization)
     Draw = 50,
     DrawIndexed = 51,
     DrawInstanced = 52,
@@ -33,11 +34,11 @@ public enum RenderCommandKind : byte
     DrawIndexedIndirect = 54,
     DrawIndexedIndirectCount = 55,
 
-    // —— 计算 ——
+    // Compute
     Dispatch = 60,
     DispatchIndirect = 61,
 
-    // —— 传输与清除 ——
+    // Transfer and clear
     CopyBuffer = 70,
     CopyBufferToTexture = 71,
     CopyTextureToBuffer = 72,
@@ -46,7 +47,7 @@ public enum RenderCommandKind : byte
     ClearDepthStencil = 75,
     ClearUnorderedAccessView = 76,
 
-    // —— 同步与屏障 ——
+    // Synchronization and barriers
     ResourceBarrier = 80,
     UAVBarrier = 81,
     GPUFence = 82,

@@ -25,16 +25,16 @@ internal sealed class ObjectStore
 
         if (_freeIndices.Count > 0)
         {
-            // 复用：世代号必须 +1，旧句柄才会失效
+            // Reuse: bump the generation so old handles become invalid.
             index = _freeIndices.Pop();
             generation = ++_generations[(int)index];
         }
         else
         {
-            // 全新槽位：index 递增，世代从 0 开始
+            // Fresh slot: index increments, generation starts at 0.
             index = _nextIndex++;
             generation = 0;
-            _generations.Add(0); // 为新 index 占位
+            _generations.Add(0); // Reserve a slot for the new index.
         }
 
         return ObjectId.Create(index, generation);

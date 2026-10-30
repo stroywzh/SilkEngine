@@ -40,7 +40,6 @@ internal class ObjectManager : ManagerBase<ObjectManager>
     /// <returns>The registered entity.</returns>
     /// <remarks>The lifetime scope is fixed at allocation time; copy semantics live in
     /// <see cref="SilkEngine.Scripting.GameObject.Create"/>.</remarks>
-    /// <exception cref="InvalidOperationException">The new entity could not be registered.</exception>
     internal GameObject Create()
     {
         var id = AllocateId();
@@ -49,7 +48,7 @@ internal class ObjectManager : ManagerBase<ObjectManager>
         try
         {
             var token = new ObjectCreateToken(id);
-            go = new GameObject(token); // internal：内部构造 + Transform 初始化
+            go = new GameObject(token); // internal: internal construction + Transform initialization
         }
         catch
         {
@@ -86,7 +85,7 @@ internal class ObjectManager : ManagerBase<ObjectManager>
 
         if (!_containers.TryGet(go.Scope, out var container))
         {
-            _store.Remove(go.Id); // 回滚半成品
+            _store.Remove(go.Id); // roll back the half-built object
             Log.Warning($"Register: no container for scope {go.Scope}.");
             return false;
         }
@@ -161,7 +160,7 @@ internal class ObjectManager : ManagerBase<ObjectManager>
 
     protected override void OnLateUpdate()
     {
-        // 下一帧 LateUpdate 处理上一帧的 Destroy
+        // LateUpdate of the next frame handles last frame's Destroy.
         _lifecycle.ProcessPendingRemovals(RemoveGameObject);
 
         ForEachObject(static go => go.LateUpdateInternal());

@@ -177,7 +177,6 @@ public readonly partial struct Float4x4 : IEquatable<Float4x4>, IFormattable
 
     /// <summary>Returns the inverse of this matrix.</summary>
     /// <returns>The inverted matrix.</returns>
-    /// <exception cref="InvalidOperationException">The matrix is singular (determinant ≈ 0).</exception>
     /// <remarks>Inversion is a full recomputation, which is why it is a method and not a property.</remarks>
     public Float4x4 Inverted()
     {

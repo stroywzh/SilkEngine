@@ -151,9 +151,6 @@ public sealed class Transform : Component
     /// the world scale is <b>not</b> preserved and follows the new parent's chain.
     /// <c>false</c> preserves the current local TRS, so the world pose changes.
     /// </param>
-    /// <exception cref="InvalidOperationException">
-    /// <paramref name="newParent"/> is this transform or one of its descendants, which would create a cycle.
-    /// </exception>
     public void SetParent(Transform? newParent, bool keepWorldPosition = true)
     {
         if (_parent == newParent)

@@ -12,7 +12,7 @@ namespace SilkEngine.SourceGen.Diagnostics
     /// </para>
     /// <list type="bullet">
     ///   <item><description><c>SRC0xx</c> — rendering command generator (<c>RenderCommandSourceGen</c>): <c>SRC001</c>–<c>SRC099</c>.</description></item>
-    ///   <item><description><c>SRC1xx</c> — mathematics value-type generator (proposal-04 B5): <c>SRC101</c>–<c>SRC199</c>.</description></item>
+    ///   <item><description><c>SRC1xx</c> — mathematics value-type generator: <c>SRC101</c>–<c>SRC199</c>.</description></item>
     /// </list>
     /// <para>
     /// An existing id never changes value or band: review reports and batch acceptance criteria
