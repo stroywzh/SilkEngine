@@ -5,7 +5,6 @@ namespace SilkEngine.Asset.Sidecar;
 /// <summary>Texture import settings (the sidecar's <c>importSettings</c> node).</summary>
 public sealed record TextureImportSettings
 {
-    /// <summary>Whether colors are interpreted as sRGB (default true).</summary>
     public bool Srgb { get; init; } = true;
 }
 
@@ -16,7 +15,6 @@ public sealed class TextureSidecar : AssetSidecarBase
     public const string PngImporterName = "png";
     public const int CurrentImporterVersion = 1;
 
-    // ★ 新增：文件存储入口，Importer 和 Loader 都从这里走
     private static readonly SidecarFileStore<TextureSidecar> s_store = new(
         new JsonSidecarCodec<TextureSidecar>(),
         Validate
@@ -37,8 +35,6 @@ public sealed class TextureSidecar : AssetSidecarBase
     public int MipCount { get; init; } = 1;
     public TextureImportSettings ImportSettings { get; init; } = new();
 
-    // ★ 新增：只校验“这份 JSON 到底是不是一张 texture sidecar”，
-    //        不再承担“是否需要重导入”的语义（那属于 TextureImporter）。
     private static void Validate(TextureSidecar sidecar, string sidecarPath)
     {
         if (sidecar.SchemaVersion != CurrentSchemaVersion)

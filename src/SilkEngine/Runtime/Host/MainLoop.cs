@@ -39,6 +39,7 @@ public sealed class MainLoop : EngineThread
         _pipeline = pipeline ?? throw new ArgumentNullException(nameof(pipeline));
         _backend = backend ?? throw new ArgumentNullException(nameof(backend));
     }
+
     public override bool IsBackground => false;
     public override string ThreadName => "MainThread";
     internal override bool IsMainThread => true;
@@ -201,7 +202,9 @@ public sealed class MainLoop : EngineThread
         {
             if (stage == FrameStage.Starting && !TryRenderFailedFrame())
             {
-                Log.Error("Main loop stopped: the failed frame could not finish on the render thread.");
+                Log.Error(
+                    "Main loop stopped: the failed frame could not finish on the render thread."
+                );
                 RequestStop();
                 return false;
             }
@@ -255,6 +258,11 @@ public sealed class MainLoop : EngineThread
 
     protected override void Shutdown()
     {
+        if (Application.LogSetting.EnableMainThreadLog)
+        {
+            Log.Debug($"Main loop Stopped at {Time.FrameIndex}");
+        }
+
         // Render first: GPU consumers stop before the asset side stops publishing ready/release ids.
         var render = Volatile.Read(ref _renderThread);
         render?.RequestStop();
@@ -266,11 +274,6 @@ public sealed class MainLoop : EngineThread
 
         // The worker completes pending requests while stopping; pump them so no caller keeps waiting.
         AssetSystem.DrainCompletions(int.MaxValue);
-
-        if (Application.LogSetting.EnableMainThreadLog)
-        {
-            Log.Debug($"Main loop Stopped at {Time.FrameIndex}");
-        }
     }
 
     protected override void DisposeCore()

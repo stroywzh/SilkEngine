@@ -1,8 +1,8 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using SilkEngine.Asset;
-using SilkEngine.Core.AssetSystem;
 using SilkEngine.Asset.Abstractions;
+using SilkEngine.Core.AssetSystem;
 
 namespace SilkEngine.Runtime.Host;
 
@@ -43,9 +43,26 @@ internal sealed class AssetThread : EngineThread
     protected override void Initialize()
     {
         AssetSystem.AttachWorker(this);
+        // ResolveAssetDirectory(AssetConstants.AssetsFolderName);
+        
         Log.AttachIoOwner();
         _ready.Set();
     }
+
+    // private static string? ResolveAssetDirectory(string relativePath)
+    // {
+    //     string fromWorkingDirectory = Path.GetFullPath(relativePath);
+    //     if (Directory.Exists(fromWorkingDirectory))
+    //         return fromWorkingDirectory;
+
+    //     string fromBaseDirectory = Path.GetFullPath(
+    //         Path.Combine(AppContext.BaseDirectory, relativePath)
+    //     );
+    //     if (Directory.Exists(fromBaseDirectory))
+    //         return fromBaseDirectory;
+
+    //     return null;
+    // }
 
     protected override void Run()
     {
@@ -68,7 +85,9 @@ internal sealed class AssetThread : EngineThread
             Log.Exception(error);
             if (Interlocked.Increment(ref _consecutiveFailures) >= MaxConsecutiveFailures)
             {
-                Log.Error($"Asset loop stopped after {MaxConsecutiveFailures} consecutive failed iterations.");
+                Log.Error(
+                    $"Asset loop stopped after {MaxConsecutiveFailures} consecutive failed iterations."
+                );
                 RequestStop();
             }
         }
@@ -85,7 +104,10 @@ internal sealed class AssetThread : EngineThread
         }
 
         int processed = 0;
-        while (processed < MaxCommandsPerIteration && AssetSystem.TryDequeueCommand(out AssetCommand command))
+        while (
+            processed < MaxCommandsPerIteration
+            && AssetSystem.TryDequeueCommand(out AssetCommand command)
+        )
         {
             processed++;
 
@@ -96,7 +118,8 @@ internal sealed class AssetThread : EngineThread
                         command.AssetId,
                         Environment.TickCount64,
                         defer: true,
-                        Application.AssetSetting.DeferredReleaseWindow);
+                        Application.AssetSetting.DeferredReleaseWindow
+                    );
                     break;
 
                 case AssetCommandKind.Load when command.Request is { } request:
@@ -150,7 +173,9 @@ internal sealed class AssetThread : EngineThread
                 requestCancellation.ThrowIfCancellationRequested();
             }
             catch (OperationCanceledException)
-                when (requestCancellation.IsCancellationRequested || engineCancellation.IsCancellationRequested)
+                when (requestCancellation.IsCancellationRequested
+                    || engineCancellation.IsCancellationRequested
+                )
             {
                 canceled = true;
             }
@@ -222,7 +247,9 @@ internal sealed class AssetThread : EngineThread
 
         // Bounded drain: in-flight decodes publish their result (or their cancellation) before the store is detached.
         Stopwatch stopwatch = Stopwatch.StartNew();
-        while (AssetSystem.InFlight > 0 && stopwatch.Elapsed < Application.AssetSetting.ShutdownTimeout)
+        while (
+            AssetSystem.InFlight > 0 && stopwatch.Elapsed < Application.AssetSetting.ShutdownTimeout
+        )
         {
             _wake.Wait(5);
             _wake.Reset();

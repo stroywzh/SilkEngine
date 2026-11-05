@@ -155,6 +155,7 @@ public abstract class EngineThread : IDisposable
         try
         {
             _cts.Cancel();
+            Log.Flush();
         }
         catch (ObjectDisposedException) { }
         finally

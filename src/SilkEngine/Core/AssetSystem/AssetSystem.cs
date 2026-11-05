@@ -1,8 +1,8 @@
 using System.Collections.Concurrent;
 using System.IO;
 using SilkEngine.Asset;
-using SilkEngine.Runtime.Host;
 using SilkEngine.Asset.Abstractions;
+using SilkEngine.Runtime.Host;
 
 namespace SilkEngine.Core.AssetSystem;
 
@@ -20,18 +20,15 @@ internal static class AssetSystem
 
     private static readonly AssetStore s_store = new(s_ready, s_released);
 
-    // The registry is read once: runtime edits to Application.AssetLoaders are ignored.
-    private static readonly Lazy<Dictionary<Type, IAssetLoader>> s_loaders = new(
-        static () => new Dictionary<Type, IAssetLoader>(Application.AssetLoaders));
+    private static readonly Lazy<Dictionary<Type, IAssetLoader>> s_loaders = new(static () =>
+        new Dictionary<Type, IAssetLoader>(Application.AssetLoaders)
+    );
 
     private static AssetThread? s_worker;
     private static int s_workerThreadId;
     private static int s_inFlight;
 
-    /// <summary>State owned by the worker thread.</summary>
     internal static AssetStore Store => s_store;
-
-    /// <summary>The running worker, or <c>null</c> when no asset thread has been started.</summary>
     internal static AssetThread? Worker => Volatile.Read(ref s_worker);
 
     /// <summary>True while the calling thread is the asset worker thread.</summary>
@@ -55,7 +52,6 @@ internal static class AssetSystem
     internal static bool TryTakeReleased(out AssetId assetId) => s_released.TryDequeue(out assetId);
 
     /// <summary>Loads synchronously; only valid on the asset thread or in inline mode.</summary>
-    /// <exception cref="InvalidOperationException">Called from another thread while the worker owns the store.</exception>
     internal static T Load<T>(string sourcePath)
         where T : IAsset
     {
@@ -67,15 +63,14 @@ internal static class AssetSystem
         if (!IsWorkerThread && !AssetInlineMode.IsActive)
         {
             throw new InvalidOperationException(
-                "Assets.Load<T> is not available while the asset thread runs; use Assets.LoadAsync<T>.");
+                "Assets.Load<T> is not available while the asset thread runs; use Assets.LoadAsync<T>."
+            );
         }
 
         return Cast<T>(s_store.LoadNow(path, loader));
     }
 
     /// <summary>Queues an asynchronous load; the returned task completes on the main-thread pump.</summary>
-    /// <exception cref="NotSupportedException">No loader is registered for <typeparamref name="T"/>.</exception>
-    /// <exception cref="InvalidOperationException">The request queue is full.</exception>
     internal static Task<T> LoadAsync<T>(string sourcePath, CancellationToken cancellationToken)
         where T : IAsset
     {
@@ -94,7 +89,8 @@ internal static class AssetSystem
         if (s_pending.Count >= capacity)
         {
             throw new InvalidOperationException(
-                $"Asset request queue is full ({capacity} pending); the asset thread is not keeping up.");
+                $"Asset request queue is full ({capacity} pending); the asset thread is not keeping up."
+            );
         }
 
         var request = new AssetLoadRequest(path, loader, cancellationToken);
@@ -106,8 +102,6 @@ internal static class AssetSystem
     internal static bool TryGet<T>(AssetId assetId, out T? asset)
         where T : IAsset => s_store.TryGetById(assetId, out asset);
 
-    /// <summary>Reads the path map; only valid on the asset thread or in inline mode.</summary>
-    /// <exception cref="InvalidOperationException">Called from another thread while the worker owns the store.</exception>
     internal static bool TryGet<T>(string sourcePath, out T? asset)
         where T : IAsset
     {
@@ -118,7 +112,8 @@ internal static class AssetSystem
         if (!IsWorkerThread && !AssetInlineMode.IsActive)
         {
             throw new InvalidOperationException(
-                "Assets.TryGet<T>(string) reads the path map; call it on the asset thread or in inline mode.");
+                "Assets.TryGet<T>(string) reads the path map; call it on the asset thread or in inline mode."
+            );
         }
 
         return s_store.TryGetByPath(NormalizePath(sourcePath), out asset);
@@ -133,7 +128,8 @@ internal static class AssetSystem
                 assetId,
                 Environment.TickCount64,
                 defer: false,
-                Application.AssetSetting.DeferredReleaseWindow);
+                Application.AssetSetting.DeferredReleaseWindow
+            );
         }
 
         if (Worker is null)
@@ -168,7 +164,8 @@ internal static class AssetSystem
                 else
                 {
                     completionSource.TrySetException(
-                        new InvalidOperationException("Asset completion carried no result."));
+                        new InvalidOperationException("Asset completion carried no result.")
+                    );
                 }
             }
             catch (Exception error)
@@ -248,7 +245,8 @@ internal static class AssetSystem
             return typed;
 
         throw new InvalidOperationException(
-            $"Asset loader for '{typeof(T).FullName}' returned '{asset.GetType().FullName}'.");
+            $"Asset loader for '{typeof(T).FullName}' returned '{asset.GetType().FullName}'."
+        );
     }
 
     private static IAssetLoader ResolveLoader(Type assetType)
@@ -257,7 +255,8 @@ internal static class AssetSystem
             return loader;
 
         throw new NotSupportedException(
-            $"No asset loader is registered for '{assetType.FullName}'. Add it to Application.AssetLoaders before startup.");
+            $"No asset loader is registered for '{assetType.FullName}'. Add it to Application.AssetLoaders before startup."
+        );
     }
 
     private static string NormalizePath(string sourcePath) => Path.GetFullPath(sourcePath);
