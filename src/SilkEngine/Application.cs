@@ -1,5 +1,5 @@
 using SilkEngine.Asset;
-using SilkEngine.Core.AssetSystem.Internal;
+using SilkEngine.Asset.Abstractions;
 using SilkEngine.Rendering.Abstraction;
 
 namespace SilkEngine;
@@ -22,8 +22,8 @@ public class Application
     public static bool IsRunning { get; internal set; }
 
     /// <summary>Registry of asset types to loaders; frozen after first use.</summary>
-    public static IReadOnlyDictionary<Type, IAssetLoader> AssetLoaders { get; } =
-        new Dictionary<Type, IAssetLoader> { [typeof(Texture)] = new TextureAssetLoader() };
+    public static Dictionary<Type, IAssetLoader> AssetLoaders { get;set; } =
+        new Dictionary<Type, IAssetLoader> { };
 
     /// <summary>Asset worker tuning; read when the worker starts or when a request is submitted.</summary>
     public static class AssetSetting

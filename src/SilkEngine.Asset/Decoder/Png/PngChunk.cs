@@ -1,7 +1,7 @@
 using System.Buffers.Binary;
 using System.Text;
 
-namespace SilkEngine.Core.AssetSystem.Internal.Png;
+namespace SilkEngine.Asset.Decoder.Png;
 
 /// <summary>One PNG chunk: 4-byte ASCII type + data (CRC excluded).</summary>
 internal readonly struct PngChunk

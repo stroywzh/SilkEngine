@@ -1,3 +1,5 @@
+using SilkEngine.Asset.Abstractions;
+
 namespace SilkEngine.Asset;
 
 /// <summary>Decoded asset content produced by a loader and registered by the engine.</summary>

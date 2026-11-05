@@ -1,7 +1,7 @@
 using System.Buffers.Binary;
 using System.IO;
 
-namespace SilkEngine.Core.AssetSystem.Internal.Png;
+namespace SilkEngine.Asset.Decoder.Png;
 
 /// <summary>PNG IHDR header: only 8-bit, non-interlaced, compression/filter method 0 are accepted.</summary>
 internal sealed class PngHeader

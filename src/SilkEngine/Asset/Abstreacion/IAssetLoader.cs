@@ -1,4 +1,4 @@
-namespace SilkEngine.Asset;
+namespace SilkEngine.Asset.Abstractions;
 
 /// <summary>Asset loader: converts a source path into decoded content.</summary>
 /// <remarks>Called on a thread-pool thread, so implementations must not touch <c>AssetTable</c>, <c>Assets</c>

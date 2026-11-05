@@ -61,3 +61,6 @@ nunit-*.xml
 docs/
 # 测试文件夹，内容懒得放上git了
 tests/
+
+# auto gen
+*.g.cs

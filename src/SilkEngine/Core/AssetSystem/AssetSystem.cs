@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.IO;
 using SilkEngine.Asset;
 using SilkEngine.Runtime.Host;
+using SilkEngine.Asset.Abstractions;
 
 namespace SilkEngine.Core.AssetSystem;
 

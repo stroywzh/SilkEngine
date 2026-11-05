@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 using SandBox;
 using SilkEngine;
 using SilkEngine.Asset;
-using SilkEngine.Asset.Import;
+// using SilkEngine.Asset.Import;
 using SilkEngine.Rendering.BuiltIn;
 using SilkEngine.Runtime;
 
@@ -38,20 +38,21 @@ if (assetPaths.Length == 0)
     FlushLog();
     return 1;
 }
+// Application.AssetLoaders = 
 
-foreach (string assetPath in assetPaths)
-{
-    try
-    {
-        ImportResult imported = TextureImporter.Import(assetPath);
-        Log.Info($"Imported '{imported.SidecarPath}' (changed: {imported.Changed}).");
-    }
-    catch (Exception error)
-    {
-        // An import failure must not block startup: the render side falls back to the DEBUG triangle.
-        Report(error);
-    }
-}
+// foreach (string assetPath in assetPaths)
+// {
+//     try
+//     {
+//         AssetImportResult imported = TextureImporter.Import(assetPath);
+//         Log.Info($"Imported '{imported.SidecarPath}' (changed: {imported.Changed}).");
+//     }
+//     catch (Exception error)
+//     {
+//         // An import failure must not block startup: the render side falls back to the DEBUG triangle.
+//         Report(error);
+//     }
+// }
 
 Application.RenderBackend = new SilkOpenGLBackend();
 Application.RenderPipeline = new BuiltInPipeline();

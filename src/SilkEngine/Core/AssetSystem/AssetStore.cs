@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using SilkEngine.Asset;
+using SilkEngine.Asset.Abstractions;
 
 namespace SilkEngine.Core.AssetSystem;
 
@@ -71,7 +72,7 @@ internal sealed class AssetStore
         ArgumentNullException.ThrowIfNull(draft);
 
         AssetId assetId = AssetTable.Register(new RawDataContainer(draft.Payload));
-        IAsset asset = Bind(draft.Asset, assetId);
+        IAsset asset = draft.Asset.WithAssetId(assetId);
 
         var entry = new Entry(path, asset);
         _entries.Add(path, entry);
@@ -192,15 +193,6 @@ internal sealed class AssetStore
 
         Volatile.Write(ref _snapshot, snapshot);
     }
-
-    // The asset is constructed unbound; the engine assigns the identity afterwards.
-    private static IAsset Bind(IAsset asset, AssetId assetId) =>
-        asset switch
-        {
-            Texture texture => texture with { AssetId = assetId },
-            _ => throw new NotSupportedException(
-                $"Asset type '{asset.GetType().FullName}' cannot be bound to an asset id."),
-        };
 
     private sealed class Entry
     {

@@ -1,7 +1,7 @@
 using System.IO;
 using System.IO.Compression;
 
-namespace SilkEngine.Core.AssetSystem.Internal.Png;
+namespace SilkEngine.Asset.Decoder.Png;
 
 /// <summary>PNG decode result: size + RGBA32 pixels.</summary>
 internal sealed class PngDecodedImage

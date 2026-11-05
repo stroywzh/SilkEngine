@@ -12,7 +12,5 @@
     <Folder Name="/src/SilkEngine/Runtime/">
         <Project Path="src/SilkEngine/SilkEngine.csproj" />
     </Folder>
-    <Folder Name="/tests/">
-        <Project Path="tests/SilkEngine.Asset.Tests/SilkEngine.Asset.Tests.csproj" />
-    </Folder>
+    <Folder Name="/tests/" />
 </Solution>
