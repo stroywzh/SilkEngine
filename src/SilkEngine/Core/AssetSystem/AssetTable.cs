@@ -1,50 +1,69 @@
+using System.Diagnostics.CodeAnalysis;
 using SilkEngine.Asset;
 
 namespace SilkEngine.Core.AssetSystem;
 
-internal static class AssetTable
+/// <summary>Runtime asset table: <see cref="AssetId"/> → <see cref="RawDataContainer"/>.</summary>
+public static class AssetTable
 {
-    private static readonly Dictionary<Type, Dictionary<AssetHandle, VirtualAssetBase>> _assetsMap =
-        new() { [typeof(Texture)] = new() };
+    private static readonly Dictionary<ulong, RawDataContainer> s_containers = new(64);
 
-    public static bool TryRegister(VirtualAssetBase asset)
+    private static IReadOnlyDictionary<ulong, RawDataContainer> s_snapshot =
+        new Dictionary<ulong, RawDataContainer>(0);
+
+    private static ulong s_lastId;
+
+    /// <summary>Registers the payload container and allocates an asset id.</summary>
+    /// <returns>Newly allocated asset id.</returns>
+    /// <remarks>Asset thread only.</remarks>
+    public static AssetId Register(RawDataContainer container)
     {
-        var handle = asset.Handle;
-        if (!handle.IsValid)
-            return false;
+        ArgumentNullException.ThrowIfNull(container);
 
-        var type = asset.GetType();
-        if (!_assetsMap.TryGetValue(type, out var handleMap))
+        ulong id = unchecked(++s_lastId);
+        if (id == 0)
+            throw new InvalidOperationException("AssetTable: asset id space exhausted.");
+
+        s_containers.Add(id, container);
+        Publish();
+
+        return new AssetId(id);
+    }
+
+    /// <summary>Reads the payload container by asset id.</summary>
+    /// <returns>True when the id is valid and still registered.</returns>
+    public static bool TryGet(
+        AssetId assetId,
+        [MaybeNullWhen(false)] out RawDataContainer container
+    )
+    {
+        if (!assetId.IsValid)
         {
-            handleMap = new Dictionary<AssetHandle, VirtualAssetBase>();
-            _assetsMap[type] = handleMap;
+            container = null;
+            return false;
         }
 
-        handleMap[handle] = asset;
+        return Volatile.Read(ref s_snapshot).TryGetValue(assetId.Value, out container);
+    }
+
+    /// <summary>Removes the entry.</summary>
+    /// <returns>True when the id existed and was removed.</returns>
+    /// <remarks>Asset thread only.</remarks>
+    public static bool Unregister(AssetId assetId)
+    {
+        if (!assetId.IsValid)
+            return false;
+
+        if (!s_containers.Remove(assetId.Value))
+            return false;
+
+        Publish();
         return true;
     }
 
-    public static bool TryRemove(VirtualAssetBase asset)
-    {
-        var type = asset.GetType();
-        return _assetsMap.TryGetValue(type, out var handleMap) && handleMap.Remove(asset.Handle);
-    }
+    /// <summary>Current live entry count.</summary>
+    public static int Count => Volatile.Read(ref s_snapshot).Count;
 
-    // public static bool TryRemove<T>(T asset)
-    // where T : VirtualAssetBase
-
-    // public static bool TryRemove<T>(T asset)
-    //     where T : VirtualAssetBase
-    // {
-    //     var type = typeof(T);
-    //     if (_assetsMap.TryGetValue(type, out var handleMap))
-    //     {
-    //         if (handleMap.ContainsValue(asset))
-    //         {
-    //             //这里怎么干掉这个Handle？
-    //             return true;
-    //         }
-    //     }
-    //     return false;
-    // }
+    private static void Publish() =>
+        Volatile.Write(ref s_snapshot, new Dictionary<ulong, RawDataContainer>(s_containers));
 }

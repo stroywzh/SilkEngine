@@ -1,146 +1,172 @@
-using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Globalization;
 
 namespace SilkEngine.Core.LogSystem;
 
 /// <summary>
-/// File-backed log sink: formatted records are queued and appended to a per-day file by one
-/// background thread.
+/// File-backed log sink: formatted records are handed to <see cref="LogIoQueue"/> and written by the thread
+/// that owns file IO (the asset worker), so logging from a game thread never touches the disk.
 /// </summary>
 /// <remarks>
-/// Platform independent: the directory is supplied by the caller, so no OS branch is needed. The sink
-/// is not installed by default; hosts opt in through <see cref="SilkEngine.Log.EnableFileLog"/>. The
-/// writer is the only owner of the file handle and switches to a new file when the date rolls over. 
-/// Disposing the sink stops the writer after draining the queue; a concurrent writer that loses 
-/// the race is ignored instead of throwing into business code. 
+/// The sink owns no thread. It writes directly while no owner is attached (startup before the worker starts,
+/// shutdown after it stops) or when the caller already is the owner, so the worker never waits on itself.
+/// The writer is opened lazily and switches to a new file when the date rolls over.
 /// </remarks>
 internal sealed class FileLogSink : ILogSink, IDisposable
 {
     private const string FilePrefix = "Log";
-    private readonly string _directory;
-    private readonly BlockingCollection<string> _queue = new();
-    private readonly Thread _worker;
-    private volatile bool _disposed;
-    private volatile string _logFile;
+    private const int FlushTimeoutSeconds = 5;
 
-    /// <summary>Creates a sink that appends into <paramref name="logPath"/>.Will auto create directory if is missing</summary>
+    private readonly string _directory;
+    private readonly object _writerGate = new();
+    private StreamWriter? _writer;
+    private string? _writerFile;
+    private bool _disposed;
+
+    /// <summary>Creates a sink that appends into <paramref name="logPath"/>; the directory is created when missing.</summary>
     /// <exception cref="ArgumentException"><paramref name="logPath"/> is null or empty.</exception>
     public FileLogSink(string logPath)
     {
         ArgumentException.ThrowIfNullOrEmpty(logPath);
         Directory.CreateDirectory(logPath);
         _directory = logPath;
-        _logFile = FileOf(DateTime.Now);
-
-        _worker = new Thread(Drain) { IsBackground = true, Name = "LogFileSink" };
-        _worker.Start();
     }
 
     /// <summary>Path of the log file currently receiving records.</summary>
-    public string LogFile => _logFile;
+    public string LogFile
+    {
+        get
+        {
+            lock (_writerGate)
+            {
+                return _writerFile ?? FileOf(DateTime.Now);
+            }
+        }
+    }
 
     /// <inheritdoc />
     /// <remarks>
-    /// A record written while the sink is being disposed is dropped: the queue rejects it and the sink
-    /// swallows the resulting exception, so logging never throws into business code.
+    /// On the owner thread, or while no owner is attached, the line is written immediately. Otherwise it is
+    /// queued and the owner writes it, so the caller never performs file IO and never blocks.
     /// </remarks>
     public void Write(in LogRecord record)
     {
         if (_disposed)
             return;
 
-        try
+        string line = LogFormat.Format(record);
+        if (!LogIoQueue.HasOwner || LogIoQueue.IsOwnerThread)
         {
-            _queue.Add(LogFormat.Format(record));
+            WriteLineToFile(line);
+            return;
         }
-        catch (ObjectDisposedException)
-        {
-            // Lost the race with Dispose: the record is dropped on purpose.
-        }
-        catch (InvalidOperationException)
-        {
-            // CompleteAdding already ran (dispose in progress).
-        }
+
+        LogIoQueue.Enqueue(line);
     }
 
     /// <inheritdoc />
     /// <remarks>
-    /// Waits until the background writer has consumed everything queued so far, bounded to five
-    /// seconds so an unavailable destination can never hang the caller.
+    /// On the owner thread, or while no owner is attached, this drains the queue and flushes the writer.
+    /// Otherwise it waits, bounded by <see cref="FlushTimeoutSeconds"/>, until the owner has written the
+    /// records queued so far; every line is flushed on write, so a drained queue means written data.
     /// </remarks>
     public void Flush()
-    {
-        var spin = new SpinWait();
-        var deadline = Environment.TickCount64 + 5000;
-        while (true)
-        {
-            bool pending;
-            try
-            {
-                pending = _queue.Count > 0;
-            }
-            catch (ObjectDisposedException)
-            {
-                return; // the sink was disposed while flushing
-            }
-
-            if (_disposed || !pending || Environment.TickCount64 >= deadline)
-                return;
-
-            spin.SpinOnce();
-        }
-    }
-
-    /// <summary>Stops the background writer after draining the queue; safe to call twice.</summary>
-    public void Dispose()
     {
         if (_disposed)
             return;
 
-        _disposed = true;
-        _queue.CompleteAdding();
-        _worker.Join();
-        _queue.Dispose();
+        if (!LogIoQueue.HasOwner || LogIoQueue.IsOwnerThread)
+        {
+            DrainQueue(int.MaxValue);
+            FlushWriter();
+            return;
+        }
+
+        var stopwatch = Stopwatch.StartNew();
+        var timeout = TimeSpan.FromSeconds(FlushTimeoutSeconds);
+        while (LogIoQueue.Count > 0 && stopwatch.Elapsed < timeout)
+            Thread.Sleep(1);
     }
 
-    /// <summary>Consumes the queue and appends each record to the current day's file.</summary>
-    /// <remarks>
-    /// The date is re-evaluated per record, so a sink that outlives midnight switches file without the
-    /// caller noticing. The writer owns the only handle: write errors drop the line but keep
-    /// the loop draining, so Flush/Dispose stay responsive.
-    /// </remarks>
-    private void Drain()
+    /// <summary>Writes up to <paramref name="maxLines"/> queued records; called by the IO owner each loop.</summary>
+    internal void DrainOnOwnerThread(int maxLines) => DrainQueue(maxLines);
+
+    /// <summary>
+    /// Writes everything still queued, flushes and closes the file; safe to call twice. Records that arrive
+    /// afterwards are dropped.
+    /// </summary>
+    public void Dispose()
     {
-        StreamWriter? writer = null;
-        string? currentFile = null;
-
-        try
+        lock (_writerGate)
         {
-            foreach (var line in _queue.GetConsumingEnumerable())
-            {
-                var file = FileOf(DateTime.Now);
-                if (writer is null || !string.Equals(file, currentFile, StringComparison.Ordinal))
-                {
-                    writer?.Dispose();
-                    writer = new StreamWriter(file, append: true) { AutoFlush = true };
-                    currentFile = file;
-                    _logFile = file;
-                }
+            if (_disposed)
+                return;
+        }
 
-                try
-                {
-                    writer.WriteLine(line);
-                }
-                catch (IOException)
-                {
-                    // Logging is best effort: an unavailable destination drops the line, but the queue
-                    // keeps draining so Flush() and Dispose() stay responsive.
-                }
+        DrainQueue(int.MaxValue);
+
+        lock (_writerGate)
+        {
+            _disposed = true;
+            _writer?.Dispose();
+            _writer = null;
+            _writerFile = null;
+        }
+    }
+
+    private void DrainQueue(int maxLines)
+    {
+        int written = 0;
+        while (written < maxLines && LogIoQueue.TryDequeue(out string line))
+        {
+            WriteLineToFile(line);
+            written++;
+        }
+    }
+
+    private void WriteLineToFile(string line)
+    {
+        lock (_writerGate)
+        {
+            if (_disposed)
+                return;
+
+            StreamWriter writer = EnsureWriter();
+            try
+            {
+                writer.WriteLine(line);
+            }
+            catch (IOException)
+            {
+                // Logging is best effort: an unavailable destination drops the line, the sink keeps working.
             }
         }
-        finally
+    }
+
+    private StreamWriter EnsureWriter()
+    {
+        string file = FileOf(DateTime.Now);
+        if (_writer is not null && string.Equals(file, _writerFile, StringComparison.Ordinal))
+            return _writer;
+
+        _writer?.Dispose();
+        _writer = new StreamWriter(file, append: true) { AutoFlush = true };
+        _writerFile = file;
+        return _writer;
+    }
+
+    private void FlushWriter()
+    {
+        lock (_writerGate)
         {
-            writer?.Dispose();
+            try
+            {
+                _writer?.Flush();
+            }
+            catch (IOException)
+            {
+                // Best effort, as above.
+            }
         }
     }
 

@@ -24,6 +24,8 @@ catch (Exception error)
     Log.Error($"File logging unavailable: {error.Message}");
 }
 
+//TODO :这个应该由AssetThread负责，每次启动时扫描Root，也许可以引入SQLite，建立一个Library/，里面放ManagedAssets用于映射各种虚拟路径
+//也作为实际变化检查
 string? assetRoot = ResolveAssetDirectory(AssetsFolder);
 string[] assetPaths = assetRoot is null ? Array.Empty<string>() : ScanPngAssets(assetRoot);
 PrintBanner(args, assetRoot, assetPaths.Length, consoleState, logFile);

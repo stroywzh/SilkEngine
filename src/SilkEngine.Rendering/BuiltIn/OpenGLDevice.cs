@@ -18,8 +18,17 @@ namespace SilkEngine.Rendering.BuiltIn;
 /// Capabilities that are not implemented throw <see cref="NotSupportedException"/> (G7).
 /// </para>
 /// </remarks>
-internal sealed unsafe class OpenGLDevice : IRenderDevice
+internal sealed unsafe class OpenGLDevice : IRenderDeviceV2
 {
+    // GL enums used for uniform-buffer binding; kept as literals so the device does not depend on
+    // optional Silk.NET enum members.
+    private const int GlUniformBufferOffsetAlignment = 0x8A34;
+    private const int GlUniformBlockDataSize = 0x8A40;
+
+    // Uniform block name shared with the built-in textured shader; its std140 size is fixed at 32 B.
+    private const string DrawConstantsBlockName = "DrawConstants";
+    private const int DrawConstantsBlockSize = 32;
+
     // Prototype shader: used when a draw happens without a pipeline state (REV-051). The prototype
     // geometry itself lives in BuiltIn/DebugTriangle.cs and is bound by the pipeline.
     private const string PrototypeVertexShaderSource = """
@@ -50,6 +59,8 @@ internal sealed unsafe class OpenGLDevice : IRenderDevice
     private readonly Dictionary<uint, PipelineStateDesc> _pipelines = new();
     private uint _nextPipelineId = 1;
 
+    private readonly int _uniformBufferOffsetAlignment;
+
     private uint _userVertexArray;
     private uint _boundVertexBuffer;
     private IndexFormat _indexFormat = IndexFormat.UInt32;
@@ -65,8 +76,6 @@ internal sealed unsafe class OpenGLDevice : IRenderDevice
     /// <summary>Creates the device around an initialized window and its GL API.</summary>
     /// <param name="window">Initialized window that owns the context.</param>
     /// <param name="gl">GL API entry point created from the same window.</param>
-    /// <exception cref="ArgumentNullException">A dependency is null.</exception>
-    /// <exception cref="InvalidOperationException">The window has no GL context.</exception>
     internal OpenGLDevice(IWindow window, GL gl)
     {
         _window = window ?? throw new ArgumentNullException(nameof(window));
@@ -74,11 +83,16 @@ internal sealed unsafe class OpenGLDevice : IRenderDevice
         _context =
             window.GLContext
             ?? throw new InvalidOperationException("The window has no GL context.");
+        _uniformBufferOffsetAlignment = Math.Max(
+            1,
+            _gl.GetInteger((GetPName)GlUniformBufferOffsetAlignment)
+        );
     }
 
     /// <summary>Gets what this implementation actually supports.</summary>
     /// <remarks>Barrier is not implemented, so <see cref="RenderCapabilities.SupportsBarrier"/> stays false.</remarks>
-    public RenderCapabilities Capabilities => new(true, true, true, true);
+    public RenderCapabilities Capabilities =>
+        new(true, true, true, true, barrier: false, constantBuffers: true);
 
     // ───────────────────────── state / render target ─────────────────────────
 
@@ -195,6 +209,51 @@ internal sealed unsafe class OpenGLDevice : IRenderDevice
         _gl.VertexAttribPointer(0, 2, VertexAttribPointerType.Float, false, stride, (void*)0);
         _gl.EnableVertexAttribArray(0);
         _boundVertexBuffer = buffer.Id;
+    }
+
+    public void BindConstantBuffer(
+        ushort binding,
+        BufferHandle buffer,
+        uint offsetBytes,
+        uint sizeBytes
+    )
+    {
+        if (!_buffers.TryGetValue(buffer.Id, out var record) || record.Usage != BufferUsage.Uniform)
+        {
+            throw new ArgumentException(
+                "Unknown uniform buffer handle (expected BufferUsage.Uniform).",
+                nameof(buffer)
+            );
+        }
+        if (sizeBytes == 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(sizeBytes),
+                "The constant range must not be empty."
+            );
+        }
+        if ((ulong)offsetBytes + sizeBytes > (ulong)record.SizeBytes)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(sizeBytes),
+                $"Constant range {offsetBytes}+{sizeBytes} exceeds the {record.SizeBytes}-byte buffer."
+            );
+        }
+        if ((long)offsetBytes % _uniformBufferOffsetAlignment != 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(offsetBytes),
+                $"Constant offset {offsetBytes} is not aligned to {_uniformBufferOffsetAlignment}."
+            );
+        }
+
+        _gl.BindBufferRange(
+            BufferTargetARB.UniformBuffer,
+            binding,
+            buffer.Id,
+            (nint)offsetBytes,
+            sizeBytes
+        );
     }
 
     public void BindIndexBuffer(BufferHandle buffer, IndexFormat format)
@@ -322,6 +381,7 @@ internal sealed unsafe class OpenGLDevice : IRenderDevice
 
         var id = _nextPipelineId++;
         _pipelines.Add(id, desc);
+        BindDrawConstantsBlock(desc.Shader.Id);
         return new PipelineStateHandle(id);
     }
 
@@ -403,10 +463,33 @@ internal sealed unsafe class OpenGLDevice : IRenderDevice
     public void DestroyPipelineState(PipelineStateHandle pipelineState) =>
         _pipelines.Remove(pipelineState.Id);
 
+    /// <summary>Binds the draw-constant block of a program and validates its std140 size.</summary>
+    private void BindDrawConstantsBlock(uint program)
+    {
+        uint blockIndex = _gl.GetUniformBlockIndex(program, DrawConstantsBlockName);
+        if (blockIndex == uint.MaxValue)
+        {
+            return; // The program does not read draw constants (for example the white triangle).
+        }
+
+        int blockSize = _gl.GetActiveUniformBlock(
+            program,
+            blockIndex,
+            (UniformBlockPName)GlUniformBlockDataSize
+        );
+        if (blockSize != DrawConstantsBlockSize)
+        {
+            throw new RenderDeviceException(
+                $"Uniform block '{DrawConstantsBlockName}' is {blockSize} B; expected {DrawConstantsBlockSize} B (std140 two vec4)."
+            );
+        }
+
+        _gl.UniformBlockBinding(program, blockIndex, ShaderConstantBindings.Draw);
+    }
+
     // ───────────────────────── drawing ─────────────────────────
 
     /// <summary>Draws indexed geometry from the bound vertex and index buffers.</summary>
-    /// <exception cref="InvalidOperationException">No vertex buffer is bound (REN-N-06).</exception>
     public void DrawIndexed(int indexCount, int startIndex, int baseVertex)
     {
         if (indexCount <= 0)
@@ -434,10 +517,6 @@ internal sealed unsafe class OpenGLDevice : IRenderDevice
     }
 
     /// <summary>Draws from the currently bound vertex buffer.</summary>
-    /// <exception cref="InvalidOperationException">
-    /// No vertex buffer is bound (REV-051: <c>Draw</c> never falls back to geometry the command stream
-    /// does not describe).
-    /// </exception>
     public void Draw(int vertexCount, int startVertex)
     {
         if (vertexCount <= 0)
@@ -495,7 +574,6 @@ internal sealed unsafe class OpenGLDevice : IRenderDevice
     }
 
     /// <summary>Not implemented by the built-in device.</summary>
-    /// <exception cref="NotSupportedException">Always; see <see cref="Capabilities"/>.</exception>
     public void Barrier() =>
         throw new NotSupportedException(
             "Barrier is not implemented by the built-in OpenGL device."
@@ -529,7 +607,6 @@ internal sealed unsafe class OpenGLDevice : IRenderDevice
     public void WaitIdle() => _gl.Finish();
 
     /// <summary>Releases GL objects, the GL API and the window; safe to call twice.</summary>
-    /// <exception cref="AggregateException">One or more cleanup steps failed.</exception>
     public void Dispose()
     {
         if (_disposed)
