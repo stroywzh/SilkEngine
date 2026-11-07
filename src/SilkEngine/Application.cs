@@ -22,7 +22,8 @@ public class Application
     public static bool IsRunning { get; internal set; }
 
     /// <summary>Registry of asset types to loaders; frozen after first use.</summary>
-    public static Dictionary<Type, IAssetLoader> AssetLoaders { get;set; } =
+    /// <remarks>Registered by the content bootstrap before startup; not part of the application surface.</remarks>
+    internal static Dictionary<Type, IAssetLoader> AssetLoaders { get;set; } =
         new Dictionary<Type, IAssetLoader> { };
 
     /// <summary>Asset worker tuning; read when the worker starts or when a request is submitted.</summary>

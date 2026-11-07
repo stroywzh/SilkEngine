@@ -18,10 +18,11 @@
                       ReferenceOutputAssembly="false" />
   </ItemGroup>
 
-  <!-- 仅开发期导入工具与测试可访问内部实现（PNG 解码器、纹理加载器）；业务程序集不开放。 -->
+  <!-- 仅开发期导入工具、数据面与测试可访问内部实现（JsonCodec、PNG 解码器）；业务程序集不开放。 -->
   <ItemGroup>
     <InternalsVisibleTo Include="SilkEngine.Asset" />
     <InternalsVisibleTo Include="SilkEngine.Asset.Tests" />
+    <InternalsVisibleTo Include="SilkEngine.Rendering" />
   </ItemGroup>
 
   <!-- Mirror the emitted sources to <repo>/Generated for inspection. The location is deliberately

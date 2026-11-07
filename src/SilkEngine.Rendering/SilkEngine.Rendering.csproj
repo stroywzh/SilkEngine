@@ -18,9 +18,7 @@
   <!-- PR-A: the same analyzer assembly is attached to both runtime projects. Generators must emit
        no files and report no diagnostics when their inputs are absent (B6). -->
   <ItemGroup>
-    <ProjectReference Include="..\SilkEngine.SourceGen\SilkEngine.SourceGen.csproj"
-                      OutputItemType="Analyzer"
-                      ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\SilkEngine.SourceGen\SilkEngine.SourceGen.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>

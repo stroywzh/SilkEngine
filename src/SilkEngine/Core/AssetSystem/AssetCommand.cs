@@ -39,15 +39,23 @@ internal readonly struct AssetCommand
 /// </summary>
 internal sealed class AssetLoadRequest
 {
-    internal AssetLoadRequest(string sourcePath, IAssetLoader loader, CancellationToken cancellationToken)
+    internal AssetLoadRequest(
+        AssetSource source,
+        IAssetLoader loader,
+        CancellationToken cancellationToken
+    )
     {
-        SourcePath = sourcePath;
+        Source = source;
         Loader = loader;
         CancellationToken = cancellationToken;
-        Completion = new TaskCompletionSource<IAsset>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Completion = new TaskCompletionSource<IAsset>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
     }
 
-    internal string SourcePath { get; }
+    internal AssetSource Source { get; }
+
+    internal string SourcePath => Source.ProjectPath;
 
     internal IAssetLoader Loader { get; }
 
@@ -59,7 +67,12 @@ internal sealed class AssetLoadRequest
 /// <summary>Thread-pool result for one request.</summary>
 internal readonly struct DecodeResult
 {
-    internal DecodeResult(AssetLoadRequest request, AssetDraft? draft, Exception? error, bool canceled)
+    internal DecodeResult(
+        AssetLoadRequest request,
+        AssetDraft? draft,
+        Exception? error,
+        bool canceled
+    )
     {
         Request = request;
         Draft = draft;

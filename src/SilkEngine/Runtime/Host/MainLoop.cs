@@ -181,7 +181,7 @@ public sealed class MainLoop : EngineThread
         UpdateScheduler.DispatchLateUpdate();
 
         // Asset completions run on the main thread; the budget keeps the frame bounded.
-        AssetSystem.DrainCompletions(Application.AssetSetting.CompletionPumpBudget);
+        AssetRuntime.Dispatcher.DrainCompletions(Application.AssetSetting.CompletionPumpBudget);
         _mainThreadContext.Pump();
     }
 
@@ -273,7 +273,7 @@ public sealed class MainLoop : EngineThread
         assets?.Dispose();
 
         // The worker completes pending requests while stopping; pump them so no caller keeps waiting.
-        AssetSystem.DrainCompletions(int.MaxValue);
+        AssetRuntime.Dispatcher.DrainCompletions(int.MaxValue);
     }
 
     protected override void DisposeCore()

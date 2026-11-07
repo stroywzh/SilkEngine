@@ -1,6 +1,6 @@
 using SilkEngine.Asset;
-using SilkEngine.Core.AssetSystem;
 using SilkEngine.Rendering.Abstraction;
+using SilkEngine.Rendering.Assets;
 
 namespace SilkEngine.Rendering.BuiltIn;
 
@@ -33,10 +33,8 @@ public sealed class BuiltInPipeline : RenderPipelineBase
     private bool _quadUsesConstants;
     private ConstantArena? _constants;
 
-    // The render thread is the only creator/destroyer: AssetId is asset identity (read-only snapshot); TextureHandle is a device resource handle.
-    private readonly Dictionary<AssetId, TextureHandle> _textures = new();
-    private readonly List<AssetId> _textureOrder = new();
-    private readonly List<AssetId> _pending = new();
+    // Render-thread owner of uploaded bindings; created in OnInitializeCore and released with the pipeline.
+    private AssetRuntimeCache _runtime = null!;
 
     public override string Name => "Built-In Pipeline";
 
@@ -48,6 +46,9 @@ public sealed class BuiltInPipeline : RenderPipelineBase
 
         _triangle = DebugTriangle.Create(device);
         _triangleReady = true;
+
+        _runtime = new AssetRuntimeCache();
+        _runtime.AddUploader(new TextureUploader());
 
         if (device is IRenderDeviceV2 && device.Capabilities.SupportsConstantBuffers)
         {
@@ -69,12 +70,7 @@ public sealed class BuiltInPipeline : RenderPipelineBase
         if (Backend.Device is not { } device)
             return;
 
-        foreach (TextureHandle texture in _textures.Values)
-            device.DestroyTexture(texture);
-
-        _textures.Clear();
-        _textureOrder.Clear();
-        _pending.Clear();
+        _runtime?.Dispose(device);
 
         if (_constants is not null)
         {
@@ -117,12 +113,10 @@ public sealed class BuiltInPipeline : RenderPipelineBase
             Backend.Device
             ?? throw new InvalidOperationException($"{Name}: the backend has no device.");
 
-        // Collect ready before releasing: an id released then made ready in the same frame is cleared from pending here and cannot linger.
-        DrainReady();
-        DrainReleased(device);
-        UploadPending(device);
+        // Released first, then ready, then upload: an id released and made ready in the same frame cannot linger.
+        _runtime.Drain(device);
 
-        if (_textureOrder.Count == 0)
+        if (_runtime.Order.Count == 0)
         {
             RecordDebugViewport(commands);
             RecordDebugClearColor(commands);
@@ -150,7 +144,7 @@ public sealed class BuiltInPipeline : RenderPipelineBase
 
     private void RecordCarousel(ICommandBuffer commands)
     {
-        int count = _textureOrder.Count;
+        int count = _runtime.Order.Count;
         TexturedQuad.BindState(commands, in _quad);
 
         if (count == 1)
@@ -177,25 +171,32 @@ public sealed class BuiltInPipeline : RenderPipelineBase
 
     private void RecordSlide(ICommandBuffer commands, int index, float alpha)
     {
-        if (_constants is null || index < 0 || index >= _textureOrder.Count)
+        if (_constants is null || index < 0 || index >= _runtime.Order.Count)
             return;
 
-        AssetId assetId = _textureOrder[index];
-        if (!Assets.TryGet<Texture>(assetId, out Texture? texture) || texture is null)
+        AssetId assetId = _runtime.Order[index];
+        if (!_runtime.TryGet<TextureBinding>(assetId, out TextureBinding binding))
             return;
 
-        DrawConstants2D constants = BuildContainConstants(texture.Width, texture.Height, alpha);
+        DrawConstants2D constants = BuildContainConstants(
+            binding.Texture.Width,
+            binding.Texture.Height,
+            alpha
+        );
         uint offset = _constants.Write(in constants);
-        TexturedQuad.RecordDraw(commands, _textures[assetId], _constants.Buffer, offset);
+        TexturedQuad.RecordDraw(commands, binding.Handle, _constants.Buffer, offset);
     }
 
     private void RecordSingleTexture(ICommandBuffer commands)
     {
-        if (!_quadReady || _textureOrder.Count == 0)
+        if (!_quadReady || _runtime.Order.Count == 0)
             return;
 
-        AssetId assetId = _textureOrder[0];
-        TexturedQuad.RecordLegacy(commands, in _quad, _textures[assetId]);
+        AssetId assetId = _runtime.Order[0];
+        if (!_runtime.TryGet<TextureBinding>(assetId, out TextureBinding binding))
+            return;
+
+        TexturedQuad.RecordLegacy(commands, in _quad, binding.Handle);
     }
 
     private DrawConstants2D BuildContainConstants(int texWidth, int texHeight, float alpha)
@@ -216,69 +217,6 @@ public sealed class BuiltInPipeline : RenderPipelineBase
             return;
 
         DebugTriangle.Record(commands, in _triangle);
-    }
-
-    private void DrainReleased(IRenderDevice device)
-    {
-        while (Assets.TryTakeReleased(out AssetId released))
-        {
-            _pending.Remove(released);
-
-            if (!_textures.Remove(released, out TextureHandle texture))
-                continue;
-
-            _textureOrder.Remove(released);
-            device.DestroyTexture(texture);
-        }
-    }
-
-    private void DrainReady()
-    {
-        while (Assets.TryTakeReady(out AssetId ready))
-            _pending.Add(ready);
-    }
-
-    // No catch: keep pending on lookup/upload failure and retry next frame; render-thread per-frame recovery logs exceptions.
-    private void UploadPending(IRenderDevice device)
-    {
-        for (int i = _pending.Count - 1; i >= 0; i--)
-        {
-            AssetId assetId = _pending[i];
-
-            if (!Assets.TryGet<Texture>(assetId, out Texture? texture) || texture is null)
-            {
-                // Missing from both snapshots = unregistered and never reused; drop it instead of retrying forever.
-                if (!AssetTable.TryGet(assetId, out _))
-                    _pending.RemoveAt(i);
-
-                continue;
-            }
-
-            if (!AssetTable.TryGet(assetId, out RawDataContainer? payload) || payload is null)
-                continue;
-            if (_textures.ContainsKey(assetId))
-            {
-                _pending.RemoveAt(i);
-                continue;
-            }
-
-            TextureHandle uploaded = device.CreateTexture(
-                texture.Width,
-                texture.Height,
-                payload.Serialized.Span
-            );
-
-            _textures.Add(assetId, uploaded);
-            _textureOrder.Add(assetId);
-            _pending.RemoveAt(i);
-
-            if (Application.LogSetting.EnableRenderLog)
-            {
-                Log.Debug(
-                    $"Uploaded texture {texture.Width}x{texture.Height} for asset {assetId.Value}."
-                );
-            }
-        }
     }
 
     private void EnsureFullViewport(ICommandBuffer commands)

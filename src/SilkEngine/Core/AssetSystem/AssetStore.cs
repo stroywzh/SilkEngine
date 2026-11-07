@@ -6,22 +6,25 @@ using SilkEngine.Asset.Abstractions;
 namespace SilkEngine.Core.AssetSystem;
 
 /// <summary>
-/// Asset state with exactly one owner thread: path map, asset cache, reference counts, deferred release and the
-/// read-only snapshots other threads observe.
+/// Asset state with exactly one owner thread: path map, runtime records, reference counts, deferred release and the
+/// single published view snapshot other threads observe.
 /// </summary>
-/// <remarks><see cref="AssetTable"/> writes, snapshot publishing and the ready/release notifications all happen
-/// here, so the single-writer requirement holds for both the asset thread and the inline mode.
-/// <see cref="Snapshot"/> and the ready/release queues are safe to read from any thread.</remarks>
+/// <remarks>Registration, refcounting, release and publishing all happen here, so the single-writer rule holds.
+/// <see cref="TryGet"/> and the ready/released queues are safe to read from any thread.</remarks>
 internal sealed class AssetStore
 {
     private readonly ConcurrentQueue<AssetId> _ready;
     private readonly ConcurrentQueue<AssetId> _released;
 
-    private readonly Dictionary<string, Entry> _entries = new(StringComparer.Ordinal);
-    private readonly Dictionary<ulong, Entry> _entriesById = new();
+    private readonly Dictionary<string, Entry> _byPath = new(StringComparer.Ordinal);
+    private readonly Dictionary<ulong, Entry> _byId = new();
+    private readonly List<AssetId> _readyBuffer = new();
+    private readonly List<AssetId> _releasedBuffer = new();
 
-    private IReadOnlyDictionary<ulong, IAsset> _snapshot = new Dictionary<ulong, IAsset>();
+    private IReadOnlyDictionary<ulong, AssetView> _snapshot = new Dictionary<ulong, AssetView>();
 
+    private ulong _lastId;
+    private bool _dirty;
     private int _deferredCount;
 
     internal AssetStore(ConcurrentQueue<AssetId> ready, ConcurrentQueue<AssetId> released)
@@ -30,16 +33,13 @@ internal sealed class AssetStore
         _released = released ?? throw new ArgumentNullException(nameof(released));
     }
 
-    /// <summary>Read-only snapshot of the loaded assets; readable from any thread.</summary>
-    internal IReadOnlyDictionary<ulong, IAsset> Snapshot => Volatile.Read(ref _snapshot);
-
     /// <summary>Number of assets whose refcount reached zero and that are waiting for their release window.</summary>
     internal int DeferredCount => Volatile.Read(ref _deferredCount);
 
     // Owner thread: reuse a cached asset (refcount +1, reviving a pending release) or report a miss.
     internal bool TryReuse(string path, [MaybeNullWhen(false)] out IAsset asset)
     {
-        if (_entries.TryGetValue(path, out Entry? entry))
+        if (_byPath.TryGetValue(path, out Entry? entry))
         {
             if (entry.RefCount == 0 && entry.Deferred)
             {
@@ -57,28 +57,51 @@ internal sealed class AssetStore
         return false;
     }
 
-    // Owner thread: reuse or decode synchronously. Used by inline mode and by thread-internal loads.
-    internal IAsset LoadNow(string path, IAssetLoader loader)
+    // Owner thread: reuse or decode synchronously; the caller observes the registered view before this returns.
+    internal IAsset LoadNow(AssetSource source, IAssetLoader loader)
     {
-        if (TryReuse(path, out IAsset? cached))
+        if (TryReuse(source.ProjectPath, out IAsset? cached))
             return cached!;
 
-        return Register(path, loader.Load(path));
+        IAsset asset = Register(source.ProjectPath, loader.Load(source));
+        Commit();
+        return asset;
     }
 
-    // Owner thread: register the decoded payload, bind the asset id, publish snapshots and enqueue ready.
+    // Owner thread: one record (asset + payload lease) under one id; the ready id is flushed by Commit.
     internal IAsset Register(string path, AssetDraft draft)
     {
         ArgumentNullException.ThrowIfNull(draft);
 
-        AssetId assetId = AssetTable.Register(new RawDataContainer(draft.Payload));
-        IAsset asset = draft.Asset.WithAssetId(assetId);
+        // Reject the duplicate before an id or a lease exists, so the failure leaks neither.
+        if (_byPath.ContainsKey(path))
+        {
+            throw new InvalidOperationException($"Asset path '{path}' is already registered.");
+        }
 
-        var entry = new Entry(path, asset);
-        _entries.Add(path, entry);
-        _entriesById.Add(assetId.Value, entry);
-        PublishSnapshot();
-        _ready.Enqueue(assetId);
+        ulong id = unchecked(++_lastId);
+        if (id == 0)
+            throw new InvalidOperationException("AssetStore: asset id space exhausted.");
+
+        var assetId = new AssetId(id);
+        var payload = new PayloadLease(draft.Payload);
+
+        IAsset asset;
+        try
+        {
+            asset = draft.AssetFactory(assetId);
+        }
+        catch
+        {
+            payload.Dispose();
+            throw;
+        }
+
+        var entry = new Entry(assetId, path, asset, payload);
+        _byId.Add(assetId.Value, entry);
+        _byPath.Add(path, entry);
+        _readyBuffer.Add(assetId);
+        _dirty = true;
 
         return asset;
     }
@@ -86,7 +109,7 @@ internal sealed class AssetStore
     // Owner thread: refcount -1; zero either releases now or starts the grace window.
     internal bool Unload(AssetId assetId, long nowMs, bool defer, TimeSpan window)
     {
-        if (!assetId.IsValid || !_entriesById.TryGetValue(assetId.Value, out Entry? entry))
+        if (!assetId.IsValid || !_byId.TryGetValue(assetId.Value, out Entry? entry))
             return false;
 
         if (entry.RefCount > 1)
@@ -119,7 +142,7 @@ internal sealed class AssetStore
             return;
 
         List<Entry>? due = null;
-        foreach (Entry entry in _entriesById.Values)
+        foreach (Entry entry in _byId.Values)
         {
             if (entry.Deferred && entry.DueAtMs <= nowMs)
                 (due ??= new List<Entry>()).Add(entry);
@@ -132,23 +155,14 @@ internal sealed class AssetStore
             Release(entry);
     }
 
-    internal bool TryGetById<T>(AssetId assetId, out T? asset)
-        where T : IAsset
+    /// <summary>Reads one published record; safe to call from any thread.</summary>
+    internal bool TryGet(AssetId assetId, out AssetView view)
     {
-        asset = default;
+        view = default;
         if (!assetId.IsValid)
             return false;
 
-        if (!Snapshot.TryGetValue(assetId.Value, out IAsset? found))
-            return false;
-
-        if (found is T typed)
-        {
-            asset = typed;
-            return true;
-        }
-
-        return false;
+        return Volatile.Read(ref _snapshot).TryGetValue(assetId.Value, out view);
     }
 
     // Owner thread: the path map is not thread-safe.
@@ -156,7 +170,7 @@ internal sealed class AssetStore
         where T : IAsset
     {
         asset = default;
-        if (!_entries.TryGetValue(path, out Entry? entry))
+        if (!_byPath.TryGetValue(path, out Entry? entry))
             return false;
 
         if (entry.Asset is T typed)
@@ -168,14 +182,43 @@ internal sealed class AssetStore
         return false;
     }
 
-    // Maps first, then the table snapshot, then the release notification: a released id is never observable later.
+    /// <summary>Publishes the current records once, then flushes the buffered ready/release notifications.</summary>
+    internal void Commit()
+    {
+        if (!_dirty)
+            return;
+
+        var snapshot = new Dictionary<ulong, AssetView>(_byId.Count);
+        foreach (Entry entry in _byId.Values)
+        {
+            snapshot[entry.Id.Value] = new AssetView(entry.Id, entry.Asset, entry.Payload);
+        }
+
+        // Readers observe the new view before either queue announces it.
+        Volatile.Write(ref _snapshot, snapshot);
+
+        foreach (AssetId ready in _readyBuffer)
+        {
+            _ready.Enqueue(ready);
+        }
+        _readyBuffer.Clear();
+
+        foreach (AssetId released in _releasedBuffer)
+        {
+            _released.Enqueue(released);
+        }
+        _releasedBuffer.Clear();
+
+        _dirty = false;
+    }
+
     private void Release(Entry entry)
     {
-        _entries.Remove(entry.Path);
-        _entriesById.Remove(entry.AssetId.Value);
-        PublishSnapshot();
-        AssetTable.Unregister(entry.AssetId);
-        _released.Enqueue(entry.AssetId);
+        _byPath.Remove(entry.Path);
+        _byId.Remove(entry.Id.Value);
+        entry.Payload.Dispose();
+        _releasedBuffer.Add(entry.Id);
+        _dirty = true;
 
         if (entry.Deferred)
         {
@@ -184,30 +227,24 @@ internal sealed class AssetStore
         }
     }
 
-    // Copy-on-publish: readers keep a stable snapshot; it is visible before the ready id is enqueued.
-    private void PublishSnapshot()
-    {
-        var snapshot = new Dictionary<ulong, IAsset>(_entries.Count);
-        foreach (Entry entry in _entries.Values)
-            snapshot[entry.AssetId.Value] = entry.Asset;
-
-        Volatile.Write(ref _snapshot, snapshot);
-    }
-
     private sealed class Entry
     {
-        internal Entry(string path, IAsset asset)
+        internal Entry(AssetId id, string path, IAsset asset, PayloadLease payload)
         {
+            Id = id;
             Path = path;
             Asset = asset;
+            Payload = payload;
             RefCount = 1;
         }
+
+        internal AssetId Id { get; }
 
         internal string Path { get; }
 
         internal IAsset Asset { get; }
 
-        internal AssetId AssetId => Asset.AssetId;
+        internal PayloadLease Payload { get; }
 
         internal int RefCount { get; set; }
 

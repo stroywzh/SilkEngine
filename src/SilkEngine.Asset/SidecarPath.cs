@@ -1,15 +1,13 @@
 using System.Security.Cryptography;
 
-namespace SilkEngine.Asset.Sidecar;
+namespace SilkEngine.Asset;
 
 internal static class SidecarPath
 {
-    public const string Extension = ".asset";
-
     public static string ForSource(string sourcePath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
-        return sourcePath + Extension;
+        return sourcePath + AssetConstants.AssetExtensionName;
     }
 
     /// <summary>把 sidecar 内记录的相对 source 解析成绝对路径，并拒绝逃逸。</summary>

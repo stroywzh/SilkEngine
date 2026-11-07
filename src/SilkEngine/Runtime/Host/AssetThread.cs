@@ -42,27 +42,13 @@ internal sealed class AssetThread : EngineThread
 
     protected override void Initialize()
     {
-        AssetSystem.AttachWorker(this);
-        // ResolveAssetDirectory(AssetConstants.AssetsFolderName);
-        
+        AssetRuntime.Dispatcher.AttachWorker(this);
         Log.AttachIoOwner();
+
+        // Startup scan/import/catalog runs before any queued request; the engine host waits for it.
+        AssetRuntime.Bootstrap.Run();
         _ready.Set();
     }
-
-    // private static string? ResolveAssetDirectory(string relativePath)
-    // {
-    //     string fromWorkingDirectory = Path.GetFullPath(relativePath);
-    //     if (Directory.Exists(fromWorkingDirectory))
-    //         return fromWorkingDirectory;
-
-    //     string fromBaseDirectory = Path.GetFullPath(
-    //         Path.Combine(AppContext.BaseDirectory, relativePath)
-    //     );
-    //     if (Directory.Exists(fromBaseDirectory))
-    //         return fromBaseDirectory;
-
-    //     return null;
-    // }
 
     protected override void Run()
     {
@@ -72,7 +58,8 @@ internal sealed class AssetThread : EngineThread
             Log.PumpFileIo();
             DrainDecoded();
             DrainCommands();
-            AssetSystem.Store.ProcessDue(Environment.TickCount64);
+            AssetRuntime.Store.ProcessDue(Environment.TickCount64);
+            AssetRuntime.Store.Commit();
             Interlocked.Exchange(ref _consecutiveFailures, 0);
         }
         catch (OperationCanceledException) when (StopToken.IsCancellationRequested)
@@ -106,7 +93,7 @@ internal sealed class AssetThread : EngineThread
         int processed = 0;
         while (
             processed < MaxCommandsPerIteration
-            && AssetSystem.TryDequeueCommand(out AssetCommand command)
+            && AssetRuntime.Dispatcher.TryDequeueCommand(out AssetCommand command)
         )
         {
             processed++;
@@ -114,7 +101,7 @@ internal sealed class AssetThread : EngineThread
             switch (command.Kind)
             {
                 case AssetCommandKind.Unload:
-                    AssetSystem.Store.Unload(
+                    AssetRuntime.Store.Unload(
                         command.AssetId,
                         Environment.TickCount64,
                         defer: true,
@@ -125,13 +112,13 @@ internal sealed class AssetThread : EngineThread
                 case AssetCommandKind.Load when command.Request is { } request:
                     if (request.CancellationToken.IsCancellationRequested)
                     {
-                        AssetSystem.CompleteCanceled(request);
+                        AssetRuntime.Dispatcher.CompleteCanceled(request);
                         break;
                     }
 
-                    if (AssetSystem.Store.TryReuse(request.SourcePath, out IAsset? cached))
+                    if (AssetRuntime.Store.TryReuse(request.SourcePath, out IAsset? cached))
                     {
-                        AssetSystem.CompleteLoaded(request, cached!);
+                        AssetRuntime.Dispatcher.CompleteLoaded(request, cached!);
                         break;
                     }
 
@@ -150,9 +137,10 @@ internal sealed class AssetThread : EngineThread
     private void StartDecode(AssetLoadRequest request)
     {
         _decodeSlots.Wait();
-        AssetSystem.IncrementInFlight();
+        AssetRuntime.Dispatcher.IncrementInFlight();
 
         IAssetLoader loader = request.Loader;
+        AssetSource source = request.Source;
         CancellationToken requestCancellation = request.CancellationToken;
         CancellationToken engineCancellation = _decodeCancellation.Token;
 
@@ -167,7 +155,7 @@ internal sealed class AssetThread : EngineThread
                 engineCancellation.ThrowIfCancellationRequested();
                 requestCancellation.ThrowIfCancellationRequested();
 
-                draft = loader.Load(request.SourcePath);
+                draft = loader.Load(source);
 
                 engineCancellation.ThrowIfCancellationRequested();
                 requestCancellation.ThrowIfCancellationRequested();
@@ -197,30 +185,36 @@ internal sealed class AssetThread : EngineThread
     {
         while (_decoded.TryDequeue(out DecodeResult result))
         {
-            AssetSystem.DecrementInFlight();
+            AssetRuntime.Dispatcher.DecrementInFlight();
 
             if (result.Canceled)
             {
-                AssetSystem.CompleteCanceled(result.Request);
+                AssetRuntime.Dispatcher.CompleteCanceled(result.Request);
                 continue;
             }
 
             if (result.Error is not null)
             {
                 Log.Exception(result.Error);
-                AssetSystem.CompleteFailed(result.Request, result.Error);
+                AssetRuntime.Dispatcher.CompleteFailed(result.Request, result.Error);
                 continue;
             }
 
             try
             {
-                IAsset asset = AssetSystem.Store.Register(result.Request.SourcePath, result.Draft!);
-                AssetSystem.CompleteLoaded(result.Request, asset);
+                IAsset asset = AssetRuntime.Store.Register(
+                    result.Request.SourcePath,
+                    result.Draft!
+                );
+
+                // Publish before completing: a caller must never observe an asset missing from the snapshot.
+                AssetRuntime.Store.Commit();
+                AssetRuntime.Dispatcher.CompleteLoaded(result.Request, asset);
             }
             catch (Exception error)
             {
                 Log.Exception(error);
-                AssetSystem.CompleteFailed(result.Request, error);
+                AssetRuntime.Dispatcher.CompleteFailed(result.Request, error);
             }
         }
     }
@@ -237,18 +231,23 @@ internal sealed class AssetThread : EngineThread
 
         // Requests that never reached the pool are cancelled so no caller waits forever.
         while (_waiting.Count > 0)
-            AssetSystem.CompleteCanceled(_waiting.Dequeue());
+        {
+            AssetRuntime.Dispatcher.CompleteCanceled(_waiting.Dequeue());
+        }
 
-        while (AssetSystem.TryDequeueCommand(out AssetCommand command))
+        while (AssetRuntime.Dispatcher.TryDequeueCommand(out AssetCommand command))
         {
             if (command.Request is { } request)
-                AssetSystem.CompleteCanceled(request);
+            {
+                AssetRuntime.Dispatcher.CompleteCanceled(request);
+            }
         }
 
         // Bounded drain: in-flight decodes publish their result (or their cancellation) before the store is detached.
         Stopwatch stopwatch = Stopwatch.StartNew();
         while (
-            AssetSystem.InFlight > 0 && stopwatch.Elapsed < Application.AssetSetting.ShutdownTimeout
+            AssetRuntime.Dispatcher.InFlight > 0
+            && stopwatch.Elapsed < Application.AssetSetting.ShutdownTimeout
         )
         {
             _wake.Wait(5);
@@ -257,7 +256,7 @@ internal sealed class AssetThread : EngineThread
         }
 
         DrainDecoded();
-        AssetSystem.DetachWorker(this);
+        AssetRuntime.Dispatcher.DetachWorker(this);
         _ready.Reset();
 
         // Final drain before the stop log, so queued records keep their order relative to it.

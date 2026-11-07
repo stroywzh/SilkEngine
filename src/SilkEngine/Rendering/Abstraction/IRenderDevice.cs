@@ -50,6 +50,10 @@ public interface IRenderDevice : IRenderWindowHost, IDisposable
     /// <summary>Creates a 2D RGBA8 texture from 8-bit pixels.</summary>
     TextureHandle CreateTexture(int width, int height, ReadOnlySpan<byte> rgbaPixels);
 
+    /// <summary>Creates a texture from a full descriptor (format, color space, mip count and pixels).</summary>
+    /// <exception cref="NotSupportedException">The descriptor's format is not implemented by this device.</exception>
+    TextureHandle CreateTexture(in TextureDesc desc);
+
     /// <summary>Binds a texture to a texture slot.</summary>
     void BindTexture(uint slot, TextureHandle texture);
 

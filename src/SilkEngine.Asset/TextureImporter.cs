@@ -1,11 +1,13 @@
 using System.IO;
-using SilkEngine.Asset.Sidecar;
+using SilkEngine.Asset;
 using SilkEngine.Asset.Decoder.Png;
+using SilkEngine.Asset.Transfer;
+using SilkEngine.Serialization;
 
 namespace SilkEngine.Asset;
 
-/// <summary>Development-time import tool: writes PNG metadata to the sidecar next to the source (<c>&lt;source&gt;.asset</c>, schema v1).</summary>
-public static class TextureImporter
+/// <summary>Development-time import tool: writes PNG metadata to the sidecar next to the source (<c>&lt;source&gt;.asset</c>, schema v2).</summary>
+internal static class TextureImporter
 {
     /// <summary>Importer version.</summary>
     public const int ImporterVersion = TextureSidecar.CurrentImporterVersion;
@@ -29,12 +31,13 @@ public static class TextureImporter
 
         string sourceName = Path.GetFileName(fullSourcePath);
         string sourceHash = ContentHash.Sha256(fullSourcePath);
+        string settingsHash = ContentHash.Sha256(JsonCodec.Encode(settings, humanReadable: false));
         string sidecarPath = SidecarPath.ForSource(fullSourcePath);
 
         TextureSidecar? existing = LoadExisting(sidecarPath);
         if (
             existing is not null
-            && ShouldReimport(existing, sourceName, sourceHash, settings) is false
+            && IsUpToDate(sidecarPath, existing, sourceName, sourceHash, settingsHash)
         )
         {
             return new AssetImportResult(sidecarPath, existing, Changed: false);
@@ -44,10 +47,24 @@ public static class TextureImporter
         using (var stream = File.OpenRead(fullSourcePath))
             decoded = PngDecoder.Decode(stream);
 
+        // 顺序：先物化产物，再写 sidecar；sidecar 只在产物落盘后才指向它。
+        ArtifactRef artifact = ArtifactStore.Write(sidecarPath, decoded.Rgba32);
+
+        // GUID 只在没有可用旧值时生成；重导入/改设置/升级导入器都必须保留它。
+        string guid =
+            existing is not null
+            && AssetGuid.TryParse(existing.Guid, out AssetGuid existingGuid)
+            && existingGuid.IsValid
+                ? existingGuid.ToString()
+                : AssetGuid.New().ToString();
+
         var sidecar = new TextureSidecar
         {
             Source = sourceName,
             SourceHash = sourceHash,
+            Guid = guid,
+            ImportSettingsHash = settingsHash,
+            Artifact = artifact,
             Width = decoded.Width,
             Height = decoded.Height,
             Format = TextureFormat.RGBA32,
@@ -79,14 +96,27 @@ public static class TextureImporter
     }
 
     // importer 策略，留在 importer 层；契约只描述数据。
-    private static bool ShouldReimport(
+    // 已存在的 sidecar 为当前 schema、GUID 有效，且源文件/设置哈希/导入器一致时为 true：跳过解码，只复用。
+    private static bool IsUpToDate(
+        string sidecarPath,
         TextureSidecar existing,
         string sourceName,
         string sourceHash,
-        TextureImportSettings settings
+        string settingsHash
     )
     {
-        return string.Equals(
+        // v2 sidecar 必须带产物；artifact: null 的旧 v2 记录靠这次重导入补齐。
+        return existing.SchemaVersion == TextureSidecar.CurrentSchemaVersion
+            && existing.Artifact is { } artifact
+            && ArtifactStore.Exists(sidecarPath, artifact)
+            && AssetGuid.TryParse(existing.Guid, out AssetGuid guid)
+            && guid.IsValid
+            && string.Equals(
+                existing.ImportSettingsHash,
+                settingsHash,
+                StringComparison.OrdinalIgnoreCase
+            )
+            && string.Equals(
                 existing.Importer,
                 TextureSidecar.PngImporterName,
                 StringComparison.Ordinal
@@ -94,7 +124,6 @@ public static class TextureImporter
             && existing.ImporterVersion == TextureSidecar.CurrentImporterVersion
             && string.Equals(existing.Source, sourceName, StringComparison.Ordinal)
             && string.Equals(existing.SourceHash, sourceHash, StringComparison.OrdinalIgnoreCase)
-            && existing.ImportSettings == settings
             && existing.Format == TextureFormat.RGBA32
             && existing.MipCount == 1
             && existing.Width > 0

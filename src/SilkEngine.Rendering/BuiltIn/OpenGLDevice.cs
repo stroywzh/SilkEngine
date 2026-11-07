@@ -1,6 +1,7 @@
 using Silk.NET.Core.Contexts;
 using Silk.NET.OpenGL;
 using Silk.NET.Windowing;
+using SilkEngine.Asset;
 using SilkEngine.Rendering.Abstraction;
 
 namespace SilkEngine.Rendering.BuiltIn;
@@ -191,7 +192,10 @@ internal sealed unsafe class OpenGLDevice : IRenderDeviceV2
     {
         if (stride == 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(stride), "Vertex stride must be positive.");
+            throw new ArgumentOutOfRangeException(
+                nameof(stride),
+                "Vertex stride must be positive."
+            );
         }
         // REN-N-05: a vertex buffer must actually be a Vertex buffer; index/uniform buffers are
         // rejected instead of silently binding the wrong target.
@@ -328,6 +332,20 @@ internal sealed unsafe class OpenGLDevice : IRenderDeviceV2
         return new TextureHandle(id);
     }
 
+    /// <summary>Creates a texture from a descriptor; only <see cref="TextureFormat.RGBA32"/> is implemented.</summary>
+    /// <exception cref="NotSupportedException">The descriptor's format is not RGBA32.</exception>
+    public TextureHandle CreateTexture(in TextureDesc desc)
+    {
+        if (desc.Format != TextureFormat.RGBA32)
+        {
+            throw new NotSupportedException(
+                $"Texture format {desc.Format} is not implemented by the built-in OpenGL device."
+            );
+        }
+
+        return CreateTexture(desc.Width, desc.Height, desc.Data.Span);
+    }
+
     public void BindTexture(uint slot, TextureHandle texture)
     {
         // REN-N-07: unknown handles are rejected like buffer/shader/pipeline handles are.
@@ -402,9 +420,7 @@ internal sealed unsafe class OpenGLDevice : IRenderDeviceV2
         else
         {
             _gl.Enable(EnableCap.CullFace);
-            _gl.CullFace(
-                pipeline.Cull == CullMode.Back ? TriangleFace.Back : TriangleFace.Front
-            );
+            _gl.CullFace(pipeline.Cull == CullMode.Back ? TriangleFace.Back : TriangleFace.Front);
         }
 
         if (pipeline.DepthTest)
