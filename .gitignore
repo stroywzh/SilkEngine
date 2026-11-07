@@ -64,3 +64,6 @@ tests/
 
 # auto gen
 *.g.cs
+
+# Build Files
+[Bb]uild/
