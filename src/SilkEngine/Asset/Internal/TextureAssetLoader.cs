@@ -41,9 +41,9 @@ internal sealed class TextureAssetLoader : IAssetLoader
             );
         }
 
-        // The header document deserializes into the same runtime descriptor type the pipeline consumes;
-        // it is unbound (AssetId.Invalid) until the store registers it.
-        Texture header = JsonCodec.Decode<Texture>(
+        // The header document deserializes into the content type the pipeline consumes; the draft factory
+        // later binds it to the store-issued handle.
+        TextureData data = JsonCodec.Decode<TextureData>(
             Encoding.UTF8.GetBytes(source.HeaderJson),
             source.SidecarPath
         );
@@ -51,12 +51,12 @@ internal sealed class TextureAssetLoader : IAssetLoader
         byte[] pixels = File.ReadAllBytes(source.ArtifactPath);
 
         // 载荷必须与 header 描述一致：宁可失败也不上传尺寸不符的像素。
-        long expected = (long)header.Width * header.Height * 4;
+        long expected = (long)data.Width * data.Height * 4;
         if (pixels.Length != expected)
         {
             throw new InvalidDataException(
                 $"Texture payload for '{source.ProjectPath}' has {pixels.Length} bytes, "
-                    + $"expected {expected} (RGBA32 {header.Width}x{header.Height})."
+                    + $"expected {expected} (RGBA32 {data.Width}x{data.Height})."
             );
         }
 
@@ -64,14 +64,7 @@ internal sealed class TextureAssetLoader : IAssetLoader
 
         return new AssetDraft
         {
-            AssetFactory = handle => new Texture(handle)
-            {
-                Width = header.Width,
-                Height = header.Height,
-                Format = header.Format,
-                ColorSpace = header.ColorSpace,
-                MipCount = header.MipCount,
-            },
+            AssetFactory = handle => new Texture(handle, data),
             Payload = payload,
         };
     }

@@ -61,7 +61,7 @@ internal sealed class TextureSidecarAdapter : IAssetCatalogAdapter
             Path.GetRelativePath(layout.ProjectRoot, sourcePath),
             artifact.Hash,
             artifact.Length,
-            Encoding.UTF8.GetString(JsonCodec.Encode(sidecar.ToTexture(), humanReadable: false)),
+            Encoding.UTF8.GetString(JsonCodec.Encode(sidecar.ToData(), humanReadable: false)),
             sidecar.SourceHash,
             sidecar.ImportSettingsHash,
             sidecar.ImporterVersion

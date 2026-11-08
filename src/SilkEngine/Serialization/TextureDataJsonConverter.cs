@@ -4,17 +4,13 @@ using SilkEngine.Asset;
 
 namespace SilkEngine.Serialization;
 
-/// <summary>
-/// Serializes the runtime texture descriptor as the catalog header document, without its runtime
-/// <see cref="AssetId"/>: an unbound descriptor is the persisted form.
-/// </summary>
+/// <summary>Serializes texture content as the catalog header document.</summary>
 /// <remarks>Written by hand so the header document keeps exactly the historical shape
 /// (<c>width</c>, <c>height</c>, <c>format</c>, <c>colorSpace</c>, <c>mipCount</c>) and old catalogs
-/// stay readable. Decoded descriptors always carry <see cref="AssetId.Invalid"/>; the store binds the
-/// real id when it registers the asset.</remarks>
-internal sealed class TextureJsonConverter : JsonConverter<Texture>
+/// stay readable. Missing optional fields fall back to RGBA32/SRGB/mip count 1.</remarks>
+internal sealed class TextureDataJsonConverter : JsonConverter<TextureData>
 {
-    public override Texture Read(
+    public override TextureData Read(
         ref Utf8JsonReader reader,
         Type typeToConvert,
         JsonSerializerOptions options
@@ -25,17 +21,20 @@ internal sealed class TextureJsonConverter : JsonConverter<Texture>
         if (root.ValueKind != JsonValueKind.Object)
             throw new JsonException("Texture header must be a JSON object.");
 
-        return new Texture()
-        {
-            Width = ReadInt32(root, "width"),
-            Height = ReadInt32(root, "height"),
-            Format = ReadEnum(root, "format", TextureFormat.RGBA32),
-            ColorSpace = ReadEnum(root, "colorSpace", TextureColorSpace.SRGB),
-            MipCount = ReadOptionalInt32(root, "mipCount", 1),
-        };
+        return new TextureData(
+            ReadInt32(root, "width"),
+            ReadInt32(root, "height"),
+            ReadEnum(root, "format", TextureFormat.RGBA32),
+            ReadEnum(root, "colorSpace", TextureColorSpace.SRGB),
+            ReadOptionalInt32(root, "mipCount", 1)
+        );
     }
 
-    public override void Write(Utf8JsonWriter writer, Texture value, JsonSerializerOptions options)
+    public override void Write(
+        Utf8JsonWriter writer,
+        TextureData value,
+        JsonSerializerOptions options
+    )
     {
         writer.WriteStartObject();
         writer.WriteNumber("width", value.Width);

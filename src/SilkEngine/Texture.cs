@@ -2,32 +2,34 @@ using SilkEngine.Asset;
 
 namespace SilkEngine;
 
-/// <summary>Runtime texture asset: size and format description.</summary>
+/// <summary>Runtime texture asset: its content description plus the store identity of the loaded record.</summary>
 public sealed class Texture : AssetBase
 {
     /// <inheritdoc />
     public override string AssetTypeName => TextureAssetName;
 
-    /// <summary>Creates an unbound descriptor (used by loaders).</summary>
-    internal Texture()
-        : base() { }
+    /// <summary>Creates a texture bound to its store-issued handle and carrying the given content.</summary>
+    internal Texture(AssetHandle handle, TextureData data)
+        : base(handle)
+    {
+        Data = data;
+    }
 
-    /// <summary>Creates the descriptor bound to its store-issued handle.</summary>
-    internal Texture(AssetHandle handle)
-        : base(handle) { }
+    /// <summary>Texture content uploaded by the render side.</summary>
+    public TextureData Data { get; }
 
     /// <summary>Width in pixels.</summary>
-    public required int Width { get; init; }
+    public int Width => Data.Width;
 
     /// <summary>Height in pixels.</summary>
-    public required int Height { get; init; }
+    public int Height => Data.Height;
 
     /// <summary>Pixel format of the payload.</summary>
-    public TextureFormat Format { get; init; } = TextureFormat.RGBA32;
+    public TextureFormat Format => Data.Format;
 
     /// <summary>Color space the samples are meant to be read in.</summary>
-    public TextureColorSpace ColorSpace { get; init; } = TextureColorSpace.SRGB;
+    public TextureColorSpace ColorSpace => Data.ColorSpace;
 
     /// <summary>Number of mip levels in the payload.</summary>
-    public int MipCount { get; init; } = 4;
+    public int MipCount => Data.MipCount;
 }

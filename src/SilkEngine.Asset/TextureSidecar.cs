@@ -41,16 +41,8 @@ internal sealed class TextureSidecar : AssetSidecarBase
     public int MipCount { get; init; } = 1;
     public TextureImportSettings ImportSettings { get; init; } = new();
 
-    /// <summary>Unbound runtime descriptor derived from the import record; the asset store binds the real id.</summary>
-    internal Texture ToTexture() =>
-        new()
-        {
-            Width = Width,
-            Height = Height,
-            Format = Format,
-            ColorSpace = ColorSpace,
-            MipCount = MipCount,
-        };
+    /// <summary>Texture content derived from the import record.</summary>
+    internal TextureData ToData() => new(Width, Height, Format, ColorSpace, MipCount);
 
     private static void Validate(TextureSidecar sidecar, string sidecarPath)
     {
