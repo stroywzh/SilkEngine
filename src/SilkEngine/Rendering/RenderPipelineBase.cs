@@ -6,7 +6,7 @@ namespace SilkEngine.Rendering;
 /// <summary>Rents one buffer per frame, records commands and submits non-empty buffers.</summary>
 public abstract class RenderPipelineBase : RenderLifecycleBase, IRenderPipeline
 {
-    private IRenderBackend? _backend;
+    private IRenderBackend _backend;
     private PipelineState _state;
     private AssetRuntimeCache _runtime;
 

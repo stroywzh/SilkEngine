@@ -19,7 +19,6 @@ public abstract class RenderBackendBase : RenderLifecycleBase, IRenderBackend
     private IRenderDevice _device;
     private bool _inCallback;
 
-
     protected RenderBackendBase()
     {
         _queue = new CommandQueue(this);
@@ -161,7 +160,7 @@ public abstract class RenderBackendBase : RenderLifecycleBase, IRenderBackend
     protected override void OnDisposeCore()
     {
         var device = _device;
-        _device = null;
+        _device = null!;
         device?.Dispose();
     }
 

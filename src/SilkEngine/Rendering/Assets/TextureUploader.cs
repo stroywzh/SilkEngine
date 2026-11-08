@@ -20,7 +20,7 @@ internal sealed class TextureUploader : IAssetUploader
         [MaybeNullWhen(false)] out IRuntimeBinding binding
     )
     {
-        binding = null;
+        binding = null!;
         
         //先Peek和Create，最后转移所有权
         if (
