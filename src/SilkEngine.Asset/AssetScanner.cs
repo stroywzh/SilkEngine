@@ -9,23 +9,19 @@ internal readonly record struct DiscoveredAsset(string SourcePath, IAssetImporte
 /// <remarks>Every file whose extension has a registered importer is content; file names are never special-cased.</remarks>
 internal static class AssetScanner
 {
-    /// <summary>Returns every source under <c>&lt;projectRoot&gt;/Assets</c> whose extension has a registered importer.</summary>
+    /// <summary>Returns every source under the layout's <c>Assets/</c> whose extension has a registered importer.</summary>
     /// <remarks>Returns empty when the folder does not exist. Importers must be registered before scanning.</remarks>
-    public static IReadOnlyList<DiscoveredAsset> Scan(string projectRoot)
+    public static IReadOnlyList<DiscoveredAsset> Scan(ContentLayout layout)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(projectRoot);
+        ArgumentNullException.ThrowIfNull(layout);
 
-        string assetsRoot = Path.Combine(
-            Path.GetFullPath(projectRoot),
-            AssetConstants.AssetsFolderName
-        );
         var discovered = new List<DiscoveredAsset>();
-        if (!Directory.Exists(assetsRoot))
+        if (!Directory.Exists(layout.AssetsRoot))
             return discovered;
 
         foreach (
             string sourcePath in Directory.EnumerateFiles(
-                assetsRoot,
+                layout.AssetsRoot,
                 "*",
                 SearchOption.AllDirectories
             )
@@ -45,23 +41,36 @@ internal static class AssetScanner
         return discovered;
     }
 
+    /// <summary>Convenience overload for tools/tests: derives the layout from a project root.</summary>
+    public static IReadOnlyList<DiscoveredAsset> Scan(string projectRoot) =>
+        Scan(ContentLayout.Create(projectRoot));
+
     /// <summary>Imports every discovered source, skipping (and logging) the ones that fail.</summary>
     /// <returns>Results of the successful imports only.</returns>
-    internal static IReadOnlyList<AssetImportResult> ImportAll(string projectRoot) =>
-        ImportAll(projectRoot, strict: false);
+    internal static IReadOnlyList<AssetImportResult> ImportAll(ContentLayout layout) =>
+        ImportAll(layout, strict: false);
+
+    /// <summary>Convenience overload for tools/tests: derives the layout from a project root.</summary>
+    internal static IReadOnlyList<AssetImportResult> ImportAll(
+        string projectRoot,
+        bool strict = false
+    ) => ImportAll(ContentLayout.Create(projectRoot), strict);
 
     /// <summary>Imports every discovered source; in strict mode any scan or import failure aborts startup.</summary>
-    /// <remarks>Best-effort keeps the historical behavior: a bad source is logged and skipped, the rest import.
-    /// Strict aggregates every failure and throws, so the engine host can stop with a clear error.</remarks>
     /// <returns>Results of the successful imports only.</returns>
-    internal static IReadOnlyList<AssetImportResult> ImportAll(string projectRoot, bool strict)
+    internal static IReadOnlyList<AssetImportResult> ImportAll(
+        ContentLayout layout,
+        bool strict
+    )
     {
+        ArgumentNullException.ThrowIfNull(layout);
+
         var results = new List<AssetImportResult>();
 
         IReadOnlyList<DiscoveredAsset> discovered;
         try
         {
-            discovered = Scan(projectRoot);
+            discovered = Scan(layout);
         }
         catch (Exception error) when (!strict)
         {
@@ -74,7 +83,7 @@ internal static class AssetScanner
         {
             try
             {
-                results.Add(asset.Importer.Import(asset.SourcePath));
+                results.Add(asset.Importer.Import(asset.SourcePath, layout));
             }
             catch (Exception error)
             {
@@ -87,7 +96,7 @@ internal static class AssetScanner
         if (strict && failures.Count > 0)
         {
             throw new AggregateException(
-                $"Asset import failed for {failures.Count} source(s) under '{projectRoot}'.",
+                $"Asset import failed for {failures.Count} source(s) under '{layout.ProjectRoot}'.",
                 failures
             );
         }

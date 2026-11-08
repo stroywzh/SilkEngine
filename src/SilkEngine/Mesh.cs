@@ -1,13 +1,15 @@
 using SilkEngine.Asset;
-using SilkEngine.Asset.Abstractions;
 
 namespace SilkEngine;
 
-/// <summary>Runtime texture asset: size and format description.</summary>
-public sealed record Mesh : AssetBase
+/// <summary>Runtime mesh asset: vertex/index data description.</summary>
+/// <remarks>TODO(asset-wiring): no mesh loader, importer sidecar or render uploader is wired yet. Keep the type
+/// here with the other engine runtime assets; wire loading/upload in a later phase.</remarks>
+public sealed class Mesh : AssetBase
 {
     /// <summary>Creates an unbound descriptor (used by loaders).</summary>
-    internal Mesh() { }
+    internal Mesh()
+        : base() { }
 
     /// <summary>Creates the descriptor for an asset already registered in the asset store.</summary>
     public Mesh(AssetId assetId)

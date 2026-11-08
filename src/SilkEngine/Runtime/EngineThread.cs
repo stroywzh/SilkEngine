@@ -37,6 +37,9 @@ public abstract class EngineThread : IDisposable
     /// <summary>Whether the owned OS thread is still alive.</summary>
     public bool IsAlive => _thread?.IsAlive ?? false;
 
+    /// <summary>Managed id of the started thread; 0 before start.</summary>
+    internal int ManagedThreadId => _thread?.ManagedThreadId ?? 0;
+
     /// <summary>Current lifecycle state.</summary>
     public EngineThreadState State => (EngineThreadState)Volatile.Read(ref _state);
 

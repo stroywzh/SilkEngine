@@ -4,7 +4,7 @@ using SilkEngine.Core.AssetSystem;
 namespace SilkEngine.Asset;
 
 /// <summary>Imports the project's content, builds the catalog, and attaches it to the asset system.</summary>
-/// <remarks>Runs on the asset thread as the configured <see cref="IAssetBootstrap"/>: importer and loader
+/// <remarks>Runs on the main thread as the configured <see cref="IAssetBootstrap"/>: importer and catalog
 /// registrations happen here, so the application never touches the content pipeline.</remarks>
 internal sealed class ContentAssetBootstrap : IAssetBootstrap
 {
@@ -16,14 +16,11 @@ internal sealed class ContentAssetBootstrap : IAssetBootstrap
         Stopwatch stopwatch = Stopwatch.StartNew();
 
         AssetImporterRegistry.RegisterDefaults();
-        AssetLoaderRegistration.RegisterDefaults();
 
-        Log.Info($"Asset startup: importing '{context.ProjectRoot}' ({context.Mode}).");
+        ContentLayout layout = ContentLayout.Create(context.ProjectRoot);
+        Log.Info($"Asset startup: importing '{layout.ProjectRoot}' ({context.Mode}).");
 
-        IReadOnlyList<AssetImportResult> imported = AssetScanner.ImportAll(
-            context.ProjectRoot,
-            strict
-        );
+        IReadOnlyList<AssetImportResult> imported = AssetScanner.ImportAll(layout, strict);
         Log.Info($"Imported {imported.Count} asset(s).");
         foreach (AssetImportResult result in imported)
             Log.Info($"Imported '{result.SidecarPath}' (changed: {result.Changed}).");
@@ -31,8 +28,7 @@ internal sealed class ContentAssetBootstrap : IAssetBootstrap
         AssetCatalog catalog;
         try
         {
-            catalog = AssetCatalog.Build(context.ProjectRoot);
-            catalog.Save();
+            catalog = AssetCatalog.Build(layout, strict);
         }
         catch (Exception error) when (!strict)
         {
@@ -43,7 +39,21 @@ internal sealed class ContentAssetBootstrap : IAssetBootstrap
             return;
         }
 
-        Assets.AttachCatalog(catalog);
+        // Attach before saving: a failed index write must not make the in-memory catalog unusable.
+        AssetRuntime.AttachCatalog(catalog);
+
+        try
+        {
+            catalog.Save();
+        }
+        catch (Exception error) when (!strict)
+        {
+            Log.Exception(error);
+            Log.Warning(
+                $"Asset catalog save failed for '{layout.CatalogPath}'; loads still work from memory."
+            );
+        }
+
         Log.Info(
             $"Catalog: {catalog.Count} asset(s) in {stopwatch.Elapsed.TotalMilliseconds:0} ms."
         );

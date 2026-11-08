@@ -1,6 +1,6 @@
 namespace SilkEngine.Core.AssetSystem;
 
-/// <summary>One-shot startup work for the asset worker, with completion/failure handoff to the engine host.</summary>
+/// <summary>One-shot startup work for the asset owner, with completion/failure handoff to the engine host.</summary>
 internal sealed class AssetBootstrapHost
 {
     private readonly ManualResetEventSlim _completed = new(initialState: true);
@@ -14,17 +14,23 @@ internal sealed class AssetBootstrapHost
     /// <summary>The bootstrap failure, if the last run failed.</summary>
     internal Exception? Failure => Volatile.Read(ref _failure);
 
-    /// <summary>Installs the startup work the asset worker runs before it processes any request.</summary>
-    internal void Configure(IAssetBootstrap bootstrap, AssetStartupContext context)
+    /// <summary>Installs the startup work the asset owner runs before it processes any request.</summary>
+    internal void Configure(IAssetBootstrap? bootstrap, AssetStartupContext context)
     {
-        ArgumentNullException.ThrowIfNull(bootstrap);
         _context = context;
         Volatile.Write(ref _failure, null);
         Volatile.Write(ref _bootstrap, bootstrap);
+
+        if (bootstrap is null)
+        {
+            _completed.Set();
+            return;
+        }
+
         _completed.Reset();
     }
 
-    /// <summary>Runs the configured bootstrap on the asset thread, recording success or failure.</summary>
+    /// <summary>Runs the configured bootstrap on the owner thread, recording success or failure.</summary>
     internal void Run()
     {
         IAssetBootstrap? bootstrap = Volatile.Read(ref _bootstrap);
@@ -49,7 +55,7 @@ internal sealed class AssetBootstrapHost
         }
     }
 
-    /// <summary>Waits (bounded) for the asset worker's bootstrap to signal completion.</summary>
+    /// <summary>Waits (bounded) for the asset owner's bootstrap to signal completion.</summary>
     /// <returns><c>true</c> when the bootstrap completed; <paramref name="failure"/> then carries its error.</returns>
     internal bool Wait(TimeSpan timeout, out Exception? failure)
     {

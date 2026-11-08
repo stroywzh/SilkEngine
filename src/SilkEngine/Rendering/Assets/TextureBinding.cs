@@ -14,4 +14,3 @@ public sealed class TextureBinding : IRuntimeBinding
     /// <summary>Destroys the device texture; called on the render thread.</summary>
     public void Destroy(IRenderDevice device) => device.DestroyTexture(Handle);
 }
-

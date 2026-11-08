@@ -1,11 +1,13 @@
 using SilkEngine.Asset;
-using SilkEngine.Asset.Abstractions;
 
 namespace SilkEngine;
 
 /// <summary>Runtime texture asset: size and format description.</summary>
-public sealed record Texture : AssetBase
+public sealed class Texture : AssetBase
 {
+    /// <summary>Catalog type name shared with the content-side sidecar.</summary>
+    internal const string AssetTypeName = "texture";
+
     /// <summary>Creates an unbound descriptor (used by loaders).</summary>
     internal Texture()
         : base() { }

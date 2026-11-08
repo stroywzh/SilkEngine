@@ -1,4 +1,3 @@
-using System.Reflection;
 using SilkEngine.Asset;
 using SilkEngine.Core.AssetSystem;
 using SilkEngine.Rendering.Abstraction;
@@ -18,6 +17,12 @@ public sealed class EngineOptions
     /// <summary>Whether a failed content bootstrap stops startup (<see cref="AssetStartupMode.Strict"/>)
     /// or is only logged (<see cref="AssetStartupMode.BestEffort"/>).</summary>
     public AssetStartupMode StartupMode { get; init; } = AssetStartupMode.BestEffort;
+
+    /// <summary>Explicit project/content root; when omitted the build output (then the working directory) is used.</summary>
+    public string? ProjectRoot { get; init; }
+
+    /// <summary>Content bootstrap supplied by the composition root (Program); omit for a contentless engine.</summary>
+    public IAssetBootstrap? AssetBootstrap { get; init; }
 
     /// <summary>Rendering backend to start with; when omitted the current <see cref="Application.RenderBackend"/> is used.</summary>
     public IRenderBackend? RenderBackend { get; init; }
@@ -58,11 +63,11 @@ public static class EngineHost
         Application.RenderBackend = backend;
         Application.RenderPipeline = pipeline;
 
-        string projectRoot = ResolveProjectRoot();
+        string projectRoot = options.ProjectRoot ?? ResolveProjectRoot();
         Log.Info($"project root: {projectRoot}");
 
         AssetRuntime.Bootstrap.Configure(
-            CreateAssetBootstrap(),
+            options.AssetBootstrap,
             new AssetStartupContext(projectRoot, options.StartupMode)
         );
 
@@ -99,49 +104,6 @@ public static class EngineHost
         }
 
         return new EngineApp(mainLoop, options.Frames);
-    }
-
-    private const string ContentModuleAssembly = "SilkEngine.Asset";
-    private const string ContentModuleType = "SilkEngine.Asset.ContentAssetModule";
-
-    // The engine assembly cannot reference the content assembly (the content module depends on the
-    // engine), so the built-in module is resolved by name once at startup.
-    private static IAssetBootstrap CreateAssetBootstrap()
-    {
-        Type? moduleType = Type.GetType(
-            $"{ContentModuleType}, {ContentModuleAssembly}",
-            throwOnError: false
-        );
-
-        if (moduleType is null)
-        {
-            try
-            {
-                moduleType = Assembly
-                    .Load(new AssemblyName(ContentModuleAssembly))
-                    .GetType(ContentModuleType, throwOnError: true);
-            }
-            catch (Exception error)
-            {
-                throw new InvalidOperationException(
-                    $"Content module '{ContentModuleType}' could not be loaded from "
-                        + $"'{ContentModuleAssembly}'; make sure the content assembly is deployed.",
-                    error
-                );
-            }
-        }
-
-        if (
-            moduleType is null
-            || Activator.CreateInstance(moduleType, nonPublic: true) is not IAssetModule module
-        )
-        {
-            throw new InvalidOperationException(
-                $"Content module '{ContentModuleType}' does not implement IAssetModule."
-            );
-        }
-
-        return module.CreateBootstrap();
     }
 
     // The project root is the folder that contains the fixed content folder. Prefer the build output

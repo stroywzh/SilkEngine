@@ -48,7 +48,6 @@ public sealed class BuiltInPipeline : RenderPipelineBase
         _triangleReady = true;
 
         _runtime = new AssetRuntimeCache();
-        _runtime.AddUploader(new TextureUploader());
 
         if (device is IRenderDeviceV2 && device.Capabilities.SupportsConstantBuffers)
         {

@@ -1,7 +1,7 @@
 using System.IO;
 using SilkEngine.Asset;
 using SilkEngine.Asset.Decoder.Png;
-using SilkEngine.Asset.Transfer;
+using SilkEngine.Core.IO;
 using SilkEngine.Serialization;
 
 namespace SilkEngine.Asset;
@@ -14,13 +14,31 @@ internal static class TextureImporter
 
     /// <summary>Imports the source PNG with the default settings (sRGB).</summary>
     public static AssetImportResult Import(string sourcePath) =>
-        Import(sourcePath, new TextureImportSettings());
+        Import(sourcePath, ContentLayout.FromSourcePath(sourcePath));
 
-    /// <summary>Imports the source PNG.</summary>
-    public static AssetImportResult Import(string sourcePath, TextureImportSettings settings)
+    /// <summary>Imports the source PNG using the project layout for the artifact store.</summary>
+    public static AssetImportResult Import(string sourcePath, ContentLayout layout)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
+        ArgumentNullException.ThrowIfNull(layout);
+
+        return Import(sourcePath, new TextureImportSettings(), layout);
+    }
+
+    /// <summary>Imports the source PNG with explicit settings.</summary>
+    public static AssetImportResult Import(string sourcePath, TextureImportSettings settings) =>
+        Import(sourcePath, settings, ContentLayout.FromSourcePath(sourcePath));
+
+    /// <summary>Imports the source PNG with explicit settings and project layout.</summary>
+    public static AssetImportResult Import(
+        string sourcePath,
+        TextureImportSettings settings,
+        ContentLayout layout
+    )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
         ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(layout);
 
         string fullSourcePath = Path.GetFullPath(sourcePath);
         if (!File.Exists(fullSourcePath))
@@ -37,7 +55,7 @@ internal static class TextureImporter
         TextureSidecar? existing = LoadExisting(sidecarPath);
         if (
             existing is not null
-            && IsUpToDate(sidecarPath, existing, sourceName, sourceHash, settingsHash)
+            && IsUpToDate(sidecarPath, layout, existing, sourceName, sourceHash, settingsHash)
         )
         {
             return new AssetImportResult(sidecarPath, existing, Changed: false);
@@ -48,7 +66,7 @@ internal static class TextureImporter
             decoded = PngDecoder.Decode(stream);
 
         // 顺序：先物化产物，再写 sidecar；sidecar 只在产物落盘后才指向它。
-        ArtifactRef artifact = ArtifactStore.Write(sidecarPath, decoded.Rgba32);
+        Transfer.ArtifactRef artifact = ArtifactStore.Write(layout, decoded.Rgba32);
 
         // GUID 只在没有可用旧值时生成；重导入/改设置/升级导入器都必须保留它。
         string guid =
@@ -99,6 +117,7 @@ internal static class TextureImporter
     // 已存在的 sidecar 为当前 schema、GUID 有效，且源文件/设置哈希/导入器一致时为 true：跳过解码，只复用。
     private static bool IsUpToDate(
         string sidecarPath,
+        ContentLayout layout,
         TextureSidecar existing,
         string sourceName,
         string sourceHash,
@@ -108,7 +127,7 @@ internal static class TextureImporter
         // v2 sidecar 必须带产物；artifact: null 的旧 v2 记录靠这次重导入补齐。
         return existing.SchemaVersion == TextureSidecar.CurrentSchemaVersion
             && existing.Artifact is { } artifact
-            && ArtifactStore.Exists(sidecarPath, artifact)
+            && ArtifactStore.Exists(layout, artifact)
             && AssetGuid.TryParse(existing.Guid, out AssetGuid guid)
             && guid.IsValid
             && string.Equals(

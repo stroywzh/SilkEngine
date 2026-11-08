@@ -255,6 +255,7 @@ public sealed class GameObject
         if (_snapDirty)
         {
             _dispatchSnapshot = _components.ToArray();
+            _snapDirty = false;
         }
 
         return _dispatchSnapshot;

@@ -56,6 +56,7 @@ internal static class UpdateScheduler
         {
             _snapShot.Clear();
             _snapShot.AddRange(_orders.OrderBy(pair => pair.Value).Select(pair => pair.Key));
+            _dirty = false;
         }
     }
 

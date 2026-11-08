@@ -9,17 +9,21 @@ namespace SilkEngine.Core.AssetSystem;
 /// Asset state with exactly one owner thread: path map, runtime records, reference counts, deferred release and the
 /// single published view snapshot other threads observe.
 /// </summary>
-/// <remarks>Registration, refcounting, release and publishing all happen here, so the single-writer rule holds.
-/// <see cref="TryGet"/> and the ready/released queues are safe to read from any thread.</remarks>
+/// <remarks>The owner is the engine main loop. A record starts with one cache pin; render-side acquisitions add
+/// references through <see cref="AssetLifetime"/>, and the record is removed only when the pin and every render
+/// reference are gone. Releasing the pin while render references remain announces the id through the pin-released
+/// queue so the render side can destroy its bindings and release those references.</remarks>
 internal sealed class AssetStore
 {
     private readonly ConcurrentQueue<AssetId> _ready;
     private readonly ConcurrentQueue<AssetId> _released;
+    private readonly ConcurrentQueue<AssetId> _pinReleased;
 
     private readonly Dictionary<string, Entry> _byPath = new(StringComparer.Ordinal);
     private readonly Dictionary<ulong, Entry> _byId = new();
     private readonly List<AssetId> _readyBuffer = new();
     private readonly List<AssetId> _releasedBuffer = new();
+    private readonly List<AssetId> _pinReleasedBuffer = new();
 
     private IReadOnlyDictionary<ulong, AssetView> _snapshot = new Dictionary<ulong, AssetView>();
 
@@ -27,34 +31,47 @@ internal sealed class AssetStore
     private bool _dirty;
     private int _deferredCount;
 
-    internal AssetStore(ConcurrentQueue<AssetId> ready, ConcurrentQueue<AssetId> released)
+    internal AssetStore(
+        ConcurrentQueue<AssetId> ready,
+        ConcurrentQueue<AssetId> released,
+        ConcurrentQueue<AssetId> pinReleased
+    )
     {
         _ready = ready ?? throw new ArgumentNullException(nameof(ready));
         _released = released ?? throw new ArgumentNullException(nameof(released));
+        _pinReleased = pinReleased ?? throw new ArgumentNullException(nameof(pinReleased));
     }
 
-    /// <summary>Number of assets whose refcount reached zero and that are waiting for their release window.</summary>
+    /// <summary>Number of assets whose cache pin is released and that are waiting for their release window.</summary>
     internal int DeferredCount => Volatile.Read(ref _deferredCount);
 
-    // Owner thread: reuse a cached asset (refcount +1, reviving a pending release) or report a miss.
+    // Owner thread: reuse a cached asset. A normal cache hit does not add a pin/reference; a record whose pin
+    // was released or whose release window started is revived by taking the pin back.
     internal bool TryReuse(string path, [MaybeNullWhen(false)] out IAsset asset)
     {
-        if (_byPath.TryGetValue(path, out Entry? entry))
+        asset = null;
+        if (!_byPath.TryGetValue(path, out Entry? entry))
+            return false;
+
+        if (!entry.Lifetime.PinHeld)
         {
-            if (entry.RefCount == 0 && entry.Deferred)
+            if (!entry.Lifetime.TryPin())
+                return false;
+
+            if (entry.Deferred)
             {
                 entry.Deferred = false;
                 _deferredCount--;
             }
 
-            entry.RefCount++;
             entry.DueAtMs = 0;
-            asset = entry.Asset;
-            return true;
         }
 
-        asset = null;
-        return false;
+        if (entry.Lifetime.Count <= 0)
+            return false;
+
+        asset = entry.Asset;
+        return true;
     }
 
     // Owner thread: reuse or decode synchronously; the caller observes the registered view before this returns.
@@ -63,28 +80,55 @@ internal sealed class AssetStore
         if (TryReuse(source.ProjectPath, out IAsset? cached))
             return cached!;
 
-        IAsset asset = Register(source.ProjectPath, loader.Load(source));
+        IAsset asset = Register(source.ProjectPath, loader.Load(source), out _);
         Commit();
         return asset;
     }
 
-    // Owner thread: one record (asset + payload lease) under one id; the ready id is flushed by Commit.
-    internal IAsset Register(string path, AssetDraft draft)
+    // Owner thread: register a draft. A duplicate path reuses the existing record and disposes the duplicate
+    // draft instead of throwing; only a newly added record consumes an id and takes payload ownership.
+    internal IAsset Register(string path, AssetDraft draft) => Register(path, draft, out _);
+
+    internal IAsset Register(string path, AssetDraft draft, out bool added)
     {
         ArgumentNullException.ThrowIfNull(draft);
 
-        // Reject the duplicate before an id or a lease exists, so the failure leaks neither.
-        if (_byPath.ContainsKey(path))
+        if (_byPath.TryGetValue(path, out Entry? existing))
         {
-            throw new InvalidOperationException($"Asset path '{path}' is already registered.");
+            draft.Dispose();
+
+            // A duplicate load may race a pin release; revive the pin so the returned asset remains valid.
+            if (!existing.Lifetime.PinHeld && existing.Lifetime.TryPin())
+            {
+                if (existing.Deferred)
+                {
+                    existing.Deferred = false;
+                    _deferredCount--;
+                }
+
+                existing.DueAtMs = 0;
+            }
+
+            added = false;
+            return existing.Asset;
         }
 
         ulong id = unchecked(++_lastId);
         if (id == 0)
+        {
+            draft.Dispose();
             throw new InvalidOperationException("AssetStore: asset id space exhausted.");
+        }
+
+        IAssetPayload? payload = draft.TakePayload();
+        if (payload is null)
+        {
+            draft.Dispose();
+            throw new InvalidOperationException($"Asset draft for '{path}' carried no payload.");
+        }
 
         var assetId = new AssetId(id);
-        var payload = new PayloadLease(draft.Payload);
+        var lease = new PayloadLease(payload);
 
         IAsset asset;
         try
@@ -93,45 +137,70 @@ internal sealed class AssetStore
         }
         catch
         {
-            payload.Dispose();
+            lease.Dispose();
             throw;
         }
 
-        var entry = new Entry(assetId, path, asset, payload);
+        var entry = new Entry(assetId, path, asset, lease, new AssetLifetime());
         _byId.Add(assetId.Value, entry);
         _byPath.Add(path, entry);
         _readyBuffer.Add(assetId);
         _dirty = true;
+        added = true;
 
         return asset;
     }
 
-    // Owner thread: refcount -1; zero either releases now or starts the grace window.
+    // Owner thread: release the cache pin. Render references keep the record alive until they are released;
+    // when they are present the id is announced on the pin-released queue first.
     internal bool Unload(AssetId assetId, long nowMs, bool defer, TimeSpan window)
     {
         if (!assetId.IsValid || !_byId.TryGetValue(assetId.Value, out Entry? entry))
             return false;
 
-        if (entry.RefCount > 1)
-        {
-            entry.RefCount--;
-            return true;
-        }
-
-        if (entry.RefCount == 0)
+        if (!entry.Lifetime.ReleasePin())
             return false;
 
-        entry.RefCount = 0;
-
-        if (!defer)
+        if (entry.Lifetime.Count == 0)
         {
-            Release(entry);
+            if (!defer)
+            {
+                RemoveEntry(entry);
+                return true;
+            }
+
+            entry.DueAtMs = nowMs + (long)window.TotalMilliseconds;
+            entry.Deferred = true;
+            _deferredCount++;
             return true;
         }
 
-        entry.DueAtMs = nowMs + (long)window.TotalMilliseconds;
-        entry.Deferred = true;
-        _deferredCount++;
+        _pinReleasedBuffer.Add(entry.Id);
+        _dirty = true;
+        return true;
+    }
+
+    // Owner thread: release one render-side reference. Only render references are touched; when the pin is
+    // already released and this was the last reference the record leaves the published snapshot.
+    internal bool ReleaseRenderRef(AssetId assetId)
+    {
+        if (!assetId.IsValid || !_byId.TryGetValue(assetId.Value, out Entry? entry))
+            return false;
+
+        if (!entry.Lifetime.ReleaseRenderRef())
+            return false;
+
+        if (entry.Lifetime.Count == 0 && !entry.Lifetime.PinHeld)
+        {
+            if (entry.Deferred)
+            {
+                entry.Deferred = false;
+                _deferredCount--;
+            }
+
+            RemoveEntry(entry);
+        }
+
         return true;
     }
 
@@ -152,7 +221,11 @@ internal sealed class AssetStore
             return;
 
         foreach (Entry entry in due)
-            Release(entry);
+        {
+            entry.Deferred = false;
+            _deferredCount--;
+            RemoveEntry(entry);
+        }
     }
 
     /// <summary>Reads one published record; safe to call from any thread.</summary>
@@ -165,23 +238,6 @@ internal sealed class AssetStore
         return Volatile.Read(ref _snapshot).TryGetValue(assetId.Value, out view);
     }
 
-    // Owner thread: the path map is not thread-safe.
-    internal bool TryGetByPath<T>(string path, out T? asset)
-        where T : IAsset
-    {
-        asset = default;
-        if (!_byPath.TryGetValue(path, out Entry? entry))
-            return false;
-
-        if (entry.Asset is T typed)
-        {
-            asset = typed;
-            return true;
-        }
-
-        return false;
-    }
-
     /// <summary>Publishes the current records once, then flushes the buffered ready/release notifications.</summary>
     internal void Commit()
     {
@@ -191,7 +247,12 @@ internal sealed class AssetStore
         var snapshot = new Dictionary<ulong, AssetView>(_byId.Count);
         foreach (Entry entry in _byId.Values)
         {
-            snapshot[entry.Id.Value] = new AssetView(entry.Id, entry.Asset, entry.Payload);
+            snapshot[entry.Id.Value] = new AssetView(
+                entry.Id,
+                entry.Asset,
+                entry.Payload,
+                entry.Lifetime
+            );
         }
 
         // Readers observe the new view before either queue announces it.
@@ -203,6 +264,12 @@ internal sealed class AssetStore
         }
         _readyBuffer.Clear();
 
+        foreach (AssetId pinReleased in _pinReleasedBuffer)
+        {
+            _pinReleased.Enqueue(pinReleased);
+        }
+        _pinReleasedBuffer.Clear();
+
         foreach (AssetId released in _releasedBuffer)
         {
             _released.Enqueue(released);
@@ -212,10 +279,13 @@ internal sealed class AssetStore
         _dirty = false;
     }
 
-    private void Release(Entry entry)
+    private void RemoveEntry(Entry entry)
     {
-        _byPath.Remove(entry.Path);
+        if (!_byPath.Remove(entry.Path))
+            return;
+
         _byId.Remove(entry.Id.Value);
+        entry.Lifetime.MarkRemoved();
         entry.Payload.Dispose();
         _releasedBuffer.Add(entry.Id);
         _dirty = true;
@@ -229,13 +299,19 @@ internal sealed class AssetStore
 
     private sealed class Entry
     {
-        internal Entry(AssetId id, string path, IAsset asset, PayloadLease payload)
+        internal Entry(
+            AssetId id,
+            string path,
+            IAsset asset,
+            PayloadLease payload,
+            AssetLifetime lifetime
+        )
         {
             Id = id;
             Path = path;
             Asset = asset;
             Payload = payload;
-            RefCount = 1;
+            Lifetime = lifetime;
         }
 
         internal AssetId Id { get; }
@@ -246,11 +322,12 @@ internal sealed class AssetStore
 
         internal PayloadLease Payload { get; }
 
-        internal int RefCount { get; set; }
+        internal AssetLifetime Lifetime { get; }
 
-        // Release deadline in the same clock as the worker's; 0 means "not in the window".
+        // Release deadline in the same clock as the owner loop's; 0 means "not in the window".
         internal long DueAtMs { get; set; }
 
         internal bool Deferred { get; set; }
     }
 }
+

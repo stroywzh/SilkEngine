@@ -8,9 +8,10 @@ internal enum AssetCommandKind : byte
 {
     Load = 0,
     Unload = 1,
+    ReleaseRenderRef = 2,
 }
 
-/// <summary>One queued request: a load or an unload, kept in submission order on the static queue.</summary>
+/// <summary>One queued owner-thread command: a load, a cache-pin release or a render-reference release.</summary>
 internal readonly struct AssetCommand
 {
     private AssetCommand(AssetCommandKind kind, AssetLoadRequest? request, AssetId assetId)
@@ -31,23 +32,27 @@ internal readonly struct AssetCommand
 
     internal static AssetCommand Unload(AssetId assetId) =>
         new(AssetCommandKind.Unload, null, assetId);
+
+    internal static AssetCommand ReleaseRenderRef(AssetId assetId) =>
+        new(AssetCommandKind.ReleaseRenderRef, null, assetId);
 }
 
-/// <summary>
-/// One asynchronous load: the worker decodes it on the thread pool, registers it, and hands a completion back
-/// to the main thread.
-/// </summary>
+/// <summary>One asynchronous or blocking load request; completion handling depends on <see cref="Blocking"/>.</summary>
 internal sealed class AssetLoadRequest
 {
+    private int _abandoned;
+
     internal AssetLoadRequest(
         AssetSource source,
         IAssetLoader loader,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        bool blocking
     )
     {
         Source = source;
         Loader = loader;
         CancellationToken = cancellationToken;
+        Blocking = blocking;
         Completion = new TaskCompletionSource<IAsset>(
             TaskCreationOptions.RunContinuationsAsynchronously
         );
@@ -61,10 +66,20 @@ internal sealed class AssetLoadRequest
 
     internal CancellationToken CancellationToken { get; }
 
+    /// <summary>True when the caller blocks; the owner thread then completes the task directly.</summary>
+    internal bool Blocking { get; }
+
+    /// <summary>Set by shutdown for requests that must not be registered any more.</summary>
+    internal bool Abandoned
+    {
+        get => Volatile.Read(ref _abandoned) != 0;
+        set => Volatile.Write(ref _abandoned, value ? 1 : 0);
+    }
+
     internal TaskCompletionSource<IAsset> Completion { get; }
 }
 
-/// <summary>Thread-pool result for one request.</summary>
+/// <summary>Thread-pool decode result.</summary>
 internal readonly struct DecodeResult
 {
     internal DecodeResult(
@@ -89,7 +104,7 @@ internal readonly struct DecodeResult
     internal bool Canceled { get; }
 }
 
-/// <summary>Outcome handed to the main-loop pump, which completes the caller's task on the main thread.</summary>
+/// <summary>Outcome handed to the main-loop pump for async callers.</summary>
 internal readonly struct AssetCompletion
 {
     private AssetCompletion(

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using SilkEngine.Asset;
 using SilkEngine.Core.AssetSystem;
 using SilkEngine.Rendering.Abstraction;
 
@@ -9,8 +10,7 @@ namespace SilkEngine.Runtime.Host;
 /// The host owns the supplied pipeline/backend; do not reuse them after start or dispose them externally.</remarks>
 public sealed class MainLoop : EngineThread
 {
-    private static readonly MainThreadSynchronizationContext _mainThreadContext =
-        MainThreadSynchronizationContext.Install();
+    private static MainThreadSynchronizationContext _mainThreadContext;
 
     // TODO: decouple; do not hardcode.
     internal const double FixedStepSeconds = 1.0 / 60.0;
@@ -23,7 +23,7 @@ public sealed class MainLoop : EngineThread
     private readonly IRenderBackend _backend;
     private readonly Stopwatch _frameStopwatch = new();
     private RenderThread? _renderThread;
-    private AssetThread? _assetThread;
+    private AssetPump? _assetPump;
     private ulong _frameId;
     private long _lastFrameTicks;
     private int _lastFrameSucceeded = 1;
@@ -59,11 +59,16 @@ public sealed class MainLoop : EngineThread
 
     protected override void Initialize()
     {
+        _mainThreadContext = MainThreadSynchronizationContext.Install();
         Time.Reset();
 
-        // The asset worker starts first so requests submitted before startup begin loading immediately.
-        var assets = ThreadFactory.StartAssetThread();
-        Volatile.Write(ref _assetThread, assets);
+        // The main loop owns the asset store; the pump runs the bootstrap before the first frame.
+        Log.AttachIoOwner();
+        AssetLoaderRegistration.RegisterDefaults();
+
+        var pump = new AssetPump();
+        Volatile.Write(ref _assetPump, pump);
+        pump.Start();
 
         var render = ThreadFactory.StartRenderThread(_pipeline, _backend);
         Volatile.Write(ref _renderThread, render);
@@ -106,6 +111,8 @@ public sealed class MainLoop : EngineThread
 
             UpdateScheduler.DispatchUpdate();
             StopToken.ThrowIfCancellationRequested();
+
+            Volatile.Read(ref _assetPump)?.Pump();
 
             OnRendering();
             stage = FrameStage.Rendered;
@@ -268,17 +275,16 @@ public sealed class MainLoop : EngineThread
         render?.RequestStop();
         render?.Dispose();
 
-        var assets = Volatile.Read(ref _assetThread);
-        assets?.RequestStop();
-        assets?.Dispose();
+        Volatile.Read(ref _assetPump)?.Shutdown();
 
-        // The worker completes pending requests while stopping; pump them so no caller keeps waiting.
+        // The pump fails/cancels pending requests while stopping; pump completions so no caller keeps waiting.
         AssetRuntime.Dispatcher.DrainCompletions(int.MaxValue);
+        Log.PumpFileIo(int.MaxValue);
+        Log.DetachIoOwner();
     }
 
     protected override void DisposeCore()
     {
         Volatile.Read(ref _renderThread)?.RequestStop();
-        Volatile.Read(ref _assetThread)?.RequestStop();
     }
 }

@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 
 namespace SilkEngine.Serialization;
 
-/// <summary>引擎统一的 JSON 选项；两个实例创建后只读，运行期修改会立即抛异常。</summary>
+/// <summary>Engine-wide JSON options; converters come from <see cref="JsonConverterRegistry"/>.</summary>
 internal static class EngineJson
 {
     public static JsonSerializerOptions HumanReadable { get; } = Create(writeIndented: true);
@@ -17,8 +17,10 @@ internal static class EngineJson
             WriteIndented = writeIndented,
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
             PropertyNameCaseInsensitive = true,
-            Converters = { new JsonStringEnumConverter(), new TextureJsonConverter() },
         };
+        options.Converters.Add(new JsonStringEnumConverter());
+        foreach (JsonConverter converter in JsonConverterRegistry.Snapshot())
+            options.Converters.Add(converter);
         options.MakeReadOnly(populateMissingResolver: true);
         return options;
     }

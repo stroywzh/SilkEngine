@@ -5,19 +5,19 @@ using SilkEngine.Runtime.Host;
 
 namespace SilkEngine.Core.AssetSystem;
 
-/// <summary>Transport between the business asset API and the asset worker thread.</summary>
-/// <remarks>Requests are queued in submission order and executed by <see cref="AssetThread"/>; results are queued
-/// back and must be pumped by the main loop, so user code always runs on the main thread. The ready/released queues
-/// are handed to <see cref="AssetStore"/>, which announces a record only after publishing its snapshot.</remarks>
+/// <summary>Transport between the asset API and the main-thread asset owner.</summary>
+/// <remarks>Commands are queued in submission order and executed by <see cref="SilkEngine.Runtime.Host.MainLoop"/>
+/// through an asset pump; async completions are queued back and must be pumped by the main loop. Blocking
+/// requests complete on the owner thread directly, so a blocked caller never depends on the pump.</remarks>
 internal sealed class AssetDispatcher
 {
     private readonly ConcurrentQueue<AssetCommand> _commands = new();
     private readonly ConcurrentQueue<AssetCompletion> _completions = new();
     private readonly ConcurrentQueue<AssetId> _ready = new();
     private readonly ConcurrentQueue<AssetId> _released = new();
+    private readonly ConcurrentQueue<AssetId> _pinReleased = new();
 
-    private AssetThread? _worker;
-    private int _workerThreadId;
+    private int _ownerThreadId;
     private int _inFlight;
 
     /// <summary>Ready ids, owned by the store and drained by the render thread.</summary>
@@ -26,16 +26,19 @@ internal sealed class AssetDispatcher
     /// <summary>Released ids, owned by the store and drained by the render thread.</summary>
     internal ConcurrentQueue<AssetId> Released => _released;
 
-    /// <summary>The started asset worker, if any.</summary>
-    internal AssetThread? Worker => Volatile.Read(ref _worker);
+    /// <summary>Ids whose cache pin was released while render references remain; drained by the render thread.</summary>
+    internal ConcurrentQueue<AssetId> PinReleased => _pinReleased;
 
-    /// <summary>True while the calling thread is the asset worker thread.</summary>
-    internal bool IsWorkerThread
+    /// <summary>True once the main loop attached itself as the store owner.</summary>
+    internal bool HasOwner => Volatile.Read(ref _ownerThreadId) != 0;
+
+    /// <summary>True while the calling thread is the asset store owner (the engine main loop).</summary>
+    internal bool IsOwnerThread
     {
         get
         {
-            int workerThreadId = Volatile.Read(ref _workerThreadId);
-            return workerThreadId != 0 && Environment.CurrentManagedThreadId == workerThreadId;
+            int ownerThreadId = Volatile.Read(ref _ownerThreadId);
+            return ownerThreadId != 0 && Environment.CurrentManagedThreadId == ownerThreadId;
         }
     }
 
@@ -48,33 +51,54 @@ internal sealed class AssetDispatcher
     /// <summary>Requests currently decoding on the thread pool.</summary>
     internal int InFlight => Volatile.Read(ref _inFlight);
 
-    internal void Submit(AssetCommand command)
-    {
-        _commands.Enqueue(command);
-        Worker?.Signal();
-    }
+    internal void Submit(AssetCommand command) => _commands.Enqueue(command);
 
-    internal bool TryDequeueCommand(out AssetCommand command) =>
-        _commands.TryDequeue(out command);
+    internal bool TryDequeueCommand(out AssetCommand command) => _commands.TryDequeue(out command);
 
     internal bool TryTakeReady(out AssetId assetId) => _ready.TryDequeue(out assetId);
 
     internal bool TryTakeReleased(out AssetId assetId) => _released.TryDequeue(out assetId);
 
+    internal bool TryTakePinReleased(out AssetId assetId) => _pinReleased.TryDequeue(out assetId);
+
     internal void IncrementInFlight() => Interlocked.Increment(ref _inFlight);
 
     internal int DecrementInFlight() => Interlocked.Decrement(ref _inFlight);
 
-    internal void CompleteLoaded(AssetLoadRequest request, IAsset asset) =>
+    internal void CompleteLoaded(AssetLoadRequest request, IAsset asset)
+    {
+        if (request.Blocking)
+        {
+            request.Completion.TrySetResult(asset);
+            return;
+        }
+
         _completions.Enqueue(AssetCompletion.Loaded(request, asset));
+    }
 
-    internal void CompleteFailed(AssetLoadRequest request, Exception error) =>
+    internal void CompleteFailed(AssetLoadRequest request, Exception error)
+    {
+        if (request.Blocking)
+        {
+            request.Completion.TrySetException(error);
+            return;
+        }
+
         _completions.Enqueue(AssetCompletion.Failed(request, error));
+    }
 
-    internal void CompleteCanceled(AssetLoadRequest request) =>
+    internal void CompleteCanceled(AssetLoadRequest request)
+    {
+        if (request.Blocking)
+        {
+            request.Completion.TrySetCanceled(request.CancellationToken);
+            return;
+        }
+
         _completions.Enqueue(AssetCompletion.Canceled(request));
+    }
 
-    /// <summary>Pumps completed requests on the main thread, bounded by <paramref name="maxCount"/>.</summary>
+    /// <summary>Pumps completed async requests on the main thread, bounded by <paramref name="maxCount"/>.</summary>
     internal int DrainCompletions(int maxCount)
     {
         int drained = 0;
@@ -113,17 +137,9 @@ internal sealed class AssetDispatcher
         return drained;
     }
 
-    internal void AttachWorker(AssetThread worker)
-    {
-        Volatile.Write(ref _worker, worker);
-        Volatile.Write(ref _workerThreadId, Environment.CurrentManagedThreadId);
-    }
+    internal void AttachOwner(int? threadId = null) =>
+        Volatile.Write(ref _ownerThreadId, threadId ?? Environment.CurrentManagedThreadId);
 
-    internal void DetachWorker(AssetThread worker)
-    {
-        if (ReferenceEquals(Volatile.Read(ref _worker), worker))
-            Volatile.Write(ref _worker, null);
-
-        Volatile.Write(ref _workerThreadId, 0);
-    }
+    internal void DetachOwner() => Volatile.Write(ref _ownerThreadId, 0);
 }
+

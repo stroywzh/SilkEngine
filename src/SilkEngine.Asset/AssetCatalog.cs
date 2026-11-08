@@ -1,37 +1,35 @@
 using System.IO;
-using System.Text;
 using SilkEngine.Asset.Abstractions;
+using SilkEngine.Core.IO;
 using SilkEngine.Serialization;
 
 namespace SilkEngine.Asset;
 
 /// <summary>Read-only index of the project's imported assets, keyed by persistent identity and by project-relative path.</summary>
 /// <remarks>The catalog is a derived index: sidecars are authoritative and a stale or missing index is rebuilt by
-/// scanning <c>Assets/</c>. Instances are immutable once constructed.</remarks>
+/// scanning <c>Assets/</c>. Entries are produced by <see cref="AssetCatalogAdapterRegistry"/> so the catalog itself
+/// does not hardcode any concrete sidecar type.</remarks>
 internal sealed class AssetCatalog : IAssetCatalog
 {
     /// <summary>Current on-disk schema version of <c>Library/index.json</c>.</summary>
     public const int CurrentSchemaVersion = 1;
 
-    private static readonly StringComparer s_pathComparer = OperatingSystem.IsWindows()
-        ? StringComparer.OrdinalIgnoreCase
-        : StringComparer.Ordinal;
-
-    private readonly string _root;
+    private readonly ContentLayout _layout;
     private readonly Dictionary<AssetGuid, AssetCatalogEntry> _byGuid;
     private readonly Dictionary<string, AssetCatalogEntry> _byPath;
 
-    private AssetCatalog(string root, IEnumerable<AssetCatalogEntry> entries)
+    private AssetCatalog(
+        ContentLayout layout,
+        IEnumerable<AssetCatalogEntry> entries,
+        bool strict
+    )
     {
-        _root = root;
+        _layout = layout;
         _byGuid = new Dictionary<AssetGuid, AssetCatalogEntry>();
-        _byPath = new Dictionary<string, AssetCatalogEntry>(s_pathComparer);
+        _byPath = new Dictionary<string, AssetCatalogEntry>(PathUtil.Comparer);
 
         foreach (AssetCatalogEntry entry in entries)
-        {
-            _byGuid[entry.Guid] = entry;
-            _byPath[entry.ProjectPath] = entry;
-        }
+            Add(entry, strict);
     }
 
     /// <summary>Number of indexed assets.</summary>
@@ -41,22 +39,18 @@ internal sealed class AssetCatalog : IAssetCatalog
     public IReadOnlyCollection<AssetCatalogEntry> Entries => _byGuid.Values;
 
     /// <summary>Indexes every imported source under <c>&lt;projectRoot&gt;/Assets</c>; unreadable sidecars are skipped.</summary>
-    /// <remarks>A source participates only while its <c>&lt;source&gt;.asset</c> sidecar exists; unsupported files are
-    /// ignored, so the result does not depend on the importer registry.</remarks>
-    public static AssetCatalog Build(string projectRoot)
+    /// <remarks>A source participates only while its sidecar exists; adapters decide which sources are supported.</remarks>
+    public static AssetCatalog Build(ContentLayout layout, bool strict = false)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(projectRoot);
-
-        string root = Path.GetFullPath(projectRoot);
-        string assetsRoot = Path.Combine(root, AssetConstants.AssetsFolderName);
+        ArgumentNullException.ThrowIfNull(layout);
 
         var entries = new List<AssetCatalogEntry>();
-        if (!Directory.Exists(assetsRoot))
-            return new AssetCatalog(root, entries);
+        if (!Directory.Exists(layout.AssetsRoot))
+            return new AssetCatalog(layout, entries, strict);
 
         foreach (
             string sourcePath in Directory.EnumerateFiles(
-                assetsRoot,
+                layout.AssetsRoot,
                 "*",
                 SearchOption.AllDirectories
             )
@@ -70,79 +64,41 @@ internal sealed class AssetCatalog : IAssetCatalog
             )
                 continue;
 
-            string sidecarPath = sourcePath + AssetConstants.AssetExtensionName;
-            if (!File.Exists(sidecarPath))
-            {
-                Log.Debug($"Skipping source '{sourcePath}': no sidecar found.");
-                continue;
-            }
-
-            TextureSidecar sidecar;
-            try
-            {
-                sidecar = TextureSidecar.Reader.Read(sidecarPath);
-            }
-            catch (Exception error) when (error is InvalidDataException or IOException)
-            {
-                Log.Warning($"Skipping sidecar '{sidecarPath}': {error.Message}");
-                continue;
-            }
-
-            if (sidecar.Artifact is not { } artifact)
-            {
-                Log.Warning(
-                    $"Skipping sidecar '{sidecarPath}': no artifact. Reimport the asset and rebuild the catalog "
-                        + "(the runtime loader no longer decodes sources)."
-                );
-                continue;
-            }
-
-            if (!AssetGuid.TryParse(sidecar.Guid, out AssetGuid guid) || !guid.IsValid)
-            {
-                Log.Warning($"Skipping sidecar '{sidecarPath}': missing or invalid guid.");
-                continue;
-            }
-
-            entries.Add(
-                new AssetCatalogEntry(
-                    guid,
-                    sidecar.AssetType,
-                    Path.GetRelativePath(root, sourcePath),
-                    artifact.Hash,
-                    artifact.Length,
-                    Encoding.UTF8.GetString(
-                        JsonCodec.Encode(sidecar.ToTexture(), humanReadable: false)
-                    ),
-                    sidecar.SourceHash,
-                    sidecar.ImportSettingsHash,
-                    sidecar.ImporterVersion
+            if (
+                !AssetCatalogAdapterRegistry.TryGet(
+                    Path.GetExtension(sourcePath),
+                    out IAssetCatalogAdapter adapter
                 )
-            );
+            )
+                continue;
+
+            if (!adapter.TryCreateEntry(layout, sourcePath, out AssetCatalogEntry entry))
+                continue;
+
+            entries.Add(entry);
         }
 
-        return new AssetCatalog(root, entries);
+        return new AssetCatalog(layout, entries, strict);
     }
+
+    /// <summary>Convenience overload for tools/tests: derives the layout from a project root.</summary>
+    public static AssetCatalog Build(string projectRoot, bool strict = false) =>
+        Build(ContentLayout.Create(projectRoot), strict);
 
     /// <summary>Loads <c>&lt;projectRoot&gt;/Library/index.json</c>.</summary>
     /// <exception cref="InvalidDataException">The index is malformed or its schema version is unsupported.</exception>
-    public static AssetCatalog Open(string projectRoot)
+    public static AssetCatalog Open(ContentLayout layout, bool strict = false)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(projectRoot);
+        ArgumentNullException.ThrowIfNull(layout);
 
-        string root = Path.GetFullPath(projectRoot);
-        string indexPath = Path.Combine(
-            root,
-            AssetConstants.LibraryFolderName,
-            AssetConstants.CatalogFileName
-        );
         CatalogDocument document = JsonCodec.Decode<CatalogDocument>(
-            File.ReadAllBytes(indexPath),
-            indexPath
+            File.ReadAllBytes(layout.CatalogPath),
+            layout.CatalogPath
         );
 
         if (document.SchemaVersion != CurrentSchemaVersion)
             throw new InvalidDataException(
-                $"Unsupported catalog schemaVersion {document.SchemaVersion} in '{indexPath}' "
+                $"Unsupported catalog schemaVersion {document.SchemaVersion} in '{layout.CatalogPath}' "
                     + $"(expected {CurrentSchemaVersion})."
             );
 
@@ -172,34 +128,40 @@ internal sealed class AssetCatalog : IAssetCatalog
             );
         }
 
-        return new AssetCatalog(root, entries);
+        return new AssetCatalog(layout, entries, strict);
     }
 
+    /// <summary>Convenience overload for tools/tests: derives the layout from a project root.</summary>
+    public static AssetCatalog Open(string projectRoot, bool strict = false) =>
+        Open(ContentLayout.Create(projectRoot), strict);
+
     /// <summary>Loads the index, or rebuilds and saves it when the index is missing, unreadable or outdated.</summary>
-    public static AssetCatalog OpenOrBuild(string projectRoot)
+    public static AssetCatalog OpenOrBuild(ContentLayout layout, bool strict = false)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(projectRoot);
+        ArgumentNullException.ThrowIfNull(layout);
 
         try
         {
-            return Open(projectRoot);
+            return Open(layout, strict);
         }
         catch (Exception error) when (error is IOException or InvalidDataException)
         {
-            Log.Warning($"Rebuilding asset catalog for '{projectRoot}': {error.Message}");
+            Log.Warning($"Rebuilding asset catalog for '{layout.ProjectRoot}': {error.Message}");
         }
 
-        AssetCatalog catalog = Build(projectRoot);
+        AssetCatalog catalog = Build(layout, strict);
         catalog.Save();
         return catalog;
     }
 
+    /// <summary>Convenience overload for tools/tests: derives the layout from a project root.</summary>
+    public static AssetCatalog OpenOrBuild(string projectRoot, bool strict = false) =>
+        OpenOrBuild(ContentLayout.Create(projectRoot), strict);
+
     /// <summary>Writes <c>&lt;projectRoot&gt;/Library/index.json</c> atomically.</summary>
     public void Save()
     {
-        string libraryRoot = Path.Combine(_root, AssetConstants.LibraryFolderName);
-        string target = Path.Combine(libraryRoot, AssetConstants.CatalogFileName);
-        Directory.CreateDirectory(libraryRoot);
+        Directory.CreateDirectory(_layout.LibraryRoot);
 
         var document = new CatalogDocument
         {
@@ -211,22 +173,7 @@ internal sealed class AssetCatalog : IAssetCatalog
         };
         byte[] content = JsonCodec.Encode(document, humanReadable: false);
 
-        // Same-directory temp file so the rename stays atomic on one volume.
-        string temp = target + "." + Guid.NewGuid().ToString("N") + ".tmp";
-        try
-        {
-            File.WriteAllBytes(temp, content);
-            File.Move(temp, target, overwrite: true);
-        }
-        finally
-        {
-            try
-            {
-                if (File.Exists(temp))
-                    File.Delete(temp);
-            }
-            catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
-        }
+        AtomicFile.WriteAllBytes(_layout.CatalogPath, content, overwrite: true);
     }
 
     /// <inheritdoc />
@@ -245,8 +192,8 @@ internal sealed class AssetCatalog : IAssetCatalog
         {
             string fullPath = Path.IsPathRooted(sourcePath)
                 ? Path.GetFullPath(sourcePath)
-                : Path.GetFullPath(sourcePath, _root);
-            relative = Path.GetRelativePath(_root, fullPath);
+                : Path.GetFullPath(sourcePath, _layout.ProjectRoot);
+            relative = Path.GetRelativePath(_layout.ProjectRoot, fullPath);
         }
         catch (Exception error)
             when (error is ArgumentException or NotSupportedException or PathTooLongException)
@@ -283,18 +230,53 @@ internal sealed class AssetCatalog : IAssetCatalog
         return true;
     }
 
+    private void Add(AssetCatalogEntry entry, bool strict)
+    {
+        if (_byGuid.ContainsKey(entry.Guid))
+        {
+            ReportDuplicate(
+                $"Catalog entry for '{entry.ProjectPath}' reuses guid '{entry.Guid}'.",
+                strict
+            );
+            return;
+        }
+
+        if (_byPath.ContainsKey(entry.ProjectPath))
+        {
+            ReportDuplicate(
+                $"Catalog path '{entry.ProjectPath}' is registered more than once.",
+                strict
+            );
+            return;
+        }
+
+        _byGuid.Add(entry.Guid, entry);
+        _byPath.Add(entry.ProjectPath, entry);
+    }
+
+    private static void ReportDuplicate(string message, bool strict)
+    {
+        if (strict)
+            throw new InvalidDataException(message);
+
+        Log.Warning($"{message} Keeping the first entry.");
+    }
+
     private AssetSource CreateSource(AssetCatalogEntry entry)
     {
-        string projectPath = Path.GetFullPath(Path.Combine(_root, entry.ProjectPath));
+        string projectPath = Path.GetFullPath(
+            Path.Combine(_layout.ProjectRoot, entry.ProjectPath)
+        );
         string artifactPath = string.IsNullOrEmpty(entry.ArtifactHash)
             ? string.Empty
-            : ArtifactStore.PathForProject(_root, entry.ArtifactHash);
+            : ArtifactStore.PathFor(_layout, entry.ArtifactHash);
 
         return new AssetSource(
             projectPath,
             projectPath + AssetConstants.AssetExtensionName,
             artifactPath,
-            entry.HeaderJson
+            entry.HeaderJson,
+            entry.AssetType
         );
     }
 

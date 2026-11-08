@@ -50,16 +50,6 @@ public static class ThreadFactory
         return Start<MainLoop>();
     }
 
-    /// <summary>Creates, registers and starts the asset worker owned by the engine.</summary>
-    /// <returns>The started worker; the main loop stops and disposes it.</returns>
-    internal static AssetThread StartAssetThread()
-    {
-        var runtime = new AssetThread();
-        ThreadRegistry.Register(runtime);
-        runtime.Start();
-        return runtime;
-    }
-
     /// <summary>Creates, registers and starts the render thread owned by a main loop.</summary>
     /// <param name="pipeline">Pipeline driven on the render thread; must not be initialized yet.</param>
     /// <param name="backend">Backend owner of the render thread; must not be initialized yet.</param>

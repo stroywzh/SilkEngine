@@ -7,5 +7,6 @@ internal readonly record struct AssetSource(
     string ProjectPath,
     string SidecarPath,
     string ArtifactPath,
-    string HeaderJson
+    string HeaderJson,
+    string AssetType
 );

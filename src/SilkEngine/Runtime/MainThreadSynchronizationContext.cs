@@ -10,8 +10,8 @@ namespace SilkEngine.Runtime;
 internal class MainThreadSynchronizationContext : SynchronizationContext
 {
     private readonly ConcurrentQueue<(SendOrPostCallback Callback, object? State)> _queue = new();
-    private readonly int _mainThreadId = Environment.CurrentManagedThreadId;
-    public int MainThreadId => _mainThreadId;
+    private static readonly int _mainThreadId = Environment.CurrentManagedThreadId;
+    public static int MainThreadId => _mainThreadId;
     public bool IsMainThread => Environment.CurrentManagedThreadId == _mainThreadId;
 
     // Post is called when an await resumes (without ConfigureAwait(false) by default).

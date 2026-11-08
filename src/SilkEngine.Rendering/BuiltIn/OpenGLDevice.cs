@@ -293,43 +293,64 @@ internal sealed unsafe class OpenGLDevice : IRenderDeviceV2
         }
 
         var id = _gl.GenTexture();
-        _gl.BindTexture(TextureTarget.Texture2D, id);
-        fixed (byte* pointer = rgbaPixels)
+        if (id == 0)
         {
-            _gl.TexImage2D(
-                TextureTarget.Texture2D,
-                0,
-                (int)InternalFormat.Rgba8,
-                (uint)width,
-                (uint)height,
-                0,
-                PixelFormat.Rgba,
-                PixelType.UnsignedByte,
-                pointer
-            );
+            throw new RenderException("glGenTextures failed (id=0).");
         }
-        _gl.TexParameter(
-            TextureTarget.Texture2D,
-            TextureParameterName.TextureMinFilter,
-            (int)GLEnum.Linear
-        );
-        _gl.TexParameter(
-            TextureTarget.Texture2D,
-            TextureParameterName.TextureMagFilter,
-            (int)GLEnum.Linear
-        );
-        _gl.TexParameter(
-            TextureTarget.Texture2D,
-            TextureParameterName.TextureWrapS,
-            (int)GLEnum.ClampToEdge
-        );
-        _gl.TexParameter(
-            TextureTarget.Texture2D,
-            TextureParameterName.TextureWrapT,
-            (int)GLEnum.ClampToEdge
-        );
-        _textures.Add(id);
-        return new TextureHandle(id);
+
+        try
+        {
+            _gl.BindTexture(TextureTarget.Texture2D, id);
+            fixed (byte* pointer = rgbaPixels)
+            {
+                _gl.TexImage2D(
+                    TextureTarget.Texture2D,
+                    0,
+                    (int)InternalFormat.Rgba8,
+                    (uint)width,
+                    (uint)height,
+                    0,
+                    PixelFormat.Rgba,
+                    PixelType.UnsignedByte,
+                    pointer
+                );
+            }
+            _gl.TexParameter(
+                TextureTarget.Texture2D,
+                TextureParameterName.TextureMinFilter,
+                (int)GLEnum.Linear
+            );
+            _gl.TexParameter(
+                TextureTarget.Texture2D,
+                TextureParameterName.TextureMagFilter,
+                (int)GLEnum.Linear
+            );
+            _gl.TexParameter(
+                TextureTarget.Texture2D,
+                TextureParameterName.TextureWrapS,
+                (int)GLEnum.ClampToEdge
+            );
+            _gl.TexParameter(
+                TextureTarget.Texture2D,
+                TextureParameterName.TextureWrapT,
+                (int)GLEnum.ClampToEdge
+            );
+
+            GLEnum error = _gl.GetError();
+            if (error != GLEnum.NoError)
+            {
+                throw new RenderDeviceException($"Texture upload failed: {error}.");
+            }
+
+            // 只有全部成功后才纳入跟踪
+            _textures.Add(id);
+            return new TextureHandle(id);
+        }
+        catch
+        {
+            _gl.DeleteTexture(id);
+            throw;
+        }
     }
 
     /// <summary>Creates a texture from a descriptor; only <see cref="TextureFormat.RGBA32"/> is implemented.</summary>

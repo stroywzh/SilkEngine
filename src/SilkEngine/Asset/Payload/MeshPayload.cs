@@ -3,6 +3,8 @@ using SilkEngine.Asset.Abstractions;
 namespace SilkEngine.Asset.Payload;
 
 /// <summary>Mesh CPU 载荷：顶点/索引等原始数据。</summary>
+/// <remarks>TODO(asset-wiring): keep the payload type for the eventual mesh loader; nothing produces or consumes
+/// it yet.</remarks>
 internal sealed class MeshPayload : IAssetPayload
 {
     public required ReadOnlyMemory<float> Positions { get; init; }

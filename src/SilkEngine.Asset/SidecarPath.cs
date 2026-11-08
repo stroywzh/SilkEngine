@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-
 namespace SilkEngine.Asset;
 
 internal static class SidecarPath
@@ -34,14 +32,4 @@ internal static class SidecarPath
             );
         return combined;
     }
-}
-
-internal static class ContentHash
-{
-    private const string Prefix = "sha256:";
-
-    public static string Sha256(ReadOnlySpan<byte> content) =>
-        Prefix + Convert.ToHexStringLower(SHA256.HashData(content));
-
-    public static string Sha256(string path) => Sha256(File.ReadAllBytes(path));
 }

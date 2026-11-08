@@ -10,6 +10,6 @@ internal sealed class PngAssetImporter : Abstractions.IAssetImporter
     public string Extension => PngExtension;
 
     /// <inheritdoc />
-    public AssetImportResult Import(string sourcePath) => TextureImporter.Import(sourcePath);
+    public AssetImportResult Import(string sourcePath, ContentLayout layout) =>
+        TextureImporter.Import(sourcePath, layout);
 }
-

@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using SilkEngine.Core.IO;
 
 namespace SilkEngine.Asset.Abstractions;
 
@@ -79,28 +80,13 @@ internal sealed class SidecarFileStore<T> : ISidecarReader<T>, ISidecarWriter<T>
         ArgumentNullException.ThrowIfNull(sidecar);
 
         string target = Path.GetFullPath(sidecarPath);
-        string? dir = Path.GetDirectoryName(target);
-        if (!string.IsNullOrEmpty(dir))
-            Directory.CreateDirectory(dir);
-
-        string temp = target + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
-            File.WriteAllBytes(temp, _codec.Encode(sidecar));
-            File.Move(temp, target, overwrite: true);
+            AtomicFile.WriteAllBytes(target, _codec.Encode(sidecar), overwrite: true);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             throw new IOException($"Cannot write sidecar '{sidecarPath}': {ex.Message}", ex);
-        }
-        finally
-        {
-            try
-            {
-                if (File.Exists(temp))
-                    File.Delete(temp);
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
         }
     }
 }

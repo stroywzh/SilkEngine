@@ -1,5 +1,6 @@
 using SandBox;
 using SilkEngine;
+using SilkEngine.Asset;
 using SilkEngine.Rendering.BuiltIn;
 
 // Console first: everything below (banner, file log, engine output) depends on a usable console.
@@ -26,6 +27,7 @@ using var app = EngineHost.Start(
     new EngineOptions
     {
         Frames = frames,
+        AssetBootstrap = ContentAssets.CreateBootstrap(),
         RenderBackend = new SilkOpenGLBackend(),
         RenderPipeline = new BuiltInPipeline(),
     }

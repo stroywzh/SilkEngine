@@ -16,6 +16,13 @@ internal sealed class TextureAssetLoader : IAssetLoader
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(source.ProjectPath);
 
+        if (!string.Equals(source.AssetType, Texture.AssetTypeName, StringComparison.Ordinal))
+        {
+            throw new InvalidDataException(
+                $"Asset '{source.ProjectPath}' is '{source.AssetType}', not '{Texture.AssetTypeName}'."
+            );
+        }
+
         // The header comes from the catalog; a missing one means the catalog predates the artifact
         // model. Reading the sidecar or decoding the source here would put Content back on the
         // runtime path, so the asset must be reimported instead.

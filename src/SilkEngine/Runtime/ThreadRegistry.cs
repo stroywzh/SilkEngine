@@ -10,10 +10,7 @@ namespace SilkEngine.Runtime;
 public static class ThreadRegistry
 {
     private static MainLoop? _mainThread;
-    private static AssetThread? _assetWorker;
-
-    /// <summary>The started asset worker, for diagnostics; ownership stays with the main loop.</summary>
-    internal static AssetThread? AssetWorker => Volatile.Read(ref _assetWorker);
+    private static RenderThread? _renderThread;
 
     /// <summary>Registers a started engine thread.</summary>
     /// <param name="thread">Thread being registered.</param>
@@ -29,9 +26,9 @@ public static class ThreadRegistry
             }
             _mainThread = mainLoop;
         }
-        else if (thread is AssetThread assetThread)
+        else if (thread is RenderThread renderThread)
         {
-            Volatile.Write(ref _assetWorker, assetThread);
+            Volatile.Write(ref _renderThread, renderThread);
         }
     }
 
@@ -45,8 +42,19 @@ public static class ThreadRegistry
         if (ReferenceEquals(_mainThread, thread))
             _mainThread = null;
 
-        if (ReferenceEquals(Volatile.Read(ref _assetWorker), thread))
-            Volatile.Write(ref _assetWorker, null);
+        if (ReferenceEquals(Volatile.Read(ref _renderThread), thread))
+            Volatile.Write(ref _renderThread, null);
+    }
+
+    /// <summary>True while the calling thread is the registered render thread.</summary>
+    internal static bool IsRenderThread
+    {
+        get
+        {
+            RenderThread? renderThread = Volatile.Read(ref _renderThread);
+            return renderThread is not null
+                && renderThread.ManagedThreadId == Environment.CurrentManagedThreadId;
+        }
     }
 
     /// <summary>Stops and disposes the registered main loop, if any.</summary>
