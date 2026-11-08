@@ -25,7 +25,7 @@ internal sealed class TextureJsonConverter : JsonConverter<Texture>
         if (root.ValueKind != JsonValueKind.Object)
             throw new JsonException("Texture header must be a JSON object.");
 
-        return new Texture(AssetId.Invalid)
+        return new Texture()
         {
             Width = ReadInt32(root, "width"),
             Height = ReadInt32(root, "height"),

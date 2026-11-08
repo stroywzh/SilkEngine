@@ -43,7 +43,7 @@ internal sealed class TextureSidecar : AssetSidecarBase
 
     /// <summary>Unbound runtime descriptor derived from the import record; the asset store binds the real id.</summary>
     internal Texture ToTexture() =>
-        new(AssetId.Invalid)
+        new()
         {
             Width = Width,
             Height = Height,

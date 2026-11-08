@@ -7,13 +7,16 @@ namespace SilkEngine;
 /// here with the other engine runtime assets; wire loading/upload in a later phase.</remarks>
 public sealed class Mesh : AssetBase
 {
+    /// <inheritdoc />
+    public override string AssetTypeName => MeshAssetName;
+
     /// <summary>Creates an unbound descriptor (used by loaders).</summary>
     internal Mesh()
         : base() { }
 
-    /// <summary>Creates the descriptor for an asset already registered in the asset store.</summary>
-    public Mesh(AssetId assetId)
-        : base(assetId) { }
+    /// <summary>Creates the descriptor bound to its store-issued handle.</summary>
+    internal Mesh(AssetHandle handle)
+        : base(handle) { }
 
     public required float[] Positions { get; init; }
     public required float[] Normals { get; init; }

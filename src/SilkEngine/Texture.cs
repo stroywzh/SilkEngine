@@ -5,16 +5,16 @@ namespace SilkEngine;
 /// <summary>Runtime texture asset: size and format description.</summary>
 public sealed class Texture : AssetBase
 {
-    /// <summary>Catalog type name shared with the content-side sidecar.</summary>
-    internal const string AssetTypeName = "texture";
+    /// <inheritdoc />
+    public override string AssetTypeName => TextureAssetName;
 
     /// <summary>Creates an unbound descriptor (used by loaders).</summary>
     internal Texture()
         : base() { }
 
-    /// <summary>Creates the descriptor for an asset already registered in the asset store.</summary>
-    public Texture(AssetId assetId)
-        : base(assetId) { }
+    /// <summary>Creates the descriptor bound to its store-issued handle.</summary>
+    internal Texture(AssetHandle handle)
+        : base(handle) { }
 
     /// <summary>Width in pixels.</summary>
     public required int Width { get; init; }

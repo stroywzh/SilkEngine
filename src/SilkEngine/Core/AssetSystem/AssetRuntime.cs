@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using SilkEngine.Asset;
 using SilkEngine.Asset.Abstractions;
@@ -21,11 +20,8 @@ internal static class AssetRuntime
 
     internal static AssetBootstrapHost Bootstrap { get; } = new();
 
-    internal static AssetStore Store { get; } = new(
-        Dispatcher.Ready,
-        Dispatcher.Released,
-        Dispatcher.PinReleased
-    );
+    internal static AssetStore Store { get; } =
+        new(Dispatcher.Ready, Dispatcher.Released, Dispatcher.PinReleased);
 
     /// <summary>The main-loop pump currently driving owner-thread work, if the engine is running.</summary>
     internal static AssetPump? Pump => Volatile.Read(ref _pump);
@@ -48,22 +44,43 @@ internal static class AssetRuntime
 
     internal static void StopAcceptingLoads() => Volatile.Write(ref _loadsAccepted, 0);
 
-    /// <summary>Loads synchronously; owner thread decodes inline, other threads submit and block.</summary>
+    /// <summary>Loads synchronously; the store retention keeps the asset alive until it is unloaded.</summary>
     internal static T Load<T>(string sourcePath)
         where T : IAsset
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
         EnsureReady();
 
+        IAssetLoader loader = Resolver.ResolveLoader(typeof(T));
+        AssetSource source = Resolver.ResolveSource(sourcePath);
+        return LoadAsset<T>(source, loader);
+    }
+
+    /// <summary>Queues an asynchronous load; the store retention keeps the asset alive until it is unloaded.</summary>
+    internal static async Task<T> LoadAsync<T>(
+        string sourcePath,
+        CancellationToken cancellationToken = default
+    )
+        where T : IAsset
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
+        EnsureReady();
+
+        IAssetLoader loader = Resolver.ResolveLoader(typeof(T));
+        AssetSource source = Resolver.ResolveSource(sourcePath);
+        return await LoadAsyncCore<T>(source, loader, cancellationToken).ConfigureAwait(false);
+    }
+
+    // Synchronous load path; the returned asset is kept alive by the store retention.
+    private static T LoadAsset<T>(AssetSource source, IAssetLoader loader)
+        where T : IAsset
+    {
         if (ThreadRegistry.IsRenderThread)
         {
             throw new InvalidOperationException(
                 "Assets.Load<T> must not run on the render thread; use LoadAsync<T> or the render bridge."
             );
         }
-
-        IAssetLoader loader = Resolver.ResolveLoader(typeof(T));
-        AssetSource source = Resolver.ResolveSource(sourcePath);
 
         if (Dispatcher.IsOwnerThread)
         {
@@ -106,19 +123,7 @@ internal static class AssetRuntime
         return Cast<T>(asset);
     }
 
-    /// <summary>Queues an asynchronous load; the task completes on the main-thread pump.</summary>
-    internal static Task<T> LoadAsync<T>(string sourcePath, CancellationToken cancellationToken = default)
-        where T : IAsset
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
-        EnsureReady();
-
-        IAssetLoader loader = Resolver.ResolveLoader(typeof(T));
-        AssetSource source = Resolver.ResolveSource(sourcePath);
-        return LoadAsyncCore<T>(source, loader, cancellationToken);
-    }
-
-    internal static bool TryGet<T>(AssetId assetId, out T? asset)
+    internal static bool TryGet<T>(AssetId assetId, out T asset)
         where T : IAsset
     {
         if (Store.TryGet(assetId, out AssetView view) && view.Asset is T typed)
@@ -127,89 +132,11 @@ internal static class AssetRuntime
             return true;
         }
 
-        asset = default;
+        asset = default!;
         return false;
     }
 
-    /// <summary>Borrows the published record; does not acquire a reference.</summary>
-    internal static bool TryGetView(AssetId assetId, out AssetView view) =>
-        Store.TryGet(assetId, out view);
-
-    /// <summary>Resolves the loaded asset for a runtime binding without exposing the runtime view.</summary>
-    internal static bool TryGetRenderAsset(
-        AssetId assetId,
-        [MaybeNullWhen(false)] out IAsset asset
-    )
-    {
-        if (Store.TryGet(assetId, out AssetView view))
-        {
-            asset = view.Asset;
-            return true;
-        }
-
-        asset = null!;
-        return false;
-    }
-
-    /// <summary>Acquires one render-side reference and returns the asset.</summary>
-    internal static bool TryAcquire<T>(AssetId assetId, [MaybeNullWhen(false)] out T asset)
-        where T : IAsset
-    {
-        asset = default;
-        if (!Store.TryGet(assetId, out AssetView view) || !view.Lifetime.TryAcquire())
-            return false;
-
-        if (view.Asset is T typed)
-        {
-            asset = typed;
-            return true;
-        }
-
-        view.Lifetime.ReleaseRenderRef();
-        return false;
-    }
-
-    /// <summary>Takes the decoded payload of a loaded asset (one-shot, render bridge).</summary>
-    internal static bool TryTakePayload<T>(AssetId assetId, [MaybeNullWhen(false)] out T payload)
-        where T : class, IAssetPayload
-    {
-        payload = null!;
-        return Store.TryGet(assetId, out AssetView view) && view.Payload.TryTake<T>(out payload);
-    }
-
-    /// <summary>Reads the payload without taking ownership.</summary>
-    internal static bool TryPeekPayload<T>(AssetId assetId, [MaybeNullWhen(false)] out T payload)
-        where T : class, IAssetPayload
-    {
-        payload = null!;
-        return Store.TryGet(assetId, out AssetView view) && view.Payload.TryPeek<T>(out payload);
-    }
-
-    /// <summary>Releases one render-side reference; a record leaves the snapshot only after its pin is gone.</summary>
-    internal static bool Release(AssetId assetId)
-    {
-        if (Dispatcher.IsOwnerThread)
-        {
-            bool released = Store.ReleaseRenderRef(assetId);
-
-            // The synchronous path must not leave the removal invisible to readers.
-            Store.Commit();
-            return released;
-        }
-
-        if (!Dispatcher.HasOwner)
-        {
-            Log.Warning(
-                $"Asset {assetId.Value} release ignored: the asset pipeline is not running."
-            );
-            return false;
-        }
-
-        Dispatcher.Submit(AssetCommand.ReleaseRenderRef(assetId));
-        return true;
-    }
-
-    /// <summary>Releases the cache pin for one asset; the scene lifecycle (not implemented yet) calls this.</summary>
+    /// <summary>Releases the store retention for one asset; the scene lifecycle (not implemented yet) calls this.</summary>
     internal static bool Unload(AssetId assetId)
     {
         if (!assetId.IsValid)
@@ -240,19 +167,91 @@ internal static class AssetRuntime
         return true;
     }
 
-    internal static bool TryTakeReady(out AssetId assetId) => Dispatcher.TryTakeReady(out assetId);
+    /// <summary>Loads an asset and returns a caller ticket for it.</summary>
+    internal static AssetHandle<T> LoadHandle<T>(string sourcePath)
+        where T : IAsset
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
+        EnsureReady();
 
-    internal static bool TryTakeReleased(out AssetId assetId) =>
-        Dispatcher.TryTakeReleased(out assetId);
+        IAssetLoader loader = Resolver.ResolveLoader(typeof(T));
+        AssetSource source = Resolver.ResolveSource(sourcePath);
+        return AcquireTicket<T>(LoadAsset<T>(source, loader));
+    }
 
-    internal static bool TryTakePinReleased(out AssetId assetId) =>
-        Dispatcher.TryTakePinReleased(out assetId);
+    /// <summary>Queues an async load and returns a caller ticket for the asset.</summary>
+    internal static async Task<AssetHandle<T>> LoadHandleAsync<T>(
+        string sourcePath,
+        CancellationToken cancellationToken
+    )
+        where T : IAsset
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
+        EnsureReady();
 
-    /// <summary>Queued requests plus requests currently decoding on the thread pool.</summary>
-    internal static int PendingCount => Dispatcher.PendingCount;
+        IAssetLoader loader = Resolver.ResolveLoader(typeof(T));
+        AssetSource source = Resolver.ResolveSource(sourcePath);
+        T asset = await LoadAsyncCore<T>(source, loader, cancellationToken).ConfigureAwait(false);
+        return AcquireTicket<T>(asset);
+    }
 
-    /// <summary>Assets inside their release window plus released ids the render thread has not taken yet.</summary>
-    internal static int PendingReleaseCount => Store.DeferredCount + Dispatcher.Released.Count;
+    // Takes a caller ticket on a freshly loaded asset; the store retention stays independent. Uses the asset's
+    // own handle instead of the published snapshot, which a concurrent commit may not have refreshed yet.
+    private static AssetHandle<T> AcquireTicket<T>(T asset)
+        where T : IAsset
+    {
+        if (asset is AssetBase assetBase && assetBase.Handle is { IsValid: true } retention)
+        {
+            if (!retention.Lifetime.TryAcquireTicket())
+                throw new InvalidOperationException($"Asset {asset.AssetId.Value} is no longer alive.");
+
+            return new AssetHandle<T>(asset.AssetId, asset, retention.Lifetime);
+        }
+
+        return TryAcquireHandle<T>(asset.AssetId)
+            ?? throw new InvalidOperationException($"Asset {asset.AssetId.Value} is no longer alive.");
+    }
+
+    /// <summary>Takes one caller ticket on a loaded asset; returns null when the record is gone.</summary>
+    internal static AssetHandle<T>? TryAcquireHandle<T>(AssetId assetId)
+        where T : IAsset
+    {
+        if (!Store.TryGet(assetId, out AssetView view) || view.Asset is not T typed)
+            return null;
+
+        if (!view.Lifetime.TryAcquireTicket())
+            return null;
+
+        return new AssetHandle<T>(assetId, typed, view.Lifetime);
+    }
+
+    /// <summary>Takes one caller ticket for an existing handle; throws when the record is gone.</summary>
+    internal static void AcquireHandleRef(AssetId assetId, AssetLifetime lifetime)
+    {
+        ArgumentNullException.ThrowIfNull(lifetime);
+
+        if (!lifetime.TryAcquireTicket())
+            throw new InvalidOperationException($"Asset {assetId.Value} is no longer alive.");
+    }
+
+    /// <summary>Releases one caller ticket held by a handle; safe to call from any thread.</summary>
+    internal static void ReleaseHandle(AssetId assetId, AssetLifetime lifetime)
+    {
+        ArgumentNullException.ThrowIfNull(lifetime);
+
+        lifetime.ReleaseTicket();
+    }
+
+    /// <summary>Releases the retention carried by a store handle; internal unload and shutdown only.</summary>
+    internal static void ReleaseRetention(AssetId assetId, AssetLifetime lifetime)
+    {
+        ArgumentNullException.ThrowIfNull(lifetime);
+
+        lifetime.ReleaseRetention();
+    }
+
+    /// <summary>Releases every asset retention; engine shutdown only.</summary>
+    internal static void ReleaseAllRetention() => Store.ReleaseAllRetention();
 
     private static Task<T> LoadAsyncCore<T>(
         AssetSource source,

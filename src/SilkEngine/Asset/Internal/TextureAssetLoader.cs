@@ -16,10 +16,10 @@ internal sealed class TextureAssetLoader : IAssetLoader
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(source.ProjectPath);
 
-        if (!string.Equals(source.AssetType, Texture.AssetTypeName, StringComparison.Ordinal))
+        if (!string.Equals(source.AssetType, AssetBase.TextureAssetName, StringComparison.Ordinal))
         {
             throw new InvalidDataException(
-                $"Asset '{source.ProjectPath}' is '{source.AssetType}', not '{Texture.AssetTypeName}'."
+                $"Asset '{source.ProjectPath}' is '{source.AssetType}', not '{AssetBase.TextureAssetName}'."
             );
         }
 
@@ -64,7 +64,7 @@ internal sealed class TextureAssetLoader : IAssetLoader
 
         return new AssetDraft
         {
-            AssetFactory = id => new Texture(id)
+            AssetFactory = handle => new Texture(handle)
             {
                 Width = header.Width,
                 Height = header.Height,

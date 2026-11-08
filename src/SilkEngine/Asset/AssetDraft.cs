@@ -9,8 +9,8 @@ internal sealed class AssetDraft : IDisposable
 {
     private IAssetPayload? _payload;
 
-    /// <summary>Asset factory that binds the store-assigned id.</summary>
-    public required Func<AssetId, IAsset> AssetFactory { get; init; }
+    /// <summary>Asset factory that binds the store-issued handle.</summary>
+    public required Func<AssetHandle, IAsset> AssetFactory { get; init; }
 
     /// <summary>Decoded payload; transferred to the store by <see cref="TakePayload"/>.</summary>
     public required IAssetPayload Payload

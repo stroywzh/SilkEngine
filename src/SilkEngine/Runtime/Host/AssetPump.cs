@@ -8,9 +8,9 @@ namespace SilkEngine.Runtime.Host;
 
 /// <summary>Owner-thread asset work driven once per main-loop frame.</summary>
 /// <remarks>The engine main loop owns the store: this pump drains commands and decoded drafts, registers,
-/// publishes one snapshot per frame and processes deferred releases. Decoding itself stays on the thread pool.
-/// Blocking load waiters are completed on the owner thread directly and never depend on the async completion
-/// queue.</remarks>
+/// advances the store clock, publishes one snapshot per frame and scans reference counts for deferred releases.
+/// Decoding itself stays on the thread pool. Blocking load waiters are completed on the owner thread directly and
+/// never depend on the async completion queue.</remarks>
 internal sealed class AssetPump
 {
     private const int MaxCommandsPerPump = 64;
@@ -29,6 +29,9 @@ internal sealed class AssetPump
     private int _inFlightCount;
     private int _stopped;
     private int _pumping;
+
+    // The store clock advances once per frame; a blocking owner-thread load may pump several times in one frame.
+    private ulong _lastAdvanceFrame;
 
     internal AssetPump()
     {
@@ -79,7 +82,14 @@ internal sealed class AssetPump
             Log.PumpFileIo();
             DrainDecoded();
             DrainCommands();
-            AssetRuntime.Store.ProcessDue(Environment.TickCount64);
+
+            ulong frameIndex = Time.FrameIndex;
+            if (frameIndex != _lastAdvanceFrame)
+            {
+                AssetRuntime.Store.Advance(Time.DeltaSeconds);
+                _lastAdvanceFrame = frameIndex;
+            }
+
             AssetRuntime.Store.Commit();
         }
         finally
@@ -124,6 +134,12 @@ internal sealed class AssetPump
         }
 
         DrainDecoded();
+
+        // Release every retention (assets hold their own handle), then publish removals and release payloads
+        // before the owner detaches.
+        AssetRuntime.ReleaseAllRetention();
+        AssetRuntime.Store.Commit();
+
         AssetRuntime.DetachPump(this);
         AssetRuntime.Dispatcher.DetachOwner();
     }
