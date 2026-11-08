@@ -1,4 +1,5 @@
 using SilkEngine.Asset;
+using SilkEngine.Serialization.DataStructure;
 
 namespace SilkEngine;
 
@@ -6,7 +7,7 @@ namespace SilkEngine;
 public sealed class Texture : AssetBase
 {
     /// <inheritdoc />
-    public override string AssetTypeName => TextureAssetName;
+    public override string AssetTypeName => AssetConstants.TextureAssetName;
 
     /// <summary>Creates a texture bound to its store-issued handle and carrying the given content.</summary>
     internal Texture(AssetHandle handle, TextureData data)

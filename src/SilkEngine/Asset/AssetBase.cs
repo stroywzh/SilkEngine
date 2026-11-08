@@ -11,10 +11,6 @@ public abstract class AssetBase : IEquatable<AssetBase>, IAsset
 {
     private AssetHandle _handle;
 
-    /// <summary>Catalog type name shared with the content-side sidecar.</summary>
-    internal const string TextureAssetName = "texture";
-    internal const string MeshAssetName = "mesh";
-
     /// <summary>Content-side catalog type name of this runtime asset.</summary>
     public abstract string AssetTypeName { get; }
 

@@ -8,7 +8,7 @@ namespace SilkEngine;
 public sealed class Mesh : AssetBase
 {
     /// <inheritdoc />
-    public override string AssetTypeName => MeshAssetName;
+    public override string AssetTypeName => AssetConstants.MeshAssetName;
 
     /// <summary>Creates the descriptor bound to its store-issued handle.</summary>
     internal Mesh(AssetHandle handle)

@@ -4,6 +4,7 @@ using SilkEngine.Asset;
 using SilkEngine.Asset.Abstractions;
 using SilkEngine.Asset.Payload;
 using SilkEngine.Serialization;
+using SilkEngine.Serialization.DataStructure;
 
 namespace SilkEngine.Asset.Internal;
 
@@ -16,10 +17,10 @@ internal sealed class TextureAssetLoader : IAssetLoader
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(source.ProjectPath);
 
-        if (!string.Equals(source.AssetType, AssetBase.TextureAssetName, StringComparison.Ordinal))
+        if (!string.Equals(source.AssetType, AssetConstants.TextureAssetName, StringComparison.Ordinal))
         {
             throw new InvalidDataException(
-                $"Asset '{source.ProjectPath}' is '{source.AssetType}', not '{AssetBase.TextureAssetName}'."
+                $"Asset '{source.ProjectPath}' is '{source.AssetType}', not '{AssetConstants.TextureAssetName}'."
             );
         }
 

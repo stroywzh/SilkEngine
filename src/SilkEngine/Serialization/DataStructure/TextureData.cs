@@ -1,6 +1,6 @@
 using SilkEngine.Asset;
 
-namespace SilkEngine;
+namespace SilkEngine.Serialization.DataStructure;
 
 /// <summary>Texture content: pixel dimensions, format, color space and mip count.</summary>
 public sealed record TextureData

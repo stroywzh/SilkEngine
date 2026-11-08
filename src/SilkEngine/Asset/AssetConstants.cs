@@ -20,4 +20,7 @@ internal static class AssetConstants
 
     /// <summary>Imported artifact file suffix.</summary>
     public const string ArtifactExtensionName = ".bin";
+
+    internal const string TextureAssetName = "texture";
+    internal const string MeshAssetName = "mesh";
 }
