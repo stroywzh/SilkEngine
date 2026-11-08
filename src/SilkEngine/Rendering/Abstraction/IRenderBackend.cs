@@ -7,7 +7,7 @@ public interface IRenderBackend : IDisposable
     string Name { get; }
 
     /// <summary>Gets the device created by <see cref="Initialize"/>, or <c>null</c> before it.</summary>
-    IRenderDevice? Device { get; }
+    IRenderDevice Device { get; }
 
     /// <summary>Initializes the backend and creates its device.</summary>
     void Initialize();

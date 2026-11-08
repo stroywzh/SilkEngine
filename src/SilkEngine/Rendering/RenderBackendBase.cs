@@ -16,7 +16,7 @@ public abstract class RenderBackendBase : RenderLifecycleBase, IRenderBackend
 {
     private readonly CommandQueue _queue;
     private BackendState _state;
-    private IRenderDevice? _device;
+    private IRenderDevice _device;
     private bool _inCallback;
 
 
@@ -26,7 +26,7 @@ public abstract class RenderBackendBase : RenderLifecycleBase, IRenderBackend
     }
 
     /// <inheritdoc />
-    public IRenderDevice? Device => _device;
+    public IRenderDevice Device => _device;
 
     /// <summary>Gets the device, throwing when the backend is not initialized.</summary>
     protected IRenderDevice RequireDevice() => _device ?? throw new ObjectDisposedException(Name);

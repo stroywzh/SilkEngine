@@ -1,4 +1,5 @@
 using SilkEngine.Rendering.Abstraction;
+using SilkEngine.Rendering.Assets;
 
 namespace SilkEngine.Rendering;
 
@@ -7,11 +8,14 @@ public abstract class RenderPipelineBase : RenderLifecycleBase, IRenderPipeline
 {
     private IRenderBackend? _backend;
     private PipelineState _state;
-
+    private AssetRuntimeCache _runtime;
 
     /// <summary>Gets the backend supplied to <see cref="Initialize"/>.</summary>
     protected IRenderBackend Backend =>
         _backend ?? throw new InvalidOperationException($"{Name} is not initialized.");
+    protected IRenderDevice Device => Backend.Device;
+    protected AssetRuntimeCache RuntimeCache =>
+        _runtime ?? throw new InvalidOperationException($"{Name} is not initialized.");
 
     /// <inheritdoc />
     public void Initialize(IRenderBackend backend)
@@ -30,6 +34,7 @@ public abstract class RenderPipelineBase : RenderLifecycleBase, IRenderPipeline
         CaptureOwnerThread();
         _state = PipelineState.Initializing;
         RunInitializeCore(onFaulted: () => _state = PipelineState.Faulted, core: OnInitializeCore);
+        _runtime = new AssetRuntimeCache();
         _state = PipelineState.Initialized;
     }
 
@@ -44,8 +49,10 @@ public abstract class RenderPipelineBase : RenderLifecycleBase, IRenderPipeline
         {
             var buffer = Backend.RentCommandBuffer();
             var submitted = false;
+
             try
             {
+                _runtime.Drain(Device);
                 RecordCommands(buffer, context);
                 if (buffer.CommandsCount > 0)
                 {
@@ -125,6 +132,7 @@ public abstract class RenderPipelineBase : RenderLifecycleBase, IRenderPipeline
         _state = PipelineState.Disposed;
         try
         {
+            _runtime?.Dispose(Device);
             DisposeCoreOnce();
         }
         finally

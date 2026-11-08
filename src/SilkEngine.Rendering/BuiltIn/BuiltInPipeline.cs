@@ -33,9 +33,6 @@ public sealed class BuiltInPipeline : RenderPipelineBase
     private bool _quadUsesConstants;
     private ConstantArena? _constants;
 
-    // Render-thread owner of uploaded bindings; created in OnInitializeCore and released with the pipeline.
-    private AssetRuntimeCache _runtime = null!;
-
     public override string Name => "Built-In Pipeline";
 
     protected override void OnInitializeCore()
@@ -46,8 +43,6 @@ public sealed class BuiltInPipeline : RenderPipelineBase
 
         _triangle = DebugTriangle.Create(device);
         _triangleReady = true;
-
-        _runtime = new AssetRuntimeCache();
 
         if (device is IRenderDeviceV2 && device.Capabilities.SupportsConstantBuffers)
         {
@@ -68,8 +63,6 @@ public sealed class BuiltInPipeline : RenderPipelineBase
     {
         if (Backend.Device is not { } device)
             return;
-
-        _runtime?.Dispose(device);
 
         if (_constants is not null)
         {
@@ -108,20 +101,6 @@ public sealed class BuiltInPipeline : RenderPipelineBase
         _elapsedSeconds = (_elapsedSeconds + Time.DeltaSeconds) % (EngineMath.PI * 2);
         _carouselSeconds += Time.DeltaSeconds;
 
-        IRenderDevice device =
-            Backend.Device
-            ?? throw new InvalidOperationException($"{Name}: the backend has no device.");
-
-        // Released first, then ready, then upload: an id released and made ready in the same frame cannot linger.
-        _runtime.Drain(device);
-
-        if (_runtime.Order.Count == 0)
-        {
-            RecordDebugViewport(commands);
-            RecordDebugClearColor(commands);
-            RecordWhiteTriangle(commands);
-            return;
-        }
 
         EnsureFullViewport(commands);
         RecordDebugClearColor(commands);
@@ -143,7 +122,7 @@ public sealed class BuiltInPipeline : RenderPipelineBase
 
     private void RecordCarousel(ICommandBuffer commands)
     {
-        int count = _runtime.Order.Count;
+        int count = RuntimeCache.Order.Count;
         TexturedQuad.BindState(commands, in _quad);
 
         if (count == 1)
@@ -170,11 +149,11 @@ public sealed class BuiltInPipeline : RenderPipelineBase
 
     private void RecordSlide(ICommandBuffer commands, int index, float alpha)
     {
-        if (_constants is null || index < 0 || index >= _runtime.Order.Count)
+        if (_constants is null || index < 0 || index >= RuntimeCache.Order.Count)
             return;
 
-        AssetId assetId = _runtime.Order[index];
-        if (!_runtime.TryGet<TextureBinding>(assetId, out TextureBinding binding))
+        AssetId assetId = RuntimeCache.Order[index];
+        if (!RuntimeCache.TryGet<TextureBinding>(assetId, out TextureBinding binding))
             return;
 
         DrawConstants2D constants = BuildContainConstants(
@@ -188,11 +167,11 @@ public sealed class BuiltInPipeline : RenderPipelineBase
 
     private void RecordSingleTexture(ICommandBuffer commands)
     {
-        if (!_quadReady || _runtime.Order.Count == 0)
+        if (!_quadReady || RuntimeCache.Order.Count == 0)
             return;
 
-        AssetId assetId = _runtime.Order[0];
-        if (!_runtime.TryGet<TextureBinding>(assetId, out TextureBinding binding))
+        AssetId assetId = RuntimeCache.Order[0];
+        if (!RuntimeCache.TryGet<TextureBinding>(assetId, out TextureBinding binding))
             return;
 
         TexturedQuad.RecordLegacy(commands, in _quad, binding.Handle);
