@@ -150,11 +150,6 @@ internal sealed class AssetRuntimeStore
         }
 
         IAssetPayload payload = draft.TakePayload();
-        if (payload is null)
-        {
-            draft.Dispose();
-            throw new InvalidOperationException($"Asset draft for '{path}' carried no payload.");
-        }
 
         var assetId = new AssetId(id);
         var lease = new PayloadLease(payload);

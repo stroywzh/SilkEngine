@@ -17,7 +17,6 @@ public abstract class AssetBase : IEquatable<AssetBase>, IAsset
     /// <summary>Creates an asset bound to its store-issued handle.</summary>
     protected AssetBase(AssetHandle handle)
     {
-        ArgumentNullException.ThrowIfNull(handle);
         _handle = handle;
     }
 

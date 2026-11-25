@@ -31,10 +31,10 @@ internal readonly struct AssetUploadContext
 
     internal IRenderDevice Device { get; }
 
-    internal bool TryGetAsset<T>([MaybeNullWhen(false)] out T asset)
-        where T : IAsset
+    internal bool TryGetAsset<T>([NotNullWhen(true)] out T asset)
+        where T : class, IAsset
     {
-        if (_source.TryGetRenderAsset(_assetId, out IAsset published) && published is T typed)
+        if (_source.TryGetRenderAsset(_assetId, out IAsset? published) && published is T typed)
         {
             asset = typed;
             return true;

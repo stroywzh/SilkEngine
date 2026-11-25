@@ -31,7 +31,10 @@ public enum EngineThreadState : byte
 public abstract class EngineThread : IDisposable
 {
     private Thread? _thread;
-    private readonly CancellationTokenSource _cts = new();
+    // 全引擎长期Thread 公用的 一个生命周期cts。
+    // 不允许重启，崩溃后直接处理错误结束，退出程序。
+    // 全生命周期只包含启动->结束（发生无法继续的错误）->退出，不允许重启环
+    private static readonly CancellationTokenSource _cts = new();
     private int _state = (int)EngineThreadState.Created;
 
     /// <summary>Whether the owned OS thread is still alive.</summary>
@@ -91,8 +94,6 @@ public abstract class EngineThread : IDisposable
             }
             token.ThrowIfCancellationRequested();
 
-            // C-14/C-09 + CORE-N-05: only the main thread reflects the engine-wide running flag; a
-            // render thread (or any other engine thread) must never clear or set it.
             if (IsMainThread)
             {
                 Application.IsRunning = true;

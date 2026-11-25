@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using SilkEngine.Asset;
 using SilkEngine.Asset.Abstractions;
-using SilkEngine.Runtime.Host;
 
 namespace SilkEngine.Core.AssetSystem.Runtime;
 
@@ -17,18 +16,31 @@ internal sealed class AssetDispatcher
     private static readonly ConcurrentQueue<AssetId> _released = new();
     private static readonly ConcurrentQueue<AssetId> _pinReleased = new();
 
-    private readonly int _ownerThreadId = SilkEngine
-        .Runtime
-        .MainThreadSynchronizationContext
-        .MainThreadId;
+    // Set by the engine main loop from its own thread after the sync context is installed; 0 until attached.
+    private int _ownerThreadId;
 
     private int _inFlight;
+
+    /// <summary>True while an engine main loop has attached itself as the asset owner.</summary>
+    internal bool HasOwner => Volatile.Read(ref _ownerThreadId) != 0;
+
+    /// <summary>Binds the owner thread; the engine main loop calls this on its own thread.</summary>
+    internal void AttachOwner(int threadId)
+    {
+        if (threadId == 0)
+            throw new ArgumentOutOfRangeException(nameof(threadId));
+
+        Volatile.Write(ref _ownerThreadId, threadId);
+    }
+
+    /// <summary>Unbinds the owner thread; the asset pump calls this during shutdown.</summary>
+    internal void DetachOwner() => Volatile.Write(ref _ownerThreadId, 0);
 
     /// <summary>Ready ids, owned by the store and drained by the render thread.</summary>
     internal ConcurrentQueue<AssetId> Ready => _ready;
 
     /// <summary>Released ids, owned by the store and drained by the render thread.</summary>
-    internal  ConcurrentQueue<AssetId> Released => _released;
+    internal ConcurrentQueue<AssetId> Released => _released;
 
     /// <summary>Ids whose cache pin was released while render references remain; drained by the render thread.</summary>
     internal ConcurrentQueue<AssetId> PinReleased => _pinReleased;
@@ -38,7 +50,7 @@ internal sealed class AssetDispatcher
     {
         get
         {
-            int ownerThreadId = _ownerThreadId;
+            int ownerThreadId = Volatile.Read(ref _ownerThreadId);
             return ownerThreadId != 0 && Environment.CurrentManagedThreadId == ownerThreadId;
         }
     }

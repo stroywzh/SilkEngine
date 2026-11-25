@@ -26,9 +26,10 @@ internal static class AssetRuntime
     internal static AssetRuntimeStore Store { get; } =
         new(Dispatcher.Ready, Dispatcher.Released, Dispatcher.PinReleased);
 
-    /// <summary>The main-loop pump currently driving owner-thread work, if the engine is running.</summary>
+    /// <summary>The main-loop pump currently driving owner-thread work.</summary>
     internal static AssetPump Pump =>
-        Volatile.Read(ref _pump) ?? throw new NullReferenceException("Asset Pump not init yet.");
+        Volatile.Read(ref _pump)
+        ?? throw new InvalidOperationException("The asset pump is not running.");
 
     internal static void AttachPump(AssetPump pump) => Volatile.Write(ref _pump, pump);
 
@@ -53,7 +54,8 @@ internal static class AssetRuntime
         Store.ReleaseAllRetention();
         Store.Commit();
 
-        // Dispatcher.DetachOwner();
+        // The next engine instance must attach its own owner thread instead of inheriting this one.
+        Dispatcher.DetachOwner();
 
         Volatile.Write(ref _pump, null);
     }
@@ -112,8 +114,8 @@ internal static class AssetRuntime
             // Route an owner-thread blocking load through the same pump so it joins an in-flight decode for
             // the same path instead of decoding the payload a second time. The owner must drive the pump
             // itself while it blocks; the main loop is not available for that.
-            AssetPump pump = Pump ?? throw new NullReferenceException();
-            if (pump is null || pump.IsPumping || pump.IsStopped)
+            AssetPump pump = Pump;
+            if (pump.IsPumping || pump.IsStopped)
             {
                 return Cast<T>(Store.LoadSync(source, loader));
             }
@@ -288,12 +290,12 @@ internal static class AssetRuntime
 
     private static void EnsureReady()
     {
-        // if (!Dispatcher.HasOwner)
-        // {
-        //     throw new InvalidOperationException(
-        //         "The asset pipeline is not running; start the engine before loading assets."
-        //     );
-        // }
+        if (!Dispatcher.HasOwner)
+        {
+            throw new InvalidOperationException(
+                "The asset pipeline is not running; start the engine before loading assets."
+            );
+        }
 
         if (!Resolver.IsInitialized)
         {

@@ -28,7 +28,7 @@ internal sealed class AssetRenderBridge : IRenderAssetSource
         AssetRuntime.Dispatcher.TryTakePinReleased(out assetId);
 
     /// <inheritdoc />
-    public bool TryGetRenderAsset(AssetId assetId, out IAsset asset)
+    public bool TryGetRenderAsset(AssetId assetId, [MaybeNullWhen(false)] out IAsset asset)
     {
         if (AssetRuntime.Store.TryGet(assetId, out AssetView view))
         {
@@ -97,13 +97,12 @@ internal sealed class AssetRenderBridge : IRenderAssetSource
             return released;
         }
 
-        // if (!AssetRuntime.Dispatcher.HasOwner)
-        // {
-        //     Log.Warning(
-        //         $"Asset {assetId.Value} release ignored: the asset pipeline is not running."
-        //     );
-        //     return false;
-        // }
+        // Off the owner thread the release is queued; a stopped pipeline can never apply it.
+        if (!AssetRuntime.Dispatcher.HasOwner)
+        {
+            Log.Error($"Asset {assetId.Value} release ignored: the asset pipeline is not running.");
+            return false;
+        }
 
         AssetRuntime.Dispatcher.Submit(AssetCommand.ReleaseRenderRef(assetId));
         return true;

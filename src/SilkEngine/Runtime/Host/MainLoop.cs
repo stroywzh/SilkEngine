@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using SilkEngine.Asset;
 using SilkEngine.Core.AssetSystem;
+using SilkEngine.Core.AssetSystem.Runtime;
 using SilkEngine.Rendering.Abstraction;
 
 namespace SilkEngine.Runtime.Host;
@@ -10,7 +11,8 @@ namespace SilkEngine.Runtime.Host;
 /// The host owns the supplied pipeline/backend; do not reuse them after start or dispose them externally.</remarks>
 public sealed class MainLoop : EngineThread
 {
-    private static MainThreadSynchronizationContext _mainThreadContext;
+    // Set in Initialize on the loop thread and drained again in Shutdown; the loop never runs without it.
+    private MainThreadSynchronizationContext _mainThreadContext = null!;
 
     // TODO: decouple; do not hardcode.
     internal const double FixedStepSeconds = 1.0 / 60.0;
@@ -59,7 +61,11 @@ public sealed class MainLoop : EngineThread
 
     protected override void Initialize()
     {
+        // Install first: the asset dispatcher binds its owner thread id from this context, so the
+        // identity exists before the pump or any asset request can be created.
         _mainThreadContext = MainThreadSynchronizationContext.Install();
+        AssetRuntime.Dispatcher.AttachOwner(_mainThreadContext.MainThreadId);
+
         Time.Reset();
 
         // The main loop owns the asset store; the pump runs the bootstrap before the first frame.
@@ -279,6 +285,10 @@ public sealed class MainLoop : EngineThread
         // The pump fails/cancels pending requests while stopping; pump completions so no caller keeps waiting.
         Volatile.Read(ref _assetPump)?.DrainCompletions(int.MaxValue);
         Log.PumpFileIo(int.MaxValue);
+
+        // Release callers still blocked in Send before the thread exits, then restore the ambient context.
+        _mainThreadContext.Shutdown();
+        MainThreadSynchronizationContext.Uninstall(_mainThreadContext);
         Log.DetachIoOwner();
     }
 

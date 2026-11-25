@@ -46,7 +46,6 @@ internal sealed class AssetPump
     /// <summary>Attaches the owner identity, runs the content bootstrap and freezes the loader table.</summary>
     internal void Start()
     {
-        // AssetRuntime.Dispatcher.AttachOwner(MainThreadSynchronizationContext.MainThreadId);
         AssetRuntime.AttachPump(this);
         try
         {
@@ -54,8 +53,6 @@ internal sealed class AssetPump
         }
         catch
         {
-            // AssetRuntime.DetachPump(this);
-            // AssetRuntime.Dispatcher.DetachOwner();
             Shutdown();
             throw;
         }
@@ -344,16 +341,19 @@ internal sealed class AssetPump
                 continue;
             }
 
-            AssetDraft? draft = result.Draft;
+            AssetDraft draft =
+                result.Draft
+                ?? throw new InvalidOperationException(
+                    "The decode result carried neither a draft nor an error."
+                );
             try
             {
-                IAsset asset = AssetRuntime.Store.Register(path, draft!, out _);
-                draft = null;
+                IAsset asset = AssetRuntime.Store.Register(path, draft, out _);
                 completed.Add((path, asset, result.Request));
             }
             catch (Exception error)
             {
-                draft?.Dispose();
+                draft.Dispose();
                 CompleteGroupFailed(path, result.Request, error);
             }
         }

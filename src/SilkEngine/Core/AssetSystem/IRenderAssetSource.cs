@@ -19,13 +19,13 @@ internal interface IRenderAssetSource
     bool TryTakePinReleased(out AssetId assetId);
 
     /// <summary>Borrows the published asset for a runtime binding; no reference is acquired.</summary>
-    bool TryGetRenderAsset(AssetId assetId, out IAsset asset);
+    bool TryGetRenderAsset(AssetId assetId, [MaybeNullWhen(false)] out IAsset asset);
 
     /// <summary>Reads the published record; does not acquire a reference.</summary>
     bool TryGetView(AssetId assetId, out AssetView view);
 
     /// <summary>Acquires one render reference and returns the asset; the caller must release it.</summary>
-    bool TryAcquire<T>(AssetId assetId, out T asset)
+    bool TryAcquire<T>(AssetId assetId, [MaybeNullWhen(false)] out T asset)
         where T : IAsset;
 
     /// <summary>Takes the decoded payload once; the caller owns it afterwards.</summary>
