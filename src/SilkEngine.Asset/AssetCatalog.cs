@@ -167,7 +167,7 @@ internal sealed class AssetCatalog : IAssetCatalog
         {
             SchemaVersion = CurrentSchemaVersion,
             Entries = _byGuid
-                .Values.OrderBy(static entry => entry.ProjectPath, StringComparer.Ordinal)
+                .Values.OrderBy(static entry => entry.SourcePath, StringComparer.Ordinal)
                 .Select(ToDto)
                 .ToList(),
         };
@@ -235,23 +235,23 @@ internal sealed class AssetCatalog : IAssetCatalog
         if (_byGuid.ContainsKey(entry.Guid))
         {
             ReportDuplicate(
-                $"Catalog entry for '{entry.ProjectPath}' reuses guid '{entry.Guid}'.",
+                $"Catalog entry for '{entry.SourcePath}' reuses guid '{entry.Guid}'.",
                 strict
             );
             return;
         }
 
-        if (_byPath.ContainsKey(entry.ProjectPath))
+        if (_byPath.ContainsKey(entry.SourcePath))
         {
             ReportDuplicate(
-                $"Catalog path '{entry.ProjectPath}' is registered more than once.",
+                $"Catalog path '{entry.SourcePath}' is registered more than once.",
                 strict
             );
             return;
         }
 
         _byGuid.Add(entry.Guid, entry);
-        _byPath.Add(entry.ProjectPath, entry);
+        _byPath.Add(entry.SourcePath, entry);
     }
 
     private static void ReportDuplicate(string message, bool strict)
@@ -264,16 +264,16 @@ internal sealed class AssetCatalog : IAssetCatalog
 
     private AssetSource CreateSource(AssetCatalogEntry entry)
     {
-        string projectPath = Path.GetFullPath(
-            Path.Combine(_layout.ProjectRoot, entry.ProjectPath)
+        string sourcePath = Path.GetFullPath(
+            Path.Combine(_layout.ProjectRoot, entry.SourcePath)
         );
         string artifactPath = string.IsNullOrEmpty(entry.ArtifactHash)
             ? string.Empty
             : ArtifactStore.PathFor(_layout, entry.ArtifactHash);
 
         return new AssetSource(
-            projectPath,
-            projectPath + AssetConstants.AssetExtensionName,
+            sourcePath,
+            sourcePath + AssetConstants.AssetExtensionName,
             artifactPath,
             entry.HeaderJson,
             entry.AssetType
@@ -285,7 +285,7 @@ internal sealed class AssetCatalog : IAssetCatalog
         {
             Guid = entry.Guid.ToString(),
             AssetType = entry.AssetType,
-            ProjectPath = entry.ProjectPath,
+            ProjectPath = entry.SourcePath,
             ArtifactHash = entry.ArtifactHash,
             ArtifactLength = entry.ArtifactLength,
             HeaderJson = entry.HeaderJson,

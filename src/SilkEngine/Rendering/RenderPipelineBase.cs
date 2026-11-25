@@ -33,8 +33,10 @@ public abstract class RenderPipelineBase : RenderLifecycleBase, IRenderPipeline
         _backend = backend;
         CaptureOwnerThread();
         _state = PipelineState.Initializing;
-        RunInitializeCore(onFaulted: () => _state = PipelineState.Faulted, core: OnInitializeCore);
+
+        // The table exists before the derived initialization so pipeline resources may bind to it.
         _runtime = new AssetRuntimeCache();
+        RunInitializeCore(onFaulted: () => _state = PipelineState.Faulted, core: OnInitializeCore);
         _state = PipelineState.Initialized;
     }
 
@@ -137,7 +139,7 @@ public abstract class RenderPipelineBase : RenderLifecycleBase, IRenderPipeline
         }
         finally
         {
-            _backend = null;
+            _backend = null!;
         }
     }
 

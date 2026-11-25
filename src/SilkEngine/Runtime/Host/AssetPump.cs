@@ -3,6 +3,7 @@ using System.Diagnostics;
 using SilkEngine.Asset;
 using SilkEngine.Asset.Abstractions;
 using SilkEngine.Core.AssetSystem;
+using SilkEngine.Core.AssetSystem.Runtime;
 
 namespace SilkEngine.Runtime.Host;
 
@@ -35,9 +36,7 @@ internal sealed class AssetPump
 
     internal AssetPump()
     {
-        _decodeSlots = new SemaphoreSlim(
-            Math.Max(1, Application.AssetSetting.DecodeConcurrency)
-        );
+        _decodeSlots = new SemaphoreSlim(Math.Max(1, Application.AssetSetting.DecodeConcurrency));
     }
 
     internal bool IsPumping => Volatile.Read(ref _pumping) != 0;
@@ -47,21 +46,17 @@ internal sealed class AssetPump
     /// <summary>Attaches the owner identity, runs the content bootstrap and freezes the loader table.</summary>
     internal void Start()
     {
-        AssetRuntime.Dispatcher.AttachOwner(MainThreadSynchronizationContext.MainThreadId);
+        // AssetRuntime.Dispatcher.AttachOwner(MainThreadSynchronizationContext.MainThreadId);
         AssetRuntime.AttachPump(this);
         try
         {
-            // Freeze the loader table before the bootstrap signals completion so a load racing with
-            // EngineHost.Start cannot observe an uninitialized pipeline. Content loaders are engine
-            // defaults registered by MainLoop; the bootstrap only imports/attaches content.
-            AssetRuntime.InitializeLoaders();
-            AssetRuntime.StartAcceptingLoads();
-            AssetRuntime.Bootstrap.Run();
+            AssetRuntime.Initialize();
         }
         catch
         {
-            AssetRuntime.DetachPump(this);
-            AssetRuntime.Dispatcher.DetachOwner();
+            // AssetRuntime.DetachPump(this);
+            // AssetRuntime.Dispatcher.DetachOwner();
+            Shutdown();
             throw;
         }
     }
@@ -98,13 +93,18 @@ internal sealed class AssetPump
         }
     }
 
+    internal void DrainCompletions(int count)
+    {
+        AssetRuntime.Dispatcher.DrainCompletions(count);
+    }
+
     /// <summary>Stop accepting work, fail in-flight requests after the shutdown timeout and detach the owner.</summary>
     internal void Shutdown()
     {
         if (Interlocked.Exchange(ref _stopped, 1) != 0)
             return;
 
-        AssetRuntime.StopAcceptingLoads();
+        AssetRuntime.RequestStop();
         _decodeCancellation.Cancel();
 
         CancelQueuedAndWaiting();
@@ -135,13 +135,16 @@ internal sealed class AssetPump
 
         DrainDecoded();
 
-        // Release every retention (assets hold their own handle), then publish removals and release payloads
-        // before the owner detaches.
-        AssetRuntime.ReleaseAllRetention();
-        AssetRuntime.Store.Commit();
+        AssetRuntime.StopCore();
 
-        AssetRuntime.DetachPump(this);
-        AssetRuntime.Dispatcher.DetachOwner();
+        // Shutdown diagnostics only: the ordering above is unchanged, the counts explain what is still alive.
+        int remainingRecords = AssetRuntime.Store.RecordCount;
+        int liveTickets = AssetRuntime.Store.LiveTicketCount;
+        Log.Info(
+            $"Asset pump stopped: {remainingRecords} record(s), {liveTickets} live ticket(s), "
+                + $"{AssetRuntime.Store.DeferredCount} deferred release(s), "
+                + $"{Volatile.Read(ref _inFlightCount)} in-flight decode(s) remain."
+        );
     }
 
     private void CancelQueuedAndWaiting()
@@ -178,7 +181,9 @@ internal sealed class AssetPump
         // Requests that found no decode slot are retried before new commands; a cache hit or another in-flight
         // decode for the same path still completes them without touching the pool.
         while (_waiting.Count > 0 && _decodeSlots.CurrentCount > 0)
+        {
             TryDispatch(_waiting.Dequeue());
+        }
 
         int processed = 0;
         while (
@@ -298,7 +303,9 @@ internal sealed class AssetPump
                 }
 
                 if (abandoned)
+                {
                     Interlocked.Decrement(ref _inFlightCount);
+                }
             }
         });
     }
@@ -353,10 +360,14 @@ internal sealed class AssetPump
 
         // One snapshot per pump: ready ids are flushed after every registration in this batch.
         if (completed.Count > 0)
+        {
             AssetRuntime.Store.Commit();
+        }
 
         foreach ((string path, IAsset asset, AssetLoadRequest request) in completed)
+        {
             CompleteGroupLoaded(path, request, asset);
+        }
     }
 
     private void CompleteGroupLoaded(string path, AssetLoadRequest origin, IAsset asset)
@@ -364,9 +375,13 @@ internal sealed class AssetPump
         foreach (AssetLoadRequest request in TakeGroup(path, origin))
         {
             if (request.Abandoned || request.CancellationToken.IsCancellationRequested)
+            {
                 AssetRuntime.Dispatcher.CompleteCanceled(request);
+            }
             else
+            {
                 AssetRuntime.Dispatcher.CompleteLoaded(request, asset);
+            }
         }
     }
 
@@ -375,16 +390,22 @@ internal sealed class AssetPump
         foreach (AssetLoadRequest request in TakeGroup(path, origin))
         {
             if (request.Abandoned || request.CancellationToken.IsCancellationRequested)
+            {
                 AssetRuntime.Dispatcher.CompleteCanceled(request);
+            }
             else
+            {
                 AssetRuntime.Dispatcher.CompleteFailed(request, error);
+            }
         }
     }
 
     private void CompleteGroupCanceled(string path, AssetLoadRequest origin)
     {
         foreach (AssetLoadRequest request in TakeGroup(path, origin))
+        {
             AssetRuntime.Dispatcher.CompleteCanceled(request);
+        }
     }
 
     private List<AssetLoadRequest> TakeGroup(string path, AssetLoadRequest origin)
@@ -393,7 +414,9 @@ internal sealed class AssetPump
             return new List<AssetLoadRequest> { origin };
 
         foreach (AssetLoadRequest waiter in waiters)
+        {
             _inFlightRequests.Remove(waiter);
+        }
 
         return waiters;
     }

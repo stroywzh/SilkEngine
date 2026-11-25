@@ -15,12 +15,13 @@ internal sealed class TextureAssetLoader : IAssetLoader
     // the engine registers and binds it.
     public AssetDraft Load(in AssetSource source)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(source.ProjectPath);
+        var path = source.SourcePath;
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
         if (!string.Equals(source.AssetType, AssetConstants.TextureAssetName, StringComparison.Ordinal))
         {
             throw new InvalidDataException(
-                $"Asset '{source.ProjectPath}' is '{source.AssetType}', not '{AssetConstants.TextureAssetName}'."
+                $"Asset '{path}' is '{source.AssetType}', not '{AssetConstants.TextureAssetName}'."
             );
         }
 
@@ -30,7 +31,7 @@ internal sealed class TextureAssetLoader : IAssetLoader
         if (string.IsNullOrEmpty(source.HeaderJson))
         {
             throw new InvalidDataException(
-                $"Texture header missing for '{source.ProjectPath}'. Reimport the asset and rebuild the catalog."
+                $"Texture header missing for '{path}'. Reimport the asset and rebuild the catalog."
             );
         }
 
@@ -38,7 +39,7 @@ internal sealed class TextureAssetLoader : IAssetLoader
         if (string.IsNullOrEmpty(source.ArtifactPath) || !File.Exists(source.ArtifactPath))
         {
             throw new AssetNotImportedException(
-                $"Texture artifact missing for '{source.ProjectPath}'. Reimport the asset and rebuild the catalog."
+                $"Texture artifact missing for '{path}'. Reimport the asset and rebuild the catalog."
             );
         }
 
@@ -56,17 +57,16 @@ internal sealed class TextureAssetLoader : IAssetLoader
         if (pixels.Length != expected)
         {
             throw new InvalidDataException(
-                $"Texture payload for '{source.ProjectPath}' has {pixels.Length} bytes, "
+                $"Texture payload for '{path}' has {pixels.Length} bytes, "
                     + $"expected {expected} (RGBA32 {data.Width}x{data.Height})."
             );
         }
 
         var payload = new TexturePayload { Rgba32 = pixels };
 
-        return new AssetDraft
+        return new AssetDraft(payload)
         {
             AssetFactory = handle => new Texture(handle, data),
-            Payload = payload,
         };
     }
 }

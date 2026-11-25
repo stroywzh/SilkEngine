@@ -22,15 +22,15 @@ public abstract class AssetBase : IEquatable<AssetBase>, IAsset
     }
 
     /// <summary>Identity of this asset, taken from the handle that keeps it alive.</summary>
-    public AssetId AssetId => Volatile.Read(ref _handle).Id;
+    public AssetId AssetId => _handle.Id;
 
     /// <summary>Handle that keeps this asset alive.</summary>
     /// <remarks>Set by the loader path and replaced when a released record is revived; dispose it only through
     /// the internal unload path.</remarks>
-    internal AssetHandle Handle => Volatile.Read(ref _handle);
+    internal AssetHandle Handle => _handle;
 
-    /// <summary>Replaces the handle that keeps this asset alive.</summary>
-    internal void AttachHandle(AssetHandle handle) => Volatile.Write(ref _handle, handle);
+    // /// <summary>Replaces the handle that keeps this asset alive.</summary>
+    // internal void AttachHandle(AssetHandle handle) => Volatile.Write(ref _handle, handle);
 
     public bool Equals(AssetBase? other) =>
         ReferenceEquals(this, other)

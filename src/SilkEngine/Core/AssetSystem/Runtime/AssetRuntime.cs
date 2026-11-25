@@ -1,16 +1,19 @@
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using SilkEngine.Asset;
 using SilkEngine.Asset.Abstractions;
 using SilkEngine.Runtime;
 using SilkEngine.Runtime.Host;
 
-namespace SilkEngine.Core.AssetSystem;
+namespace SilkEngine.Core.AssetSystem.Runtime;
 
 /// <summary>Internal composition root for the asset pipeline; the public facade forwards here.</summary>
 /// <remarks>The engine main loop is the single owner of <see cref="AssetStore"/>: it drains commands, registers
 /// decoded drafts, publishes snapshots and processes releases. Decoding itself runs on the thread pool.</remarks>
 internal static class AssetRuntime
 {
+    private const byte LoadUpaccepted = 0;
+    private const byte LoadAccepted = 1;
     private static int _loadsAccepted;
     private static AssetPump? _pump;
 
@@ -20,29 +23,40 @@ internal static class AssetRuntime
 
     internal static AssetBootstrapHost Bootstrap { get; } = new();
 
-    internal static AssetStore Store { get; } =
+    internal static AssetRuntimeStore Store { get; } =
         new(Dispatcher.Ready, Dispatcher.Released, Dispatcher.PinReleased);
 
     /// <summary>The main-loop pump currently driving owner-thread work, if the engine is running.</summary>
-    internal static AssetPump? Pump => Volatile.Read(ref _pump);
+    internal static AssetPump Pump =>
+        Volatile.Read(ref _pump) ?? throw new NullReferenceException("Asset Pump not init yet.");
 
     internal static void AttachPump(AssetPump pump) => Volatile.Write(ref _pump, pump);
-
-    internal static void DetachPump(AssetPump pump)
-    {
-        if (ReferenceEquals(Volatile.Read(ref _pump), pump))
-            Volatile.Write(ref _pump, null);
-    }
 
     /// <summary>Attaches the read-only catalog used to resolve source paths and persistent identities.</summary>
     internal static void AttachCatalog(IAssetCatalog catalog) => Resolver.AttachCatalog(catalog);
 
-    /// <summary>Freezes the loader table after the startup bootstrap registered every loader.</summary>
-    internal static void InitializeLoaders() => Resolver.InitializeLoaders();
+    internal static void Initialize()
+    {
+        Resolver.Initialize();
+        RequestStart();
 
-    internal static void StartAcceptingLoads() => Volatile.Write(ref _loadsAccepted, 1);
+        //Run bootstarup at last
+        Bootstrap.Run();
+    }
 
-    internal static void StopAcceptingLoads() => Volatile.Write(ref _loadsAccepted, 0);
+    private static void RequestStart() => Volatile.Write(ref _loadsAccepted, LoadAccepted);
+
+    internal static void RequestStop() => Volatile.Write(ref _loadsAccepted, LoadUpaccepted);
+
+    internal static void StopCore()
+    {
+        Store.ReleaseAllRetention();
+        Store.Commit();
+
+        // Dispatcher.DetachOwner();
+
+        Volatile.Write(ref _pump, null);
+    }
 
     /// <summary>Loads synchronously; the store retention keeps the asset alive until it is unloaded.</summary>
     internal static T Load<T>(string sourcePath)
@@ -53,7 +67,7 @@ internal static class AssetRuntime
 
         IAssetLoader loader = Resolver.ResolveLoader(typeof(T));
         AssetSource source = Resolver.ResolveSource(sourcePath);
-        return LoadAsset<T>(source, loader);
+        return LoadSyncCore<T>(source, loader);
     }
 
     /// <summary>Queues an asynchronous load; the store retention keeps the asset alive until it is unloaded.</summary>
@@ -68,11 +82,15 @@ internal static class AssetRuntime
 
         IAssetLoader loader = Resolver.ResolveLoader(typeof(T));
         AssetSource source = Resolver.ResolveSource(sourcePath);
-        return await LoadAsyncCore<T>(source, loader, cancellationToken).ConfigureAwait(false);
+        return await LoadAsyncCore<T>(source, loader, cancellationToken);
     }
 
     // Synchronous load path; the returned asset is kept alive by the store retention.
-    private static T LoadAsset<T>(AssetSource source, IAssetLoader loader)
+    private static T LoadSyncCore<T>(
+        AssetSource source,
+        IAssetLoader loader,
+        CancellationToken token = default
+    )
         where T : IAsset
     {
         if (ThreadRegistry.IsRenderThread)
@@ -82,45 +100,67 @@ internal static class AssetRuntime
             );
         }
 
+        var request = new AssetLoadRequest(
+            source,
+            loader,
+            (token != default) ? token : CancellationToken.None,
+            blocking: true
+        );
+
         if (Dispatcher.IsOwnerThread)
         {
             // Route an owner-thread blocking load through the same pump so it joins an in-flight decode for
             // the same path instead of decoding the payload a second time. The owner must drive the pump
             // itself while it blocks; the main loop is not available for that.
-            AssetPump? pump = Pump;
+            AssetPump pump = Pump ?? throw new NullReferenceException();
             if (pump is null || pump.IsPumping || pump.IsStopped)
-                return Cast<T>(Store.LoadNow(source, loader));
+            {
+                return Cast<T>(Store.LoadSync(source, loader));
+            }
 
-            var request = new AssetLoadRequest(
-                source,
-                loader,
-                CancellationToken.None,
-                blocking: true
-            );
             Dispatcher.Submit(AssetCommand.Load(request));
 
             while (!request.Completion.Task.IsCompleted)
             {
-                if (!Dispatcher.HasOwner || pump.IsStopped)
+                if (pump.IsStopped)
                     break;
 
                 pump.Pump();
-                if (!request.Completion.Task.IsCompleted)
-                    Thread.Sleep(1);
+
+                // SpinWait 和 轮询中if下ThreadSleep 到时候再说吧
+                SpinWait.SpinUntil(() =>
+                {
+                    return request.Completion.Task.IsCompleted;
+                });
+
+                // if (!request.Completion.Task.IsCompleted)
+                // {
+                //     Thread.Sleep(1);
+                // }
             }
 
             return Cast<T>(request.Completion.Task.GetAwaiter().GetResult());
         }
 
-        var blockingRequest = new AssetLoadRequest(
-            source,
-            loader,
-            CancellationToken.None,
-            blocking: true
-        );
-        Dispatcher.Submit(AssetCommand.Load(blockingRequest));
-        IAsset asset = blockingRequest.Completion.Task.GetAwaiter().GetResult();
+        Dispatcher.Submit(AssetCommand.Load(request));
+        IAsset asset = request.Completion.Task.GetAwaiter().GetResult();
         return Cast<T>(asset);
+    }
+
+    private static Task<T> LoadAsyncCore<T>(
+        AssetSource source,
+        IAssetLoader loader,
+        CancellationToken cancellationToken
+    )
+        where T : IAsset
+    {
+        if (cancellationToken.IsCancellationRequested)
+            return Task.FromCanceled<T>(cancellationToken);
+
+        var request = new AssetLoadRequest(source, loader, cancellationToken, blocking: false);
+        Dispatcher.Submit(AssetCommand.Load(request));
+
+        return AwaitAs<T>(request.Completion.Task);
     }
 
     internal static bool TryGet<T>(AssetId assetId, out T asset)
@@ -155,14 +195,6 @@ internal static class AssetRuntime
             return unloaded;
         }
 
-        if (!Dispatcher.HasOwner)
-        {
-            Log.Warning(
-                $"Asset {assetId.Value} unload ignored: the asset pipeline is not running."
-            );
-            return false;
-        }
-
         Dispatcher.Submit(AssetCommand.Unload(assetId));
         return true;
     }
@@ -176,7 +208,7 @@ internal static class AssetRuntime
 
         IAssetLoader loader = Resolver.ResolveLoader(typeof(T));
         AssetSource source = Resolver.ResolveSource(sourcePath);
-        return AcquireTicket<T>(LoadAsset<T>(source, loader));
+        return AcquireTicket<T>(LoadSyncCore<T>(source, loader));
     }
 
     /// <summary>Queues an async load and returns a caller ticket for the asset.</summary>
@@ -202,14 +234,18 @@ internal static class AssetRuntime
     {
         if (asset is AssetBase assetBase && assetBase.Handle is { IsValid: true } retention)
         {
-            if (!retention.Lifetime.TryAcquireTicket())
-                throw new InvalidOperationException($"Asset {asset.AssetId.Value} is no longer alive.");
+            if (!retention.Lifetime.AddTicketCount())
+                throw new InvalidOperationException(
+                    $"Asset {asset.AssetId.Value} is no longer alive."
+                );
 
             return new AssetHandle<T>(asset.AssetId, asset, retention.Lifetime);
         }
 
         return TryAcquireHandle<T>(asset.AssetId)
-            ?? throw new InvalidOperationException($"Asset {asset.AssetId.Value} is no longer alive.");
+            ?? throw new InvalidOperationException(
+                $"Asset {asset.AssetId.Value} is no longer alive."
+            );
     }
 
     /// <summary>Takes one caller ticket on a loaded asset; returns null when the record is gone.</summary>
@@ -219,7 +255,7 @@ internal static class AssetRuntime
         if (!Store.TryGet(assetId, out AssetView view) || view.Asset is not T typed)
             return null;
 
-        if (!view.Lifetime.TryAcquireTicket())
+        if (!view.Lifetime.AddTicketCount())
             return null;
 
         return new AssetHandle<T>(assetId, typed, view.Lifetime);
@@ -230,7 +266,7 @@ internal static class AssetRuntime
     {
         ArgumentNullException.ThrowIfNull(lifetime);
 
-        if (!lifetime.TryAcquireTicket())
+        if (!lifetime.AddTicketCount())
             throw new InvalidOperationException($"Asset {assetId.Value} is no longer alive.");
     }
 
@@ -250,41 +286,14 @@ internal static class AssetRuntime
         lifetime.ReleaseRetention();
     }
 
-    /// <summary>Releases every asset retention; engine shutdown only.</summary>
-    internal static void ReleaseAllRetention() => Store.ReleaseAllRetention();
-
-    private static Task<T> LoadAsyncCore<T>(
-        AssetSource source,
-        IAssetLoader loader,
-        CancellationToken cancellationToken
-    )
-        where T : IAsset
-    {
-        if (cancellationToken.IsCancellationRequested)
-            return Task.FromCanceled<T>(cancellationToken);
-
-        int capacity = Application.AssetSetting.MaxPendingRequests;
-        if (Dispatcher.QueuedCount >= capacity)
-        {
-            throw new InvalidOperationException(
-                $"Asset request queue is full ({capacity} pending); the asset thread is not keeping up."
-            );
-        }
-
-        var request = new AssetLoadRequest(source, loader, cancellationToken, blocking: false);
-        Dispatcher.Submit(AssetCommand.Load(request));
-
-        return AwaitAs<T>(request.Completion.Task);
-    }
-
     private static void EnsureReady()
     {
-        if (!Dispatcher.HasOwner)
-        {
-            throw new InvalidOperationException(
-                "The asset pipeline is not running; start the engine before loading assets."
-            );
-        }
+        // if (!Dispatcher.HasOwner)
+        // {
+        //     throw new InvalidOperationException(
+        //         "The asset pipeline is not running; start the engine before loading assets."
+        //     );
+        // }
 
         if (!Resolver.IsInitialized)
         {

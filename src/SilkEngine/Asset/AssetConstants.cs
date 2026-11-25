@@ -20,7 +20,14 @@ internal static class AssetConstants
 
     /// <summary>Imported artifact file suffix.</summary>
     public const string ArtifactExtensionName = ".bin";
-
+    
     internal const string TextureAssetName = "texture";
     internal const string MeshAssetName = "mesh";
+}
+// 之后可以使用这个去替代const的str
+internal static class AssetType
+{
+    internal const byte Texture = 0;
+    internal const byte Mesh = 1;
+
 }

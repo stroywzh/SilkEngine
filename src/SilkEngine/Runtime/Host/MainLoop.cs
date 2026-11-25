@@ -112,8 +112,6 @@ public sealed class MainLoop : EngineThread
             UpdateScheduler.DispatchUpdate();
             StopToken.ThrowIfCancellationRequested();
 
-            Volatile.Read(ref _assetPump)?.Pump();
-
             OnRendering();
             stage = FrameStage.Rendered;
             StopToken.ThrowIfCancellationRequested();
@@ -156,6 +154,7 @@ public sealed class MainLoop : EngineThread
     {
         _frameId = checked(_frameId + 1);
         Time.BeginFrame(_frameId, LastFrameElapsed.TotalSeconds);
+        Volatile.Read(ref _assetPump)?.Pump();
     }
 
     private void DispatchFixedUpdates()
@@ -188,7 +187,7 @@ public sealed class MainLoop : EngineThread
         UpdateScheduler.DispatchLateUpdate();
 
         // Asset completions run on the main thread; the budget keeps the frame bounded.
-        AssetRuntime.Dispatcher.DrainCompletions(Application.AssetSetting.CompletionPumpBudget);
+        Volatile.Read(ref _assetPump)?.DrainCompletions(Application.AssetSetting.CompletionPumpBudget);
         _mainThreadContext.Pump();
     }
 
@@ -278,7 +277,7 @@ public sealed class MainLoop : EngineThread
         Volatile.Read(ref _assetPump)?.Shutdown();
 
         // The pump fails/cancels pending requests while stopping; pump completions so no caller keeps waiting.
-        AssetRuntime.Dispatcher.DrainCompletions(int.MaxValue);
+        Volatile.Read(ref _assetPump)?.DrainCompletions(int.MaxValue);
         Log.PumpFileIo(int.MaxValue);
         Log.DetachIoOwner();
     }

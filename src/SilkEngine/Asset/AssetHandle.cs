@@ -1,5 +1,5 @@
 using SilkEngine.Asset.Abstractions;
-using SilkEngine.Core.AssetSystem;
+using SilkEngine.Core.AssetSystem.Runtime;
 
 namespace SilkEngine.Asset;
 
@@ -13,14 +13,20 @@ public abstract class AssetHandle : IDisposable
 {
     private int _disposed;
 
-    internal AssetHandle(AssetId id, AssetLifetime lifetime)
+    private bool _retention;
+
+    internal AssetHandle(AssetId id, AssetLifetime lifetime, bool retention = false)
     {
         Id = id;
         Lifetime = lifetime;
+        _disposed = 0;
+        _retention = retention;
     }
 
     /// <summary>Identity of the asset this handle keeps alive.</summary>
     public AssetId Id { get; }
+
+    internal bool Retention => _retention;
 
     /// <summary>Reference counter this handle contributes to; owned by the asset record.</summary>
     internal AssetLifetime Lifetime { get; }
@@ -49,7 +55,7 @@ public abstract class AssetHandle : IDisposable
 public sealed class AssetHandle<T> : AssetHandle
     where T : IAsset
 {
-    private T? _asset;
+    private T _asset;
 
     internal AssetHandle(AssetId id, T asset, AssetLifetime lifetime)
         : base(id, lifetime) => _asset = asset;
@@ -69,19 +75,21 @@ public sealed class AssetHandle<T> : AssetHandle
         }
     }
 
-    /// <summary>Takes one more caller ticket and returns a second, independent handle to the same asset.</summary>
-    /// <exception cref="ObjectDisposedException">This handle was already disposed.</exception>
-    public AssetHandle<T> Clone()
+    /// <summary>
+    /// Takes one more caller ticket and returns a second, independent handle to the same asset.
+    /// <br/> Just simply clone it self.
+    /// </summary>
+    public static AssetHandle<T> Clone(AssetHandle<T> handle)
     {
-        if (!IsValid)
+        if (!handle.IsValid)
             throw new ObjectDisposedException(nameof(AssetHandle<T>));
 
-        AssetRuntime.AcquireHandleRef(Id, Lifetime);
-        return new AssetHandle<T>(Id, _asset!, Lifetime);
+        AssetRuntime.AcquireHandleRef(handle.Id, handle.Lifetime);
+        return new AssetHandle<T>(handle.Id, handle._asset, handle.Lifetime);
     }
 
     /// <inheritdoc />
-    protected override void OnReleased() => _asset = default;
+    protected override void OnReleased() => _asset = default!;
 
     /// <inheritdoc />
     protected override void ReleaseReference() => AssetRuntime.ReleaseHandle(Id, Lifetime);
@@ -93,8 +101,17 @@ public sealed class AssetHandle<T> : AssetHandle
 internal sealed class AssetRetentionHandle : AssetHandle
 {
     internal AssetRetentionHandle(AssetId id, AssetLifetime lifetime)
-        : base(id, lifetime) { }
+        : base(id, lifetime,true) { }
 
     /// <inheritdoc />
     protected override void ReleaseReference() => AssetRuntime.ReleaseRetention(Id, Lifetime);
+}
+
+public static class AssetHandleExtension
+{
+    public static AssetHandle<T> Clone<T>(this AssetHandle<T> handle)
+        where T : IAsset
+    {
+        return AssetHandle<T>.Clone(handle);
+    }
 }

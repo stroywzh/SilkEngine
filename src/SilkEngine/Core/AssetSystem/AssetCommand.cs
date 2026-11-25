@@ -60,7 +60,7 @@ internal sealed class AssetLoadRequest
 
     internal AssetSource Source { get; }
 
-    internal string SourcePath => Source.ProjectPath;
+    internal string SourcePath => Source.SourcePath;
 
     internal IAssetLoader Loader { get; }
 

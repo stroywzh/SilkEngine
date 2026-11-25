@@ -1,8 +1,4 @@
-using System.Diagnostics.CodeAnalysis;
-using SilkEngine.Asset;
-using SilkEngine.Asset.Abstractions;
 using SilkEngine.Asset.Payload;
-using SilkEngine.Core.AssetSystem;
 using SilkEngine.Rendering.Abstraction;
 
 namespace SilkEngine.Rendering.Assets;
@@ -14,28 +10,21 @@ internal sealed class TextureUploader : IAssetUploader
     public Type AssetType => typeof(Texture);
 
     /// <inheritdoc />
-    public AssetUploadResult TryUpload(
-        IRenderDevice device,
-        AssetId assetId,
-        [MaybeNullWhen(false)] out IRuntimeBinding binding
-    )
+    public AssetUploadResult TryUpload(in AssetUploadContext context, out IRuntimeBinding binding)
     {
         binding = null!;
-        
-        //先Peek和Create，最后转移所有权
-        if (
-            !AssetRenderBridge.TryGetRenderAsset(assetId, out IAsset? asset)
-            || asset is not Texture texture
-        )
-            return AssetUploadResult.PermanentFailure;
 
-        if (!AssetRenderBridge.TryPeekPayload<TexturePayload>(assetId, out TexturePayload? payload))
-            return AssetUploadResult.PermanentFailure;
+        // Peek the payload and create the device texture before taking ownership of the data.
+        if (!context.TryGetAsset<Texture>(out Texture texture))
+            return AssetUploadResult.Failed;
+
+        if (!context.TryPeekPayload<TexturePayload>(out TexturePayload payload))
+            return AssetUploadResult.Failed;
 
         TextureHandle handle;
         try
         {
-            handle = device.CreateTexture(
+            handle = context.Device.CreateTexture(
                 new TextureDesc(
                     texture.Width,
                     texture.Height,
@@ -48,20 +37,16 @@ internal sealed class TextureUploader : IAssetUploader
         }
         catch (Exception error) when (error is ArgumentException or NotSupportedException)
         {
+            // Unusable data for this device; the table records a failed upload and keeps the fallback.
             Log.Exception(error);
-            return AssetUploadResult.PermanentFailure;
-        }
-        catch (Exception error)
-        {
-            Log.Exception(error);
-            return AssetUploadResult.RetryableFailure;
+            return AssetUploadResult.Failed;
         }
 
-        // 成功后才消费 payload
-        if (!AssetRenderBridge.TryTakePayload<TexturePayload>(assetId, out TexturePayload? owned))
+        // Transfer ownership only after the device accepted the data.
+        if (!context.TryTakePayload<TexturePayload>(out TexturePayload owned))
         {
-            device.DestroyTexture(handle);
-            return AssetUploadResult.RetryableFailure;
+            context.Device.DestroyTexture(handle);
+            return AssetUploadResult.Failed;
         }
 
         owned.Dispose();

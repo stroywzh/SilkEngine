@@ -3,7 +3,7 @@ using System.Diagnostics.CodeAnalysis;
 using SilkEngine.Asset;
 using SilkEngine.Asset.Abstractions;
 
-namespace SilkEngine.Core.AssetSystem;
+namespace SilkEngine.Core.AssetSystem.Runtime;
 
 /// <summary>
 /// Asset state with exactly one owner thread: path map, runtime records, reference counts, deferred release and the
@@ -14,7 +14,11 @@ namespace SilkEngine.Core.AssetSystem;
 /// ticket and render reference are gone. Other threads only change counters; the owner scans them once per commit,
 /// announces a teardown through the release queue when only render references are left, and removes a record after
 /// its release window elapsed.</remarks>
-internal sealed class AssetStore
+/// <br/> 
+/// TODO :1 AssetStore不应该感知Render，尤其是ReleaseRenderRef，这个必须干掉，AssetStore只负责：管理Id，增添Id，等纯存储的行为
+/// TODO :2 AssetStore管理Asset的方式应该是 （GUID 转 str或者hash），别直接存path
+/// 
+internal sealed class AssetRuntimeStore
 {
     private readonly ConcurrentQueue<AssetId> _ready;
     private readonly ConcurrentQueue<AssetId> _released;
@@ -37,8 +41,12 @@ internal sealed class AssetStore
     private ulong _lastId;
     private bool _dirty;
     private int _deferredCount;
+    // internal AssetRuntimeStore()
+    // {
 
-    internal AssetStore(
+    // }
+
+    internal AssetRuntimeStore(
         ConcurrentQueue<AssetId> ready,
         ConcurrentQueue<AssetId> released,
         ConcurrentQueue<AssetId> pinReleased
@@ -49,12 +57,30 @@ internal sealed class AssetStore
         _pinReleased = pinReleased ?? throw new ArgumentNullException(nameof(pinReleased));
     }
 
-    /// <summary>Creates a store whose teardown notifications are dropped; tools and legacy tests only.</summary>
-    internal AssetStore(ConcurrentQueue<AssetId> ready, ConcurrentQueue<AssetId> released)
-        : this(ready, released, new ConcurrentQueue<AssetId>()) { }
+    // /// <summary>Creates a store whose teardown notifications are dropped; tools and legacy tests only.</summary>
+    // internal AssetRuntimeStore(ConcurrentQueue<AssetId> ready, ConcurrentQueue<AssetId> released)
+    //     : this(ready, released, new ConcurrentQueue<AssetId>()) { }
 
     /// <summary>Number of assets whose store retention is released and that are waiting for their release window.</summary>
     internal int DeferredCount => Volatile.Read(ref _deferredCount);
+
+    /// <summary>Diagnostics: number of registered records; owner thread only.</summary>
+    internal int RecordCount => _byId.Count;
+
+    /// <summary>Diagnostics: caller tickets held across every record; owner thread only.</summary>
+    internal int LiveTicketCount
+    {
+        get
+        {
+            int tickets = 0;
+            foreach (Entry entry in _byId.Values)
+            {
+                tickets += entry.Lifetime.TicketCount;
+            }
+
+            return tickets;
+        }
+    }
 
     // Owner thread: advances the store clock that release windows are measured against.
     internal void Advance(double deltaSeconds)
@@ -73,13 +99,13 @@ internal sealed class AssetStore
         if (!_byPath.TryGetValue(path, out Entry? entry))
             return false;
 
-        if (!entry.Lifetime.RetentionHeld)
+        if (!entry.Lifetime.RetentionCount)
         {
             if (!TryReviveRetention(entry))
                 return false;
         }
 
-        if (entry.Lifetime.Count <= 0)
+        if (entry.Lifetime.TotalCount <= 0)
             return false;
 
         asset = entry.Asset;
@@ -87,19 +113,15 @@ internal sealed class AssetStore
     }
 
     // Owner thread: reuse or decode synchronously; the caller observes the registered view before this returns.
-    internal IAsset LoadNow(AssetSource source, IAssetLoader loader)
+    internal IAsset LoadSync(AssetSource source, IAssetLoader loader)
     {
-        if (TryReuse(source.ProjectPath, out IAsset? cached))
+        if (TryReuse(source.SourcePath, out IAsset? cached))
             return cached!;
 
-        IAsset asset = Register(source.ProjectPath, loader.Load(source), out _);
+        IAsset asset = Register(source.SourcePath, loader.Load(source), out _);
         Commit();
         return asset;
     }
-
-    // Owner thread: register a draft. A duplicate path reuses the existing record and disposes the duplicate
-    // draft instead of throwing; only a newly added record consumes an id and takes payload ownership.
-    internal IAsset Register(string path, AssetDraft draft) => Register(path, draft, out _);
 
     internal IAsset Register(string path, AssetDraft draft, out bool added)
     {
@@ -110,7 +132,7 @@ internal sealed class AssetStore
             draft.Dispose();
 
             // A duplicate load restores the retention whenever it was released; tickets/render refs stay as-is.
-            if (!existing.Lifetime.RetentionHeld)
+            if (!existing.Lifetime.RetentionCount)
             {
                 TryReviveRetention(existing);
             }
@@ -120,13 +142,14 @@ internal sealed class AssetStore
         }
 
         ulong id = unchecked(++_lastId);
+        //TODO: ID循环，目前没做这个，所以这里是检测到循环就直接throw
         if (id == 0)
         {
             draft.Dispose();
             throw new InvalidOperationException("AssetStore: asset id space exhausted.");
         }
 
-        IAssetPayload? payload = draft.TakePayload();
+        IAssetPayload payload = draft.TakePayload();
         if (payload is null)
         {
             draft.Dispose();
@@ -182,10 +205,10 @@ internal sealed class AssetStore
 
         entry.Retention.Dispose();
 
-        if (entry.Lifetime.NonRenderRefs > 0)
+        if (entry.Lifetime.NonRenderCount > 0)
             return true;
 
-        if (entry.Lifetime.Count == 0)
+        if (entry.Lifetime.TotalCount == 0)
         {
             DeferRemoval(entry, defer ? window : TimeSpan.Zero);
             return true;
@@ -205,10 +228,14 @@ internal sealed class AssetStore
         if (!entry.Lifetime.ReleaseRenderRef())
             return false;
 
-        if (entry.Lifetime.Count == 0)
+        if (entry.Lifetime.TotalCount == 0)
+        {
             DeferRemoval(entry, TimeSpan.Zero);
+        }
         else if (entry.Deferred)
+        {
             CancelDeferred(entry);
+        }
 
         return true;
     }
@@ -229,32 +256,40 @@ internal sealed class AssetStore
 
             // Only render references are left: ask the render side to drop its bindings.
             if (
-                !entry.Lifetime.RetentionHeld
-                && entry.Lifetime.NonRenderRefs == 0
+                !entry.Lifetime.RetentionCount
+                && entry.Lifetime.NonRenderCount == 0
                 && entry.Lifetime.RenderRefCount > 0
             )
             {
                 AnnounceTeardown(entry);
             }
 
-            if (entry.Lifetime.Count > 0)
+            if (entry.Lifetime.TotalCount > 0)
             {
                 // A reference arrived inside the release window; keep the record published.
                 if (entry.Deferred)
+                {
                     CancelDeferred(entry);
+                }
 
                 // The binding may already have been torn down; re-announce so the render side uploads again.
                 if (entry.TeardownAnnounced && entry.Lifetime.RenderRefCount == 0)
+                {
                     Reannounce(entry);
+                }
 
                 continue;
             }
 
             if (!entry.Deferred)
+            {
                 DeferRemoval(entry, TimeSpan.Zero);
+            }
 
             if (entry.DueAtMs <= _elapsedMs)
+            {
                 (due ??= new List<Entry>()).Add(entry);
+            }
         }
 
         if (due is null)
@@ -262,7 +297,9 @@ internal sealed class AssetStore
 
         // Removal mutates the dictionary, so it runs after the enumeration.
         foreach (Entry entry in due)
+        {
             RemoveEntry(entry);
+        }
     }
 
     /// <summary>Releases every retention the store and its assets still hold; shutdown only.</summary>
@@ -370,7 +407,8 @@ internal sealed class AssetStore
 
         if (entry.Asset is AssetBase assetBase)
         {
-            assetBase.AttachHandle(retention);
+            //TODD: 重构，对于AssetBase，不应该有任何rebind行为，AssetBase在Asset内不变
+            // assetBase.AttachHandle(retention);
         }
 
         if (entry.Deferred)

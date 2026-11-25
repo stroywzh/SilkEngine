@@ -14,6 +14,10 @@ internal sealed class AssetResolver
     private IAssetCatalog? _catalog;
 
     internal bool IsInitialized => Volatile.Read(ref _initialized) != 0;
+    // internal AssetResolver(IAssetCatalog catalog)
+    // {
+    //     _catalog = catalog;
+    // }
 
     /// <summary>Attaches the read-only catalog used to resolve source paths and persistent identities.</summary>
     internal void AttachCatalog(IAssetCatalog catalog)
@@ -23,7 +27,7 @@ internal sealed class AssetResolver
     }
 
     /// <summary>Freezes the loader map after the startup registration phase.</summary>
-    internal void InitializeLoaders()
+    internal void Initialize()
     {
         _loaders = new Dictionary<Type, IAssetLoader>(Application.AssetLoaders);
         Volatile.Write(ref _initialized, 1);

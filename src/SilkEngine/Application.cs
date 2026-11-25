@@ -39,10 +39,17 @@ public class Application
         public static int DecodeConcurrency = Math.Clamp(Environment.ProcessorCount - 1, 1, 4);
 
         /// <summary>Maximum number of completed requests the main loop pumps per frame.</summary>
-        public static int CompletionPumpBudget = 256;
+        public static int CompletionPumpBudget = DefaultCompletionPumpBudget;
+        public const int DefaultCompletionPumpBudget = 256;
 
         /// <summary>Upper bound the asset worker waits for in-flight decodes while shutting down.</summary>
         public static TimeSpan ShutdownTimeout = TimeSpan.FromSeconds(2);
+
+        /// <summary>Maximum asset upload attempts the render side performs per frame; values ≤ 0 disable the limit.</summary>
+        public static int MaxUploadsPerFrame = 4;
+
+        /// <summary>Maximum asset bytes the render side uploads per frame; 0 disables the limit.</summary>
+        public static long MaxUploadBytesPerFrame = 16 * 1024 * 1024;
     }
 
     /// <summary>Module-level log switches.</summary>

@@ -1,5 +1,6 @@
 using SilkEngine.Asset.Abstractions;
 using SilkEngine.Asset.Transfer;
+using SilkEngine.Serialization.DataStructure;
 
 namespace SilkEngine.Asset;
 

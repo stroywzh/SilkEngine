@@ -15,7 +15,7 @@ internal sealed class AssetLifetime
     private bool _removed;
 
     /// <summary>Total references: store retention plus caller tickets and render bindings.</summary>
-    internal int Count
+    internal int TotalCount
     {
         get
         {
@@ -25,7 +25,7 @@ internal sealed class AssetLifetime
     }
 
     /// <summary>References owned outside the render side: store retention plus caller tickets.</summary>
-    internal int NonRenderRefs
+    internal int NonRenderCount
     {
         get
         {
@@ -35,7 +35,7 @@ internal sealed class AssetLifetime
     }
 
     /// <summary>True while the store retention is held; only the store's unload/shutdown path releases it.</summary>
-    internal bool RetentionHeld
+    internal bool RetentionCount
     {
         get
         {
@@ -54,6 +54,16 @@ internal sealed class AssetLifetime
         }
     }
 
+    /// <summary>Diagnostics: number of caller tickets currently held.</summary>
+    internal int TicketCount
+    {
+        get
+        {
+            lock (_gate)
+                return _tickets;
+        }
+    }
+
     /// <summary>True once the record was latched as removed; no reference can be taken afterwards.</summary>
     internal bool IsRemoved
     {
@@ -65,7 +75,7 @@ internal sealed class AssetLifetime
     }
 
     /// <summary>Takes a render-side reference; fails after removal or while the record holds no reference.</summary>
-    internal bool TryAcquire()
+    internal bool AddRenderRefCount()
     {
         lock (_gate)
         {
@@ -78,7 +88,7 @@ internal sealed class AssetLifetime
     }
 
     /// <summary>Takes one caller ticket; fails after removal.</summary>
-    internal bool TryAcquireTicket()
+    internal bool AddTicketCount()
     {
         lock (_gate)
         {

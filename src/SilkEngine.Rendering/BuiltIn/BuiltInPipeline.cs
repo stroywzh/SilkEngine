@@ -1,4 +1,3 @@
-using SilkEngine.Asset;
 using SilkEngine.Rendering.Abstraction;
 using SilkEngine.Rendering.Assets;
 
@@ -33,7 +32,13 @@ public sealed class BuiltInPipeline : RenderPipelineBase
     private bool _quadUsesConstants;
     private ConstantArena? _constants;
 
+    // Reused every frame so collecting the bound textures does not allocate.
+    private readonly List<ITextureBinding> _textures = new();
+
     public override string Name => "Built-In Pipeline";
+
+    // The pipeline sees only the resource table, never asset identities.
+    private IRenderResourceTable Table => RuntimeCache;
 
     protected override void OnInitializeCore()
     {
@@ -105,6 +110,9 @@ public sealed class BuiltInPipeline : RenderPipelineBase
         EnsureFullViewport(commands);
         RecordDebugClearColor(commands);
 
+        _textures.Clear();
+        Table.CollectBindings<ITextureBinding>(_textures);
+
         if (_quadUsesConstants && _constants is not null)
         {
             _constants.BeginFrame(context.FrameIndex);
@@ -122,7 +130,10 @@ public sealed class BuiltInPipeline : RenderPipelineBase
 
     private void RecordCarousel(ICommandBuffer commands)
     {
-        int count = RuntimeCache.Order.Count;
+        int count = _textures.Count;
+        if (count == 0)
+            return; // Nothing uploaded yet: the DEBUG triangle remains the only visible fallback.
+
         TexturedQuad.BindState(commands, in _quad);
 
         if (count == 1)
@@ -149,32 +160,21 @@ public sealed class BuiltInPipeline : RenderPipelineBase
 
     private void RecordSlide(ICommandBuffer commands, int index, float alpha)
     {
-        if (_constants is null || index < 0 || index >= RuntimeCache.Order.Count)
+        if (_constants is null || index < 0 || index >= _textures.Count)
             return;
 
-        AssetId assetId = RuntimeCache.Order[index];
-        if (!RuntimeCache.TryGet<TextureBinding>(assetId, out TextureBinding binding))
-            return;
-
-        DrawConstants2D constants = BuildContainConstants(
-            binding.Texture.Width,
-            binding.Texture.Height,
-            alpha
-        );
+        ITextureBinding binding = _textures[index];
+        DrawConstants2D constants = BuildContainConstants(binding.Width, binding.Height, alpha);
         uint offset = _constants.Write(in constants);
         TexturedQuad.RecordDraw(commands, binding.Handle, _constants.Buffer, offset);
     }
 
     private void RecordSingleTexture(ICommandBuffer commands)
     {
-        if (!_quadReady || RuntimeCache.Order.Count == 0)
+        if (!_quadReady || _textures.Count == 0)
             return;
 
-        AssetId assetId = RuntimeCache.Order[0];
-        if (!RuntimeCache.TryGet<TextureBinding>(assetId, out TextureBinding binding))
-            return;
-
-        TexturedQuad.RecordLegacy(commands, in _quad, binding.Handle);
+        TexturedQuad.RecordLegacy(commands, in _quad, _textures[0].Handle);
     }
 
     private DrawConstants2D BuildContainConstants(int texWidth, int texHeight, float alpha)

@@ -6,7 +6,7 @@ namespace SilkEngine.Asset;
 internal sealed record AssetCatalogEntry(
     AssetGuid Guid,
     string AssetType,
-    string ProjectPath,
+    string SourcePath,
     string ArtifactHash,
     long ArtifactLength,
     string HeaderJson,

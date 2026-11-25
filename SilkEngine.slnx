@@ -13,4 +13,8 @@
         <Project Path="src/SilkEngine/SilkEngine.csproj" />
     </Folder>
     <Folder Name="/tests/" />
+    <!-- 这是测试文件 -->
+    <!-- <Folder Name="/tests/SilkEngine.Asset.Tests/">
+        <Project Path="tests/SilkEngine.Asset.Tests/SilkEngine.Asset.Tests.csproj" />
+    </Folder> -->
 </Solution>

@@ -1,5 +1,5 @@
 using SilkEngine.Asset.Abstractions;
-using SilkEngine.Core.AssetSystem;
+using SilkEngine.Core.AssetSystem.Runtime;
 
 namespace SilkEngine;
 

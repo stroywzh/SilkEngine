@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using SilkEngine.Asset;
+using SilkEngine.Serialization.DataStructure;
 
 namespace SilkEngine.Serialization;
 
