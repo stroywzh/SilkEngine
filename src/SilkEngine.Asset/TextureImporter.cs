@@ -53,7 +53,7 @@ internal static class TextureImporter
         string settingsHash = ContentHash.Sha256(JsonCodec.Encode(settings, humanReadable: false));
         string sidecarPath = SidecarPath.ForSource(fullSourcePath);
 
-        TextureSidecar? existing = LoadExisting(sidecarPath);
+        TextureSidecar? existing = LoadExisting(sidecarPath, out string? sidecarWarning);
         if (
             existing is not null
             && IsUpToDate(sidecarPath, layout, existing, sourceName, sourceHash, settingsHash)
@@ -94,13 +94,19 @@ internal static class TextureImporter
 
         TextureSidecar.Writer.Write(sidecarPath, sidecar);
 
-        return new AssetImportResult(sidecarPath, sidecar, Changed: true);
+        return new AssetImportResult(
+            sidecarPath,
+            sidecar,
+            Changed: true,
+            Warnings: sidecarWarning is null ? null : [sidecarWarning]
+        );
     }
 
     // 缺失或损坏的 sidecar 都视为“需要重导入”——这是 importer 的语义，
     // 不是读取层的容错。Read 本身仍然直接抛。
-    private static TextureSidecar? LoadExisting(string sidecarPath)
+    private static TextureSidecar? LoadExisting(string sidecarPath, out string? warning)
     {
+        warning = null;
         if (!File.Exists(sidecarPath))
             return null;
 
@@ -108,8 +114,9 @@ internal static class TextureImporter
         {
             return TextureSidecar.Reader.Read(sidecarPath);
         }
-        catch (InvalidDataException)
+        catch (InvalidDataException error)
         {
+            warning = $"existing sidecar was unreadable and is rebuilt ({error.Message})";
             return null;
         }
     }

@@ -22,10 +22,12 @@ internal sealed class ContentAssetBootstrap : IAssetBootstrap
         ContentLayout layout = ContentLayout.Create(context.ProjectRoot);
         Log.Info($"Asset startup: importing '{layout.ProjectRoot}' ({context.Mode}).");
 
+        var importWatch = Stopwatch.StartNew();
         IReadOnlyList<AssetImportResult> imported = AssetScanner.ImportAll(layout, strict);
-        Log.Info($"Imported {imported.Count} asset(s).");
-        foreach (AssetImportResult result in imported)
-            Log.Info($"Imported '{result.SidecarPath}' (changed: {result.Changed}).");
+        importWatch.Stop();
+        Log.Info(
+            $"Imported {imported.Count} asset(s) in {importWatch.Elapsed.TotalMilliseconds:0.0} ms."
+        );
 
         AssetCatalog catalog;
         try

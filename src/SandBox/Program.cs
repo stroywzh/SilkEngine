@@ -37,17 +37,12 @@ Log.Info($"Will Stopping after {frames} frames.");
 // Explicit content paths: startup already imported and cataloged them, so these are plain loads.
 string[] texturePaths = ["Assets/Image.png", "Assets/hakiri.png"];
 int loaded = 0;
-List<Texture> textures = new();
 foreach (string texturePath in texturePaths)
 {
     try
     {
-        Texture texture = await Assets.LoadAsync<Texture>(texturePath);
+        await Assets.LoadAsync<Texture>(texturePath);
         loaded++;
-        textures.Add(texture);
-        Log.Info(
-            $"Loaded texture {texture.Width}x{texture.Height} (assetId: {texture.AssetId.Value})."
-        );
     }
     catch (Exception error)
     {
@@ -57,10 +52,6 @@ foreach (string texturePath in texturePaths)
 }
 
 Log.Info($"Loaded {loaded}/{texturePaths.Length} texture(s).");
-foreach(var t in textures)
-{
-    Log.Info($"Name{t.ToString()}|Id:{t.AssetId}");
-}
 
 try
 {

@@ -46,6 +46,19 @@ internal sealed class TextureSidecar : AssetSidecarBase
     /// <summary>Texture content derived from the import record.</summary>
     internal TextureData ToData() => new(Width, Height, Format, ColorSpace, MipCount);
 
+    public override string ToString()
+    {
+        string artifact =
+            Artifact is { } value ? $"{Shorten(value.Hash)}({value.Length} B)" : "none";
+
+        return $"{AssetType} '{Source}' {Width}x{Height} {Format} {ColorSpace} mip={MipCount} "
+            + $"guid={Guid} artifact={artifact} importer={Importer}/{ImporterVersion} "
+            + $"schema={SchemaVersion} sourceHash={Shorten(SourceHash)} settingsHash={Shorten(ImportSettingsHash)}";
+    }
+
+    private static string Shorten(string value) =>
+        value.Length <= 12 ? value : value[..12] + "…";
+
     private static void Validate(TextureSidecar sidecar, string sidecarPath)
     {
         if (sidecar.SchemaVersion is not (1 or CurrentSchemaVersion))

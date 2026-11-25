@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using SilkEngine.Asset;
 using SilkEngine.AssetSystem.Content.Abstractions;
 
@@ -77,18 +78,39 @@ internal static class AssetScanner
         }
 
         var failures = new List<Exception>();
+        var pass = Stopwatch.StartNew();
         foreach (DiscoveredAsset asset in discovered)
         {
+            var import = Stopwatch.StartNew();
             try
             {
-                results.Add(asset.Importer.Import(asset.SourcePath, layout));
+                AssetImportResult result = asset.Importer.Import(asset.SourcePath, layout);
+                import.Stop();
+                ReportImport(asset, result, import.Elapsed, error: null);
+                results.Add(result);
             }
             catch (Exception error)
             {
+                import.Stop();
                 // One bad source must not stop the rest; the render side falls back for that asset.
-                Log.Exception(error);
+                ReportImport(asset, result: null, import.Elapsed, error);
                 failures.Add(error);
             }
+        }
+        pass.Stop();
+
+        int withWarnings = results.Count(static result => result.Warnings is { Count: > 0 });
+        string summary =
+            $"Import pass finished in {pass.Elapsed.TotalMilliseconds:0.0} ms: "
+            + $"{results.Count} succeeded ({withWarnings} with warnings), {failures.Count} failed.";
+
+        if (failures.Count > 0)
+        {
+            Log.Warning(summary);
+        }
+        else
+        {
+            Log.Info(summary);
         }
 
         if (strict && failures.Count > 0)
@@ -100,5 +122,38 @@ internal static class AssetScanner
         }
 
         return results;
+    }
+
+    private static void ReportImport(
+        DiscoveredAsset asset,
+        AssetImportResult? result,
+        TimeSpan elapsed,
+        Exception? error
+    )
+    {
+        string extension = asset.Importer.Extension.TrimStart('.');
+        string type =
+            result is null ? extension : $"{result.Metadata.AssetType}/{extension}";
+        string duration = $"{elapsed.TotalMilliseconds:0.0} ms";
+
+        if (error is not null)
+        {
+            Log.Error($"Import failed [{type}] '{asset.SourcePath}' in {duration}:\n    - Error: {error}");
+            return;
+        }
+
+        string state = result!.Changed ? "succeeded" : "up to date";
+        string details = result.Metadata.ToString() ?? result.Metadata.AssetType;
+
+        if (result.Warnings is { Count: > 0 } warnings)
+        {
+            Log.Warning(
+                $"Import {state} with warnings [{type}] '{asset.SourcePath}' in {duration}: "
+                    + $"{details}; {string.Join("; ", warnings)}"
+            );
+            return;
+        }
+
+        Log.Info($"Import {state} [{type}] '{asset.SourcePath}' in {duration}: {details}");
     }
 }
