@@ -1,5 +1,5 @@
 using SilkEngine.Asset.Abstractions;
-using SilkEngine.Core.AssetSystem.Runtime;
+using SilkEngine.AssetSystem.Runtime;
 
 namespace SilkEngine.Asset;
 
@@ -8,7 +8,8 @@ namespace SilkEngine.Asset;
 /// thread applies the change at its next commit. Do not touch the asset after its ticket was disposed.
 /// Two tickets for the same record are independent and never share their disposed state. The store retention
 /// is a separate handle owned by the asset itself and released only by the internal unload/shutdown path;
-/// caller tickets are released by the caller.</remarks>
+/// caller tickets are released by the caller. <see cref="AssetHandle{T}"/> is the caller-facing ticket;
+/// <see cref="AssetRetentionHandle"/> never escapes the engine.</remarks>
 public abstract class AssetHandle : IDisposable
 {
     private int _disposed;
@@ -84,7 +85,7 @@ public sealed class AssetHandle<T> : AssetHandle
         if (!handle.IsValid)
             throw new ObjectDisposedException(nameof(AssetHandle<T>));
 
-        AssetRuntime.AcquireHandleRef(handle.Id, handle.Lifetime);
+        AssetSystemHost.AcquireHandleRef(handle.Id, handle.Lifetime);
         return new AssetHandle<T>(handle.Id, handle._asset, handle.Lifetime);
     }
 
@@ -92,7 +93,7 @@ public sealed class AssetHandle<T> : AssetHandle
     protected override void OnReleased() => _asset = default!;
 
     /// <inheritdoc />
-    protected override void ReleaseReference() => AssetRuntime.ReleaseHandle(Id, Lifetime);
+    protected override void ReleaseReference() => AssetSystemHost.ReleaseHandle(Id, Lifetime);
 }
 
 /// <summary>Store-owned retention handle: keeps a record alive without publishing the asset.</summary>
@@ -104,7 +105,7 @@ internal sealed class AssetRetentionHandle : AssetHandle
         : base(id, lifetime,true) { }
 
     /// <inheritdoc />
-    protected override void ReleaseReference() => AssetRuntime.ReleaseRetention(Id, Lifetime);
+    protected override void ReleaseReference() => AssetSystemHost.ReleaseRetention(Id, Lifetime);
 }
 
 public static class AssetHandleExtension

@@ -150,3 +150,15 @@ SilkEngine.Asset.Tests ──► SilkEngine
 - 新增带 `[RenderCommand]` 的命令结构体、或在渲染/框架项目里使用 `MathValue` 标记时，生成代码由 `SilkEngine.SourceGen` 产出，不要手写或复制生成结果。
 - `tests/` 与 `docs/` 被 `.gitignore` 忽略，新增测试不会被版本库跟踪（如需提交须先与用户确认）。
 - 涉及 3 个及以上文件的改动、或触及受保护文件前，先取得用户单次明确授权。
+
+---
+
+## 7. 2026-11-25 资产系统分层重构（补记）
+
+> 以下为本次重构后的现状；上文出现的旧命名空间/类型名以本节为准。
+
+- 公开门面/契约：`SilkEngine.Asset`（`AssetId`、`AssetGuid`、`AssetLoadSource`、`AssetCatalogEntry`、`AssetDraft`、`PayloadLease`、`AssetHandle`、`IAsset` 等），`ContentAssets` 也保留在该门面命名空间。
+- 运行时内部：`SilkEngine.AssetSystem.Runtime`（`AssetSystemHost`、`AssetRecordStore`、`AssetDispatcher`、`AssetResolver`、`AssetRenderBridge`、`IRenderAssetSource`、`AssetBootstrapHost`、`AssetPump`）。
+- 内容内部：`SilkEngine.AssetSystem.Content`（及 `.Abstractions`、`.Decoding.Png`、`.Transfer`）；`ContentLayout` 已移入 Content 程序集。
+- 类型重命名：`AssetRuntime`→`AssetSystemHost`、`AssetRuntimeStore`→`AssetRecordStore`、`AssetRuntimeCache`→`RenderAssetBindingTable`、`AssetSource`→`AssetLoadSource`。
+- `SilkEngine.Asset` 程序集名保持不变（仍为 Content 程序集）；程序集名与命名空间不一一对应是有意设计。

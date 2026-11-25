@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using SilkEngine.Asset;
-using SilkEngine.Core.AssetSystem;
-using SilkEngine.Core.AssetSystem.Runtime;
+using SilkEngine.AssetSystem.Runtime;
 using SilkEngine.Rendering.Abstraction;
 
 namespace SilkEngine.Runtime.Host;
@@ -64,7 +63,7 @@ public sealed class MainLoop : EngineThread
         // Install first: the asset dispatcher binds its owner thread id from this context, so the
         // identity exists before the pump or any asset request can be created.
         _mainThreadContext = MainThreadSynchronizationContext.Install();
-        AssetRuntime.Dispatcher.AttachOwner(_mainThreadContext.MainThreadId);
+        AssetSystemHost.Dispatcher.AttachOwner(_mainThreadContext.MainThreadId);
 
         Time.Reset();
 
@@ -193,7 +192,9 @@ public sealed class MainLoop : EngineThread
         UpdateScheduler.DispatchLateUpdate();
 
         // Asset completions run on the main thread; the budget keeps the frame bounded.
-        Volatile.Read(ref _assetPump)?.DrainCompletions(Application.AssetSetting.CompletionPumpBudget);
+        Volatile
+            .Read(ref _assetPump)
+            ?.DrainCompletions(Application.AssetSetting.CompletionPumpBudget);
         _mainThreadContext.Pump();
     }
 

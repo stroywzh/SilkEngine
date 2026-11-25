@@ -1,4 +1,7 @@
-namespace SilkEngine.Asset.Abstractions;
+using SilkEngine.Asset;
+using SilkEngine.AssetSystem.Content;
+
+namespace SilkEngine.AssetSystem.Content.Abstractions;
 
 /// <summary>Imports one source file format and writes the sidecar the catalog reads.</summary>
 internal interface IAssetImporter

@@ -1,7 +1,9 @@
 using System.IO;
+using SilkEngine.Asset;
+using SilkEngine.AssetSystem.Content.Abstractions;
 using SilkEngine.Core.IO;
 
-namespace SilkEngine.Asset;
+namespace SilkEngine.AssetSystem.Content;
 
 /// <summary>Single source of truth for the project's content folders.</summary>
 /// <remarks>Catalog, artifact store, scanner and importer all receive this layout instead of deriving a

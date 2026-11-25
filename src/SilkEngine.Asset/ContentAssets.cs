@@ -1,4 +1,5 @@
-using SilkEngine.Core.AssetSystem;
+using SilkEngine.AssetSystem.Content;
+using SilkEngine.AssetSystem.Runtime;
 
 namespace SilkEngine.Asset;
 

@@ -1,4 +1,7 @@
-namespace SilkEngine.Asset;
+using SilkEngine.Asset;
+using SilkEngine.AssetSystem.Content.Abstractions;
+
+namespace SilkEngine.AssetSystem.Content;
 
 /// <summary>Importer for PNG texture sources.</summary>
 internal sealed class PngAssetImporter : Abstractions.IAssetImporter

@@ -3,7 +3,7 @@ using System.Diagnostics.CodeAnalysis;
 using SilkEngine.Asset;
 using SilkEngine.Asset.Abstractions;
 
-namespace SilkEngine.Core.AssetSystem.Runtime;
+namespace SilkEngine.AssetSystem.Runtime;
 
 /// <summary>
 /// Asset state with exactly one owner thread: path map, runtime records, reference counts, deferred release and the
@@ -14,11 +14,11 @@ namespace SilkEngine.Core.AssetSystem.Runtime;
 /// ticket and render reference are gone. Other threads only change counters; the owner scans them once per commit,
 /// announces a teardown through the release queue when only render references are left, and removes a record after
 /// its release window elapsed.</remarks>
-/// <br/> 
+/// <br/>
 /// TODO :1 AssetStore不应该感知Render，尤其是ReleaseRenderRef，这个必须干掉，AssetStore只负责：管理Id，增添Id，等纯存储的行为
 /// TODO :2 AssetStore管理Asset的方式应该是 （GUID 转 str或者hash），别直接存path
-/// 
-internal sealed class AssetRuntimeStore
+///
+internal sealed class AssetRecordStore
 {
     private readonly ConcurrentQueue<AssetId> _ready;
     private readonly ConcurrentQueue<AssetId> _released;
@@ -41,12 +41,8 @@ internal sealed class AssetRuntimeStore
     private ulong _lastId;
     private bool _dirty;
     private int _deferredCount;
-    // internal AssetRuntimeStore()
-    // {
 
-    // }
-
-    internal AssetRuntimeStore(
+    internal AssetRecordStore(
         ConcurrentQueue<AssetId> ready,
         ConcurrentQueue<AssetId> released,
         ConcurrentQueue<AssetId> pinReleased
@@ -58,7 +54,7 @@ internal sealed class AssetRuntimeStore
     }
 
     // /// <summary>Creates a store whose teardown notifications are dropped; tools and legacy tests only.</summary>
-    // internal AssetRuntimeStore(ConcurrentQueue<AssetId> ready, ConcurrentQueue<AssetId> released)
+    // internal AssetRecordStore(ConcurrentQueue<AssetId> ready, ConcurrentQueue<AssetId> released)
     //     : this(ready, released, new ConcurrentQueue<AssetId>()) { }
 
     /// <summary>Number of assets whose store retention is released and that are waiting for their release window.</summary>
@@ -113,7 +109,7 @@ internal sealed class AssetRuntimeStore
     }
 
     // Owner thread: reuse or decode synchronously; the caller observes the registered view before this returns.
-    internal IAsset LoadSync(AssetSource source, IAssetLoader loader)
+    internal IAsset LoadSync(AssetLoadSource source, IAssetLoader loader)
     {
         if (TryReuse(source.SourcePath, out IAsset? cached))
             return cached!;
@@ -146,7 +142,7 @@ internal sealed class AssetRuntimeStore
         if (id == 0)
         {
             draft.Dispose();
-            throw new InvalidOperationException("AssetStore: asset id space exhausted.");
+            throw new InvalidOperationException("AssetRecordStore: asset id space exhausted.");
         }
 
         IAssetPayload payload = draft.TakePayload();

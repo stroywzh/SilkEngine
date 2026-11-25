@@ -1,4 +1,7 @@
-namespace SilkEngine.Asset;
+using SilkEngine.Asset;
+using SilkEngine.AssetSystem.Content.Abstractions;
+
+namespace SilkEngine.AssetSystem.Content;
 
 /// <summary>
 /// Base abstract class for evety AssetSidecar, only data contained.

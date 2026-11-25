@@ -1,6 +1,8 @@
+using SilkEngine.Asset;
+using SilkEngine.AssetSystem.Content;
 using SilkEngine.Serialization;
 
-namespace SilkEngine.Asset.Abstractions;
+namespace SilkEngine.AssetSystem.Content.Abstractions;
 
 internal interface ISidecarCodec<T>
     where T : AssetSidecarBase
@@ -12,8 +14,8 @@ internal interface ISidecarCodec<T>
 internal sealed class JsonSidecarCodec<T> : ISidecarCodec<T>
     where T : AssetSidecarBase
 {
-    public T Decode(ReadOnlySpan<byte> content, string sidecarPath)
-        => JsonCodec.Decode<T>(content, sidecarPath);
+    public T Decode(ReadOnlySpan<byte> content, string sidecarPath) =>
+        JsonCodec.Decode<T>(content, sidecarPath);
 
     public byte[] Encode(T sidecar) => JsonCodec.Encode(sidecar, humanReadable: true);
 }

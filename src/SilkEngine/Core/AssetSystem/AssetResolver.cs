@@ -2,7 +2,7 @@ using System.IO;
 using SilkEngine.Asset;
 using SilkEngine.Asset.Abstractions;
 
-namespace SilkEngine.Core.AssetSystem;
+namespace SilkEngine.AssetSystem.Runtime;
 
 /// <summary>Catalog and loader resolution for load requests; owns no lifecycle or refcount state.</summary>
 /// <remarks>The catalog is attached once during startup. Loaders are frozen by <see cref="InitializeLoaders"/>
@@ -14,10 +14,6 @@ internal sealed class AssetResolver
     private IAssetCatalog? _catalog;
 
     internal bool IsInitialized => Volatile.Read(ref _initialized) != 0;
-    // internal AssetResolver(IAssetCatalog catalog)
-    // {
-    //     _catalog = catalog;
-    // }
 
     /// <summary>Attaches the read-only catalog used to resolve source paths and persistent identities.</summary>
     internal void AttachCatalog(IAssetCatalog catalog)
@@ -52,13 +48,13 @@ internal sealed class AssetResolver
     }
 
     /// <summary>Resolves the source a loader reads for the given path.</summary>
-    internal AssetSource ResolveSource(string sourcePath)
+    internal AssetLoadSource ResolveSource(string sourcePath)
     {
         IAssetCatalog catalog = RequireCatalog();
 
         // The catalog resolves both project-relative ("Assets/Image.png") and absolute paths against the
         // project root; fall back to a working-directory absolute path for callers outside the project.
-        if (catalog.TryGetSource(sourcePath, out AssetSource source))
+        if (catalog.TryGetSource(sourcePath, out AssetLoadSource source))
             return source;
 
         string path = NormalizePath(sourcePath);

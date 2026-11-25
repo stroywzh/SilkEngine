@@ -1,5 +1,5 @@
 using SilkEngine.Asset.Abstractions;
-using SilkEngine.Core.AssetSystem.Runtime;
+using SilkEngine.AssetSystem.Runtime;
 
 namespace SilkEngine;
 
@@ -14,7 +14,7 @@ public static class Assets
     /// render thread.</exception>
     /// <exception cref="AssetNotImportedException">The catalog has no entry for the path.</exception>
     public static T Load<T>(string sourcePath)
-        where T : IAsset => AssetRuntime.Load<T>(sourcePath);
+        where T : IAsset => AssetSystemHost.Load<T>(sourcePath);
 
     /// <summary>Queues an asynchronous load; the task completes on the main-thread pump.</summary>
     /// <returns>Task completed with the cached asset, or faulted/cancelled with the failure.</returns>
@@ -22,7 +22,7 @@ public static class Assets
         string sourcePath,
         CancellationToken cancellationToken = default
     )
-        where T : IAsset => AssetRuntime.LoadAsync<T>(sourcePath, cancellationToken);
+        where T : IAsset => AssetSystemHost.LoadAsync<T>(sourcePath, cancellationToken);
 }
 
 /// <summary>Source file not imported: the sidecar next to the source is missing.</summary>

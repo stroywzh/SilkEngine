@@ -1,7 +1,10 @@
 using System.IO;
 using System.IO.Compression;
+using SilkEngine.Asset;
+using SilkEngine.AssetSystem.Content;
+using SilkEngine.AssetSystem.Content.Abstractions;
 
-namespace SilkEngine.Asset.Decoder.Png;
+namespace SilkEngine.AssetSystem.Content.Decoding.Png;
 
 /// <summary>PNG decode result: size + RGBA32 pixels.</summary>
 internal sealed class PngDecodedImage
@@ -92,7 +95,8 @@ internal static class PngDecoder
             // Accumulate per chunk; stop once the expected decoded size is exceeded: no more reads, no growth.
             if (outMs.Length + read > maxBytes)
                 throw new InvalidDataException(
-                    $"zlib output exceeds the expected {maxBytes} decoded bytes (possible decompression bomb).");
+                    $"zlib output exceeds the expected {maxBytes} decoded bytes (possible decompression bomb)."
+                );
 
             outMs.Write(buffer, 0, read);
         }

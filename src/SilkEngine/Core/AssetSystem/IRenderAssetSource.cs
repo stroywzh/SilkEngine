@@ -2,11 +2,11 @@ using System.Diagnostics.CodeAnalysis;
 using SilkEngine.Asset;
 using SilkEngine.Asset.Abstractions;
 
-namespace SilkEngine.Core.AssetSystem;
+namespace SilkEngine.AssetSystem.Runtime;
 
 /// <summary>Render-side consumption of the asset pipeline; the runtime table depends on this seam, not on the bridge.</summary>
 /// <remarks>Asset identity never leaves this boundary: bindings and pipelines receive render handles instead.
-/// The engine implementation is <see cref="Runtime.AssetRenderBridge.Instance"/>; tests and tools inject a fake.</remarks>
+/// The engine implementation is <see cref="AssetRenderBridge.Instance"/>; tests and tools inject a fake.</remarks>
 internal interface IRenderAssetSource
 {
     /// <summary>Takes one id whose record became ready; the store published the asset before queueing it.</summary>
@@ -42,7 +42,7 @@ internal interface IRenderAssetSource
     /// <summary>Releases one render reference; off the owner thread the release is queued and applied later.</summary>
     bool Release(AssetId assetId);
 
-    /// <summary>Queued requests plus requests currently decoding on the thread pool.</summary>
+    /// <summary>Admitted load requests that have not completed yet: queued plus in-flight decodes.</summary>
     int PendingCount { get; }
 
     /// <summary>Assets inside their release window plus released ids the render side has not taken yet.</summary>

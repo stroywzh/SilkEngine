@@ -5,12 +5,12 @@ using SilkEngine.Asset.Abstractions;
 using SilkEngine.Runtime;
 using SilkEngine.Runtime.Host;
 
-namespace SilkEngine.Core.AssetSystem.Runtime;
+namespace SilkEngine.AssetSystem.Runtime;
 
 /// <summary>Internal composition root for the asset pipeline; the public facade forwards here.</summary>
-/// <remarks>The engine main loop is the single owner of <see cref="AssetStore"/>: it drains commands, registers
+/// <remarks>The engine main loop is the single owner of <see cref="AssetRecordStore"/>: it drains commands, registers
 /// decoded drafts, publishes snapshots and processes releases. Decoding itself runs on the thread pool.</remarks>
-internal static class AssetRuntime
+internal static class AssetSystemHost
 {
     private const byte LoadUpaccepted = 0;
     private const byte LoadAccepted = 1;
@@ -23,7 +23,7 @@ internal static class AssetRuntime
 
     internal static AssetBootstrapHost Bootstrap { get; } = new();
 
-    internal static AssetRuntimeStore Store { get; } =
+    internal static AssetRecordStore Store { get; } =
         new(Dispatcher.Ready, Dispatcher.Released, Dispatcher.PinReleased);
 
     /// <summary>The main-loop pump currently driving owner-thread work.</summary>
@@ -68,7 +68,7 @@ internal static class AssetRuntime
         EnsureReady();
 
         IAssetLoader loader = Resolver.ResolveLoader(typeof(T));
-        AssetSource source = Resolver.ResolveSource(sourcePath);
+        AssetLoadSource source = Resolver.ResolveSource(sourcePath);
         return LoadSyncCore<T>(source, loader);
     }
 
@@ -83,13 +83,13 @@ internal static class AssetRuntime
         EnsureReady();
 
         IAssetLoader loader = Resolver.ResolveLoader(typeof(T));
-        AssetSource source = Resolver.ResolveSource(sourcePath);
+        AssetLoadSource source = Resolver.ResolveSource(sourcePath);
         return await LoadAsyncCore<T>(source, loader, cancellationToken);
     }
 
     // Synchronous load path; the returned asset is kept alive by the store retention.
     private static T LoadSyncCore<T>(
-        AssetSource source,
+        AssetLoadSource source,
         IAssetLoader loader,
         CancellationToken token = default
     )
@@ -120,7 +120,7 @@ internal static class AssetRuntime
                 return Cast<T>(Store.LoadSync(source, loader));
             }
 
-            Dispatcher.Submit(AssetCommand.Load(request));
+            SubmitLoad(request);
 
             while (!request.Completion.Task.IsCompleted)
             {
@@ -144,13 +144,13 @@ internal static class AssetRuntime
             return Cast<T>(request.Completion.Task.GetAwaiter().GetResult());
         }
 
-        Dispatcher.Submit(AssetCommand.Load(request));
+        SubmitLoad(request);
         IAsset asset = request.Completion.Task.GetAwaiter().GetResult();
         return Cast<T>(asset);
     }
 
     private static Task<T> LoadAsyncCore<T>(
-        AssetSource source,
+        AssetLoadSource source,
         IAssetLoader loader,
         CancellationToken cancellationToken
     )
@@ -160,9 +160,22 @@ internal static class AssetRuntime
             return Task.FromCanceled<T>(cancellationToken);
 
         var request = new AssetLoadRequest(source, loader, cancellationToken, blocking: false);
-        Dispatcher.Submit(AssetCommand.Load(request));
+        SubmitLoad(request);
 
         return AwaitAs<T>(request.Completion.Task);
+    }
+
+    // Admission is atomic: the caller is rejected before the command is queued, so the queue and the
+    // in-flight decode budget share one bound.
+    private static void SubmitLoad(AssetLoadRequest request)
+    {
+        int maxPending = Application.AssetSetting.MaxPendingRequests;
+        if (!Dispatcher.TrySubmitLoad(AssetCommand.Load(request), maxPending))
+        {
+            throw new InvalidOperationException(
+                $"The asset pipeline already has {maxPending} pending request(s) (queue + in-flight); retry after the current batch completes."
+            );
+        }
     }
 
     internal static bool TryGet<T>(AssetId assetId, out T asset)
@@ -209,7 +222,7 @@ internal static class AssetRuntime
         EnsureReady();
 
         IAssetLoader loader = Resolver.ResolveLoader(typeof(T));
-        AssetSource source = Resolver.ResolveSource(sourcePath);
+        AssetLoadSource source = Resolver.ResolveSource(sourcePath);
         return AcquireTicket<T>(LoadSyncCore<T>(source, loader));
     }
 
@@ -224,7 +237,7 @@ internal static class AssetRuntime
         EnsureReady();
 
         IAssetLoader loader = Resolver.ResolveLoader(typeof(T));
-        AssetSource source = Resolver.ResolveSource(sourcePath);
+        AssetLoadSource source = Resolver.ResolveSource(sourcePath);
         T asset = await LoadAsyncCore<T>(source, loader, cancellationToken).ConfigureAwait(false);
         return AcquireTicket<T>(asset);
     }

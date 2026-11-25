@@ -1,4 +1,7 @@
-namespace SilkEngine.Asset;
+using SilkEngine.Asset;
+using SilkEngine.AssetSystem.Content.Abstractions;
+
+namespace SilkEngine.AssetSystem.Content;
 
 internal static class SidecarPath
 {

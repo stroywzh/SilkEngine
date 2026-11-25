@@ -1,9 +1,9 @@
 using System.Diagnostics;
-using SilkEngine.Core.AssetSystem;
-using SilkEngine.Core.AssetSystem.Runtime;
+using SilkEngine.Asset;
+using SilkEngine.AssetSystem.Content.Abstractions;
+using SilkEngine.AssetSystem.Runtime;
 
-
-namespace SilkEngine.Asset;
+namespace SilkEngine.AssetSystem.Content;
 
 /// <summary>Imports the project's content, builds the catalog, and attaches it to the asset system.</summary>
 /// <remarks>Runs on the main thread as the configured <see cref="IAssetBootstrap"/>: importer and catalog
@@ -42,7 +42,7 @@ internal sealed class ContentAssetBootstrap : IAssetBootstrap
         }
 
         // Attach before saving: a failed index write must not make the in-memory catalog unusable.
-        AssetRuntime.AttachCatalog(catalog);
+        AssetSystemHost.AttachCatalog(catalog);
 
         try
         {

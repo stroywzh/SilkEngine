@@ -1,7 +1,10 @@
 using System.Buffers.Binary;
 using System.IO;
+using SilkEngine.Asset;
+using SilkEngine.AssetSystem.Content;
+using SilkEngine.AssetSystem.Content.Abstractions;
 
-namespace SilkEngine.Asset.Decoder.Png;
+namespace SilkEngine.AssetSystem.Content.Decoding.Png;
 
 /// <summary>PNG IHDR header: only 8-bit, non-interlaced, compression/filter method 0 are accepted.</summary>
 internal sealed class PngHeader
@@ -65,11 +68,13 @@ internal sealed class PngHeader
             throw new InvalidDataException($"Invalid size {Width}x{Height}.");
         if (Width > MaxDimension || Height > MaxDimension)
             throw new InvalidDataException(
-                $"PNG size {Width}x{Height} exceeds the {MaxDimension}x{MaxDimension} pixel limit.");
+                $"PNG size {Width}x{Height} exceeds the {MaxDimension}x{MaxDimension} pixel limit."
+            );
         long rgbaBytes = (long)Width * Height * 4;
         if (rgbaBytes > MaxDecodedBytes)
             throw new InvalidDataException(
-                $"PNG {Width}x{Height} needs {rgbaBytes} bytes of RGBA32 output, above the {MaxDecodedBytes} byte limit.");
+                $"PNG {Width}x{Height} needs {rgbaBytes} bytes of RGBA32 output, above the {MaxDecodedBytes} byte limit."
+            );
         if (Compression != 0)
             throw new NotSupportedException($"compression={Compression} not supported.");
         if (Filter != 0)

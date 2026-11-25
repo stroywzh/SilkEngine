@@ -12,5 +12,5 @@ internal interface IAssetLoader
     /// <returns>Draft handed back to the engine for registration.</returns>
     /// <exception cref="AssetNotImportedException">Source file has not been imported (sidecar missing).</exception>
     /// <exception cref="System.IO.InvalidDataException">Sidecar or source payload is invalid.</exception>
-    AssetDraft Load(in AssetSource source);
+    AssetDraft Load(in AssetLoadSource source);
 }

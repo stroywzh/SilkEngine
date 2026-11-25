@@ -28,9 +28,6 @@ public abstract class AssetBase : IEquatable<AssetBase>, IAsset
     /// the internal unload path.</remarks>
     internal AssetHandle Handle => _handle;
 
-    // /// <summary>Replaces the handle that keeps this asset alive.</summary>
-    // internal void AttachHandle(AssetHandle handle) => Volatile.Write(ref _handle, handle);
-
     public bool Equals(AssetBase? other) =>
         ReferenceEquals(this, other)
         || (other is not null && AssetId.IsValid && AssetId == other.AssetId);

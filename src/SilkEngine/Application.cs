@@ -23,7 +23,7 @@ public class Application
 
     /// <summary>Registry of asset types to loaders; frozen after first use.</summary>
     /// <remarks>Registered by the content bootstrap before startup; not part of the application surface.</remarks>
-    internal static Dictionary<Type, IAssetLoader> AssetLoaders { get;set; } =
+    internal static Dictionary<Type, IAssetLoader> AssetLoaders { get; set; } =
         new Dictionary<Type, IAssetLoader> { };
 
     /// <summary>Asset worker tuning; read when the worker starts or when a request is submitted.</summary>
@@ -32,7 +32,7 @@ public class Application
         /// <summary>Grace window between a refcount reaching zero and the asset being unregistered.</summary>
         public static TimeSpan DeferredReleaseWindow = TimeSpan.FromMilliseconds(1000);
 
-        /// <summary>Maximum number of queued load requests; submitting beyond it throws instead of growing without bound.</summary>
+        /// <summary>Maximum number of pending load requests (queued plus in-flight decodes); submitting beyond it throws; values ≤ 0 disable the limit.</summary>
         public static int MaxPendingRequests = 1024;
 
         /// <summary>Number of decoding tasks allowed to run on the thread pool at the same time.</summary>

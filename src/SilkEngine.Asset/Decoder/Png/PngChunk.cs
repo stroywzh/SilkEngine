@@ -1,7 +1,10 @@
 using System.Buffers.Binary;
 using System.Text;
+using SilkEngine.Asset;
+using SilkEngine.AssetSystem.Content;
+using SilkEngine.AssetSystem.Content.Abstractions;
 
-namespace SilkEngine.Asset.Decoder.Png;
+namespace SilkEngine.AssetSystem.Content.Decoding.Png;
 
 /// <summary>One PNG chunk: 4-byte ASCII type + data (CRC excluded).</summary>
 internal readonly struct PngChunk
@@ -45,7 +48,8 @@ internal static class PngChunkReader
 
             if (len > MaxChunkBytes)
                 throw new InvalidDataException(
-                    $"Chunk '{type}' declares {len} bytes, above the {MaxChunkBytes} byte per-chunk limit.");
+                    $"Chunk '{type}' declares {len} bytes, above the {MaxChunkBytes} byte per-chunk limit."
+                );
 
             // Seekable streams are also checked against the remaining bytes: no allocation before failure.
             if (stream.CanSeek)
@@ -53,7 +57,8 @@ internal static class PngChunkReader
                 long remaining = stream.Length - stream.Position; // chunk data + CRC
                 if (len + 4L > remaining)
                     throw new InvalidDataException(
-                        $"Chunk '{type}' declares {len} bytes but only {Math.Max(remaining - 4L, 0L)} bytes remain in the stream.");
+                        $"Chunk '{type}' declares {len} bytes but only {Math.Max(remaining - 4L, 0L)} bytes remain in the stream."
+                    );
             }
 
             var data = new byte[len];
@@ -67,4 +72,3 @@ internal static class PngChunkReader
         }
     }
 }
-

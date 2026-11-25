@@ -1,4 +1,6 @@
-namespace SilkEngine.Core.AssetSystem;
+using SilkEngine.Asset;
+
+namespace SilkEngine.AssetSystem.Runtime;
 
 /// <summary>One-shot startup work for the asset owner, with completion/failure handoff to the engine host.</summary>
 internal sealed class AssetBootstrapHost

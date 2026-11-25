@@ -1,6 +1,5 @@
 using SilkEngine.Asset;
-using SilkEngine.Core.AssetSystem;
-using SilkEngine.Core.AssetSystem.Runtime;
+using SilkEngine.AssetSystem.Runtime;
 using SilkEngine.Rendering.Abstraction;
 using SilkEngine.Runtime;
 using SilkEngine.Runtime.Host;
@@ -67,14 +66,14 @@ public static class EngineHost
         string projectRoot = options.ProjectRoot ?? ResolveProjectRoot();
         Log.Info($"project root: {projectRoot}");
 
-        AssetRuntime.Bootstrap.Configure(
+        AssetSystemHost.Bootstrap.Configure(
             options.AssetBootstrap,
             new AssetStartupContext(projectRoot, options.StartupMode)
         );
 
         MainLoop mainLoop = ThreadFactory.StartMainThread();
 
-        bool completed = AssetRuntime.Bootstrap.Wait(BootstrapTimeout, out Exception? failure);
+        bool completed = AssetSystemHost.Bootstrap.Wait(BootstrapTimeout, out Exception? failure);
         if (!completed)
         {
             var timeout = new TimeoutException(

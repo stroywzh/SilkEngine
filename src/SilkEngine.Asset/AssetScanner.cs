@@ -1,6 +1,7 @@
-using SilkEngine.Asset.Abstractions;
+using SilkEngine.Asset;
+using SilkEngine.AssetSystem.Content.Abstractions;
 
-namespace SilkEngine.Asset;
+namespace SilkEngine.AssetSystem.Content;
 
 /// <summary>One source file under <c>Assets/</c> plus the importer registered for its extension.</summary>
 internal readonly record struct DiscoveredAsset(string SourcePath, IAssetImporter Importer);
@@ -58,10 +59,7 @@ internal static class AssetScanner
 
     /// <summary>Imports every discovered source; in strict mode any scan or import failure aborts startup.</summary>
     /// <returns>Results of the successful imports only.</returns>
-    internal static IReadOnlyList<AssetImportResult> ImportAll(
-        ContentLayout layout,
-        bool strict
-    )
+    internal static IReadOnlyList<AssetImportResult> ImportAll(ContentLayout layout, bool strict)
     {
         ArgumentNullException.ThrowIfNull(layout);
 

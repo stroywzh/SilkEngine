@@ -1,6 +1,7 @@
-using SilkEngine.Asset.Abstractions;
+using SilkEngine.Asset;
+using SilkEngine.AssetSystem.Content.Abstractions;
 
-namespace SilkEngine.Asset;
+namespace SilkEngine.AssetSystem.Content;
 
 /// <summary>Maps source file extensions to the importer that handles them.</summary>
 /// <remarks>Importer registration is startup-only: register every importer before scanning or importing. Lookups are

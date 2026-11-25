@@ -1,9 +1,11 @@
 using System.IO;
+using SilkEngine.Asset;
 using SilkEngine.Asset.Abstractions;
+using SilkEngine.AssetSystem.Content.Abstractions;
 using SilkEngine.Core.IO;
 using SilkEngine.Serialization;
 
-namespace SilkEngine.Asset;
+namespace SilkEngine.AssetSystem.Content;
 
 /// <summary>Read-only index of the project's imported assets, keyed by persistent identity and by project-relative path.</summary>
 /// <remarks>The catalog is a derived index: sidecars are authoritative and a stale or missing index is rebuilt by
@@ -18,11 +20,7 @@ internal sealed class AssetCatalog : IAssetCatalog
     private readonly Dictionary<AssetGuid, AssetCatalogEntry> _byGuid;
     private readonly Dictionary<string, AssetCatalogEntry> _byPath;
 
-    private AssetCatalog(
-        ContentLayout layout,
-        IEnumerable<AssetCatalogEntry> entries,
-        bool strict
-    )
+    private AssetCatalog(ContentLayout layout, IEnumerable<AssetCatalogEntry> entries, bool strict)
     {
         _layout = layout;
         _byGuid = new Dictionary<AssetGuid, AssetCatalogEntry>();
@@ -205,7 +203,7 @@ internal sealed class AssetCatalog : IAssetCatalog
     }
 
     /// <inheritdoc />
-    public bool TryGetSource(AssetGuid guid, out AssetSource source)
+    public bool TryGetSource(AssetGuid guid, out AssetLoadSource source)
     {
         if (!TryGet(guid, out AssetCatalogEntry entry))
         {
@@ -218,7 +216,7 @@ internal sealed class AssetCatalog : IAssetCatalog
     }
 
     /// <inheritdoc />
-    public bool TryGetSource(string sourcePath, out AssetSource source)
+    public bool TryGetSource(string sourcePath, out AssetLoadSource source)
     {
         if (!TryGet(sourcePath, out AssetCatalogEntry entry))
         {
@@ -262,16 +260,14 @@ internal sealed class AssetCatalog : IAssetCatalog
         Log.Warning($"{message} Keeping the first entry.");
     }
 
-    private AssetSource CreateSource(AssetCatalogEntry entry)
+    private AssetLoadSource CreateSource(AssetCatalogEntry entry)
     {
-        string sourcePath = Path.GetFullPath(
-            Path.Combine(_layout.ProjectRoot, entry.SourcePath)
-        );
+        string sourcePath = Path.GetFullPath(Path.Combine(_layout.ProjectRoot, entry.SourcePath));
         string artifactPath = string.IsNullOrEmpty(entry.ArtifactHash)
             ? string.Empty
             : ArtifactStore.PathFor(_layout, entry.ArtifactHash);
 
-        return new AssetSource(
+        return new AssetLoadSource(
             sourcePath,
             sourcePath + AssetConstants.AssetExtensionName,
             artifactPath,

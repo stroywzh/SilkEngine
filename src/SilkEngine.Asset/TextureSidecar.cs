@@ -1,8 +1,9 @@
-using SilkEngine.Asset.Abstractions;
-using SilkEngine.Asset.Transfer;
+using SilkEngine.Asset;
+using SilkEngine.AssetSystem.Content.Abstractions;
+using SilkEngine.AssetSystem.Content.Transfer;
 using SilkEngine.Serialization.DataStructure;
 
-namespace SilkEngine.Asset;
+namespace SilkEngine.AssetSystem.Content;
 
 /// <summary>Texture import settings (the sidecar's <c>importSettings</c> node).</summary>
 internal sealed record TextureImportSettings
@@ -80,4 +81,3 @@ internal sealed class TextureSidecar : AssetSidecarBase
             );
     }
 }
-

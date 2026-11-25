@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using SilkEngine.Asset;
 using SilkEngine.Asset.Abstractions;
-using SilkEngine.Core.AssetSystem;
+using SilkEngine.AssetSystem.Runtime;
 using SilkEngine.Rendering.Abstraction;
 
 namespace SilkEngine.Rendering.Assets;
@@ -12,7 +12,7 @@ namespace SilkEngine.Rendering.Assets;
 /// <remarks>Asset identity stays behind <see cref="IRenderAssetSource"/>: pipelines and scene code only exchange
 /// <see cref="RenderHandle"/> values. Upload failures are reported through the metrics and, for textures, a shared
 /// 1x1 white fallback; only device contract failures escape into the render loop and fail the frame.</remarks>
-public sealed class AssetRuntimeCache : IRenderResourceTable
+public sealed class RenderAssetBindingTable : IRenderResourceTable
 {
     private const int Rgba32BytesPerPixel = 4;
     private static readonly byte[] WhitePixel = [0xFF, 0xFF, 0xFF, 0xFF];
@@ -37,14 +37,14 @@ public sealed class AssetRuntimeCache : IRenderResourceTable
     private int _dropped;
     private int _budgetDeferred;
 
-    /// <summary>Creates the engine runtime table over the asset bridge and the built-in uploaders.</summary>
+    /// <summary>Creates the render asset binding table over the asset bridge and the built-in uploaders.</summary>
     /// TODO:这里之后也可以把这个Uploader解耦掉，这里现在是硬编码的
-    public AssetRuntimeCache()
-        : this(SilkEngine.Core.AssetSystem.Runtime.AssetRenderBridge.Instance, new[] { new TextureUploader() }) { }
+    public RenderAssetBindingTable()
+        : this(SilkEngine.AssetSystem.Runtime.AssetRenderBridge.Instance, new[] { new TextureUploader() }) { }
 
     /// <summary>Creates a table over an explicit bridge and uploader set; tests and custom compositions only.</summary>
     /// <exception cref="ArgumentException">Two uploaders register the same asset type.</exception>
-    internal AssetRuntimeCache(IRenderAssetSource source, IEnumerable<IAssetUploader> uploaders)
+    internal RenderAssetBindingTable(IRenderAssetSource source, IEnumerable<IAssetUploader> uploaders)
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(uploaders);
@@ -269,7 +269,7 @@ public sealed class AssetRuntimeCache : IRenderResourceTable
         int budgetDeferred = Volatile.Read(ref _budgetDeferred);
 
         Log.Info(
-            $"Asset runtime table disposed: {teardown.Count} binding(s), {releasedRefs} render ref(s), "
+            $"Render asset binding table disposed: {teardown.Count} binding(s), {releasedRefs} render ref(s), "
                 + $"{failed} failed upload(s), {uploadFailures} upload failure attempt(s), "
                 + $"{destroyFailures} destroy error(s), {dropped} dropped id(s), "
                 + $"{budgetDeferred} budget-deferred id(s)."
@@ -278,7 +278,7 @@ public sealed class AssetRuntimeCache : IRenderResourceTable
 #if DEBUG
         System.Diagnostics.Debug.Assert(
             _handles.Count == 0 && _pending.Count == 0 && _boundCount == 0,
-            "AssetRuntimeCache left state behind after Dispose."
+            "RenderAssetBindingTable left state behind after Dispose."
         );
 #endif
     }
@@ -645,7 +645,7 @@ public sealed class AssetRuntimeCache : IRenderResourceTable
 
         if (!ReferenceEquals(recorded, device))
             throw new InvalidOperationException(
-                "AssetRuntimeCache records the render device on its first call and cannot switch devices."
+                "RenderAssetBindingTable records the render device on its first call and cannot switch devices."
             );
     }
 

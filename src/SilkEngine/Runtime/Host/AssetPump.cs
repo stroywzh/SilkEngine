@@ -2,10 +2,8 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using SilkEngine.Asset;
 using SilkEngine.Asset.Abstractions;
-using SilkEngine.Core.AssetSystem;
-using SilkEngine.Core.AssetSystem.Runtime;
 
-namespace SilkEngine.Runtime.Host;
+namespace SilkEngine.AssetSystem.Runtime;
 
 /// <summary>Owner-thread asset work driven once per main-loop frame.</summary>
 /// <remarks>The engine main loop owns the store: this pump drains commands and decoded drafts, registers,
@@ -46,10 +44,10 @@ internal sealed class AssetPump
     /// <summary>Attaches the owner identity, runs the content bootstrap and freezes the loader table.</summary>
     internal void Start()
     {
-        AssetRuntime.AttachPump(this);
+        AssetSystemHost.AttachPump(this);
         try
         {
-            AssetRuntime.Initialize();
+            AssetSystemHost.Initialize();
         }
         catch
         {
@@ -78,11 +76,11 @@ internal sealed class AssetPump
             ulong frameIndex = Time.FrameIndex;
             if (frameIndex != _lastAdvanceFrame)
             {
-                AssetRuntime.Store.Advance(Time.DeltaSeconds);
+                AssetSystemHost.Store.Advance(Time.DeltaSeconds);
                 _lastAdvanceFrame = frameIndex;
             }
 
-            AssetRuntime.Store.Commit();
+            AssetSystemHost.Store.Commit();
         }
         finally
         {
@@ -92,7 +90,7 @@ internal sealed class AssetPump
 
     internal void DrainCompletions(int count)
     {
-        AssetRuntime.Dispatcher.DrainCompletions(count);
+        AssetSystemHost.Dispatcher.DrainCompletions(count);
     }
 
     /// <summary>Stop accepting work, fail in-flight requests after the shutdown timeout and detach the owner.</summary>
@@ -101,7 +99,7 @@ internal sealed class AssetPump
         if (Interlocked.Exchange(ref _stopped, 1) != 0)
             return;
 
-        AssetRuntime.RequestStop();
+        AssetSystemHost.RequestStop();
         _decodeCancellation.Cancel();
 
         CancelQueuedAndWaiting();
@@ -127,38 +125,57 @@ internal sealed class AssetPump
                         "The asset pipeline stopped before the request completed."
                     )
                 );
+
+                // Abandoned requests leave the pump without a normal completion path.
+                AssetSystemHost.Dispatcher.ReleaseAdmission(request);
             }
         }
 
         DrainDecoded();
 
-        AssetRuntime.StopCore();
+        AssetSystemHost.StopCore();
 
         // Shutdown diagnostics only: the ordering above is unchanged, the counts explain what is still alive.
-        int remainingRecords = AssetRuntime.Store.RecordCount;
-        int liveTickets = AssetRuntime.Store.LiveTicketCount;
+        int remainingRecords = AssetSystemHost.Store.RecordCount;
+        int liveTickets = AssetSystemHost.Store.LiveTicketCount;
         Log.Info(
             $"Asset pump stopped: {remainingRecords} record(s), {liveTickets} live ticket(s), "
-                + $"{AssetRuntime.Store.DeferredCount} deferred release(s), "
-                + $"{Volatile.Read(ref _inFlightCount)} in-flight decode(s) remain."
+                + $"{AssetSystemHost.Store.DeferredCount} deferred release(s), "
+                + $"{Volatile.Read(ref _inFlightCount)} in-flight decode(s), "
+                + $"{AssetSystemHost.Dispatcher.PendingCount} pending request(s) remain."
         );
+
+        // The pump is one-shot: once no decode is running, the gate and its cancellation source are released.
+        int inFlight = Volatile.Read(ref _inFlightCount);
+        if (inFlight == 0)
+        {
+            _decodeCancellation.Dispose();
+            _decodeSlots.Dispose();
+        }
+        else
+        {
+            // A decode still holds the semaphore or its token; disposing now would fault that task.
+            Log.Warning(
+                $"Asset pump stopped with {inFlight} decode(s) still running; decode resources are left undisposed."
+            );
+        }
     }
 
     private void CancelQueuedAndWaiting()
     {
         while (_waiting.Count > 0)
-            AssetRuntime.Dispatcher.CompleteCanceled(_waiting.Dequeue());
+            AssetSystemHost.Dispatcher.CompleteCanceled(_waiting.Dequeue());
 
-        while (AssetRuntime.Dispatcher.TryDequeueCommand(out AssetCommand command))
+        while (AssetSystemHost.Dispatcher.TryDequeueCommand(out AssetCommand command))
         {
             switch (command.Kind)
             {
                 case AssetCommandKind.Load when command.Request is { } request:
-                    AssetRuntime.Dispatcher.CompleteCanceled(request);
+                    AssetSystemHost.Dispatcher.CompleteCanceled(request);
                     break;
 
                 case AssetCommandKind.Unload:
-                    AssetRuntime.Store.Unload(
+                    AssetSystemHost.Store.Unload(
                         command.AssetId,
                         Environment.TickCount64,
                         defer: false,
@@ -167,7 +184,7 @@ internal sealed class AssetPump
                     break;
 
                 case AssetCommandKind.ReleaseRenderRef:
-                    AssetRuntime.Store.ReleaseRenderRef(command.AssetId);
+                    AssetSystemHost.Store.ReleaseRenderRef(command.AssetId);
                     break;
             }
         }
@@ -185,7 +202,7 @@ internal sealed class AssetPump
         int processed = 0;
         while (
             processed < MaxCommandsPerPump
-            && AssetRuntime.Dispatcher.TryDequeueCommand(out AssetCommand command)
+            && AssetSystemHost.Dispatcher.TryDequeueCommand(out AssetCommand command)
         )
         {
             processed++;
@@ -193,7 +210,7 @@ internal sealed class AssetPump
             switch (command.Kind)
             {
                 case AssetCommandKind.Unload:
-                    AssetRuntime.Store.Unload(
+                    AssetSystemHost.Store.Unload(
                         command.AssetId,
                         Environment.TickCount64,
                         defer: true,
@@ -202,7 +219,7 @@ internal sealed class AssetPump
                     break;
 
                 case AssetCommandKind.ReleaseRenderRef:
-                    AssetRuntime.Store.ReleaseRenderRef(command.AssetId);
+                    AssetSystemHost.Store.ReleaseRenderRef(command.AssetId);
                     break;
 
                 case AssetCommandKind.Load when command.Request is { } request:
@@ -216,7 +233,7 @@ internal sealed class AssetPump
     {
         if (request.Abandoned || request.CancellationToken.IsCancellationRequested)
         {
-            AssetRuntime.Dispatcher.CompleteCanceled(request);
+            AssetSystemHost.Dispatcher.CompleteCanceled(request);
             return false;
         }
 
@@ -229,9 +246,9 @@ internal sealed class AssetPump
             return false;
         }
 
-        if (AssetRuntime.Store.TryReuse(path, out IAsset? cached))
+        if (AssetSystemHost.Store.TryReuse(path, out IAsset? cached))
         {
-            AssetRuntime.Dispatcher.CompleteLoaded(request, cached!);
+            AssetSystemHost.Dispatcher.CompleteLoaded(request, cached!);
             return false;
         }
 
@@ -253,7 +270,7 @@ internal sealed class AssetPump
         _inFlightRequests.Add(request);
 
         IAssetLoader loader = request.Loader;
-        AssetSource source = request.Source;
+        AssetLoadSource source = request.Source;
         CancellationToken engineCancellation = _decodeCancellation.Token;
 
         _ = Task.Run(() =>
@@ -348,7 +365,7 @@ internal sealed class AssetPump
                 );
             try
             {
-                IAsset asset = AssetRuntime.Store.Register(path, draft, out _);
+                IAsset asset = AssetSystemHost.Store.Register(path, draft, out _);
                 completed.Add((path, asset, result.Request));
             }
             catch (Exception error)
@@ -361,7 +378,7 @@ internal sealed class AssetPump
         // One snapshot per pump: ready ids are flushed after every registration in this batch.
         if (completed.Count > 0)
         {
-            AssetRuntime.Store.Commit();
+            AssetSystemHost.Store.Commit();
         }
 
         foreach ((string path, IAsset asset, AssetLoadRequest request) in completed)
@@ -376,11 +393,11 @@ internal sealed class AssetPump
         {
             if (request.Abandoned || request.CancellationToken.IsCancellationRequested)
             {
-                AssetRuntime.Dispatcher.CompleteCanceled(request);
+                AssetSystemHost.Dispatcher.CompleteCanceled(request);
             }
             else
             {
-                AssetRuntime.Dispatcher.CompleteLoaded(request, asset);
+                AssetSystemHost.Dispatcher.CompleteLoaded(request, asset);
             }
         }
     }
@@ -391,11 +408,11 @@ internal sealed class AssetPump
         {
             if (request.Abandoned || request.CancellationToken.IsCancellationRequested)
             {
-                AssetRuntime.Dispatcher.CompleteCanceled(request);
+                AssetSystemHost.Dispatcher.CompleteCanceled(request);
             }
             else
             {
-                AssetRuntime.Dispatcher.CompleteFailed(request, error);
+                AssetSystemHost.Dispatcher.CompleteFailed(request, error);
             }
         }
     }
@@ -404,7 +421,7 @@ internal sealed class AssetPump
     {
         foreach (AssetLoadRequest request in TakeGroup(path, origin))
         {
-            AssetRuntime.Dispatcher.CompleteCanceled(request);
+            AssetSystemHost.Dispatcher.CompleteCanceled(request);
         }
     }
 

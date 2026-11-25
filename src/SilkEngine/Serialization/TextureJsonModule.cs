@@ -6,5 +6,6 @@ namespace SilkEngine.Serialization;
 internal static class TextureJsonModule
 {
     [ModuleInitializer]
-    internal static void Initialize() => JsonConverterRegistry.Register(new TextureDataJsonConverter());
+    internal static void Initialize() =>
+        JsonConverterRegistry.Register(new TextureDataJsonConverter());
 }

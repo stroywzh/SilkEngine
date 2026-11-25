@@ -1,8 +1,10 @@
 using System.IO;
-using SilkEngine.Asset.Transfer;
+using SilkEngine.Asset;
+using SilkEngine.AssetSystem.Content.Abstractions;
+using SilkEngine.AssetSystem.Content.Transfer;
 using SilkEngine.Core.IO;
 
-namespace SilkEngine.Asset;
+namespace SilkEngine.AssetSystem.Content;
 
 /// <summary>Content-addressed store for imported payloads (<c>&lt;project&gt;/Library/artifacts</c>).</summary>
 internal static class ArtifactStore
@@ -22,11 +24,7 @@ internal static class ArtifactStore
     }
 
     /// <summary>Reads the artifact's bytes; false when missing, unreadable or a different length than recorded.</summary>
-    public static bool TryRead(
-        ContentLayout layout,
-        ArtifactRef artifact,
-        out byte[] content
-    )
+    public static bool TryRead(ContentLayout layout, ArtifactRef artifact, out byte[] content)
     {
         ArgumentNullException.ThrowIfNull(layout);
         ArgumentNullException.ThrowIfNull(artifact);

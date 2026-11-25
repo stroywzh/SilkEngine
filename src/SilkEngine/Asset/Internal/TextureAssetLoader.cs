@@ -13,7 +13,7 @@ internal sealed class TextureAssetLoader : IAssetLoader
 {
     // Thread-pool thread only: reads the catalog header and the artifact, then returns a draft;
     // the engine registers and binds it.
-    public AssetDraft Load(in AssetSource source)
+    public AssetDraft Load(in AssetLoadSource source)
     {
         var path = source.SourcePath;
         ArgumentException.ThrowIfNullOrWhiteSpace(path);

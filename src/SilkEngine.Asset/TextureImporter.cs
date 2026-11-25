@@ -1,10 +1,11 @@
 using System.IO;
 using SilkEngine.Asset;
-using SilkEngine.Asset.Decoder.Png;
+using SilkEngine.AssetSystem.Content.Abstractions;
+using SilkEngine.AssetSystem.Content.Decoding.Png;
 using SilkEngine.Core.IO;
 using SilkEngine.Serialization;
 
-namespace SilkEngine.Asset;
+namespace SilkEngine.AssetSystem.Content;
 
 /// <summary>Development-time import tool: writes PNG metadata to the sidecar next to the source (<c>&lt;source&gt;.asset</c>, schema v2).</summary>
 internal static class TextureImporter

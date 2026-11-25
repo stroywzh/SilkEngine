@@ -1,7 +1,9 @@
 using System.Diagnostics.CodeAnalysis;
+using SilkEngine.Asset;
+using SilkEngine.AssetSystem.Content;
 using SilkEngine.Core.IO;
 
-namespace SilkEngine.Asset.Abstractions;
+namespace SilkEngine.AssetSystem.Content.Abstractions;
 
 internal interface ISidecarReader<out T>
     where T : AssetSidecarBase

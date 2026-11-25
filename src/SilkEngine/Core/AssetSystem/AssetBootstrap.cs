@@ -1,6 +1,7 @@
 using SilkEngine;
+using SilkEngine.Asset;
 
-namespace SilkEngine.Core.AssetSystem;
+namespace SilkEngine.AssetSystem.Runtime;
 
 /// <summary>Content work the asset worker performs once, before it processes any load request.</summary>
 /// <remarks>Runs on the main thread as the store owner, so a bootstrap may attach the catalog and register

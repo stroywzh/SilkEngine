@@ -2,7 +2,7 @@ using System.Runtime.ExceptionServices;
 using SilkEngine.Asset;
 using SilkEngine.Asset.Abstractions;
 
-namespace SilkEngine.Core.AssetSystem;
+namespace SilkEngine.AssetSystem.Runtime;
 
 internal enum AssetCommandKind : byte
 {
@@ -41,9 +41,10 @@ internal readonly struct AssetCommand
 internal sealed class AssetLoadRequest
 {
     private int _abandoned;
+    private int _admitted;
 
     internal AssetLoadRequest(
-        AssetSource source,
+        AssetLoadSource source,
         IAssetLoader loader,
         CancellationToken cancellationToken,
         bool blocking
@@ -58,7 +59,7 @@ internal sealed class AssetLoadRequest
         );
     }
 
-    internal AssetSource Source { get; }
+    internal AssetLoadSource Source { get; }
 
     internal string SourcePath => Source.SourcePath;
 
@@ -77,6 +78,12 @@ internal sealed class AssetLoadRequest
     }
 
     internal TaskCompletionSource<IAsset> Completion { get; }
+
+    /// <summary>Marks this request as counted against the pending-request budget; the dispatcher calls this once.</summary>
+    internal void Admit() => Volatile.Write(ref _admitted, 1);
+
+    /// <summary>Releases the pending-request slot; false when it was already released.</summary>
+    internal bool ReleaseAdmission() => Interlocked.Exchange(ref _admitted, 0) == 1;
 }
 
 /// <summary>Thread-pool decode result.</summary>

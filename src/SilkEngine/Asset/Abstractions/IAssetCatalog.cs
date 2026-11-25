@@ -15,8 +15,8 @@ internal interface IAssetCatalog
     bool TryGet(string sourcePath, [MaybeNullWhen(false)] out AssetCatalogEntry entry);
 
     /// <summary>Resolves everything a loader needs for the asset with the given identity.</summary>
-    bool TryGetSource(AssetGuid guid, out AssetSource source);
+    bool TryGetSource(AssetGuid guid, out AssetLoadSource source);
 
     /// <summary>Resolves everything a loader needs for the asset at the given source path.</summary>
-    bool TryGetSource(string sourcePath, out AssetSource source);
+    bool TryGetSource(string sourcePath, out AssetLoadSource source);
 }

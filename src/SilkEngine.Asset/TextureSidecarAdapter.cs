@@ -1,11 +1,12 @@
 using System.IO;
 using System.Text;
-using SilkEngine.Asset.Abstractions;
-using SilkEngine.Core.AssetSystem;
+using SilkEngine.Asset;
+using SilkEngine.AssetSystem.Content.Abstractions;
+using SilkEngine.AssetSystem.Runtime;
 using SilkEngine.Core.IO;
 using SilkEngine.Serialization;
 
-namespace SilkEngine.Asset;
+namespace SilkEngine.AssetSystem.Content;
 
 /// <summary>Catalog adapter for texture sources: reads the schema v2 sidecar and its content-addressed artifact.</summary>
 internal sealed class TextureSidecarAdapter : IAssetCatalogAdapter
@@ -14,11 +15,7 @@ internal sealed class TextureSidecarAdapter : IAssetCatalogAdapter
     public string SourceExtension => PngAssetImporter.PngExtension;
 
     /// <inheritdoc />
-    public bool TryCreateEntry(
-        ContentLayout layout,
-        string sourcePath,
-        out AssetCatalogEntry entry
-    )
+    public bool TryCreateEntry(ContentLayout layout, string sourcePath, out AssetCatalogEntry entry)
     {
         entry = null!;
 

@@ -8,13 +8,13 @@ public abstract class RenderPipelineBase : RenderLifecycleBase, IRenderPipeline
 {
     private IRenderBackend _backend;
     private PipelineState _state;
-    private AssetRuntimeCache _runtime;
+    private RenderAssetBindingTable _runtime;
 
     /// <summary>Gets the backend supplied to <see cref="Initialize"/>.</summary>
     protected IRenderBackend Backend =>
         _backend ?? throw new InvalidOperationException($"{Name} is not initialized.");
     protected IRenderDevice Device => Backend.Device;
-    protected AssetRuntimeCache RuntimeCache =>
+    protected RenderAssetBindingTable RuntimeCache =>
         _runtime ?? throw new InvalidOperationException($"{Name} is not initialized.");
 
     /// <inheritdoc />
@@ -35,7 +35,7 @@ public abstract class RenderPipelineBase : RenderLifecycleBase, IRenderPipeline
         _state = PipelineState.Initializing;
 
         // The table exists before the derived initialization so pipeline resources may bind to it.
-        _runtime = new AssetRuntimeCache();
+        _runtime = new RenderAssetBindingTable();
         RunInitializeCore(onFaulted: () => _state = PipelineState.Faulted, core: OnInitializeCore);
         _state = PipelineState.Initialized;
     }

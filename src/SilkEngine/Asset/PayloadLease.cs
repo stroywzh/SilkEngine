@@ -4,6 +4,10 @@ using SilkEngine.Asset.Abstractions;
 namespace SilkEngine.Asset;
 
 /// <summary>One-shot ownership of a decoded payload; safe to read and take from any thread.</summary>
+/// <remarks>The lease holds exactly one payload. <see cref="TryTake{T}"/> uses a compare-exchange so only one
+/// caller wins; everyone else observes an empty lease and gets <c>false</c>. <see cref="Dispose"/> releases the
+/// payload only if it is still owned, is idempotent, and is safe from any thread. After a successful take or
+/// dispose, <see cref="TryPeek{T}"/> and <see cref="TryTake{T}"/> return <c>false</c>.</remarks>
 internal sealed class PayloadLease : IDisposable
 {
     private IAssetPayload? _payload;

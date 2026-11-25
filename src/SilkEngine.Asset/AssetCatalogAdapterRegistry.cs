@@ -1,6 +1,7 @@
-using SilkEngine.Asset.Abstractions;
+using SilkEngine.Asset;
+using SilkEngine.AssetSystem.Content.Abstractions;
 
-namespace SilkEngine.Asset;
+namespace SilkEngine.AssetSystem.Content;
 
 /// <summary>Maps source extensions to the adapter that can catalog them.</summary>
 internal static class AssetCatalogAdapterRegistry
@@ -22,7 +23,10 @@ internal static class AssetCatalogAdapterRegistry
 
         string extension = Normalize(adapter.SourceExtension);
         if (extension.Length == 0)
-            throw new ArgumentException("Catalog adapter extension must not be empty.", nameof(adapter));
+            throw new ArgumentException(
+                "Catalog adapter extension must not be empty.",
+                nameof(adapter)
+            );
 
         lock (s_lock)
             s_adapters[extension] = adapter;

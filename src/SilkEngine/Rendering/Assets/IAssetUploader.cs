@@ -1,7 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using SilkEngine.Asset;
 using SilkEngine.Asset.Abstractions;
-using SilkEngine.Core.AssetSystem;
+using SilkEngine.AssetSystem.Runtime;
 using SilkEngine.Rendering.Abstraction;
 
 namespace SilkEngine.Rendering.Assets;
