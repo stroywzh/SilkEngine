@@ -68,7 +68,6 @@ public sealed class MainLoop : EngineThread
         Time.Reset();
 
         // The main loop owns the asset store; the pump runs the bootstrap before the first frame.
-        Log.AttachIoOwner();
         AssetLoaderRegistration.RegisterDefaults();
 
         var pump = new AssetPump();
@@ -285,12 +284,10 @@ public sealed class MainLoop : EngineThread
 
         // The pump fails/cancels pending requests while stopping; pump completions so no caller keeps waiting.
         Volatile.Read(ref _assetPump)?.DrainCompletions(int.MaxValue);
-        Log.PumpFileIo(int.MaxValue);
 
         // Release callers still blocked in Send before the thread exits, then restore the ambient context.
         _mainThreadContext.Shutdown();
         MainThreadSynchronizationContext.Uninstall(_mainThreadContext);
-        Log.DetachIoOwner();
     }
 
     protected override void DisposeCore()

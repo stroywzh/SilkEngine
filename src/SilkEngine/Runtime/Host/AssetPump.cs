@@ -69,7 +69,6 @@ internal sealed class AssetPump
             if (Volatile.Read(ref _stopped) != 0)
                 return;
 
-            Log.PumpFileIo();
             DrainDecoded();
             DrainCommands();
 

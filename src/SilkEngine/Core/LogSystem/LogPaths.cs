@@ -1,8 +1,6 @@
 namespace SilkEngine.Core.LogSystem;
 
-/// <summary>
-/// Filesystem locations used by the file sink.
-/// </summary>
+/// <summary>Filesystem locations used by the file log.</summary>
 internal static class LogPaths
 {
     /// <summary>Returns the log directory next to the application, creating it when missing.</summary>

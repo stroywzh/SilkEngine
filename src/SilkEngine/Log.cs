@@ -1,6 +1,12 @@
-using System.Diagnostics;
+using System.Collections.Concurrent;
+using System.IO;
 using System.Runtime.CompilerServices;
-using System.Text;
+using log4net;
+using log4net.Appender;
+using log4net.Core;
+using log4net.Layout;
+using log4net.Repository;
+using log4net.Repository.Hierarchy;
 using SilkEngine.Core.LogSystem;
 
 namespace SilkEngine;
@@ -15,85 +21,108 @@ public enum LogLevel : byte
 }
 
 /// <summary>
-/// The single logging facade. Every record goes through the installed <see cref="ILogSink"/>; the
-/// default sink writes to the console.
+/// The single logging facade. Records are written through log4net; the default destination is the console and
+/// <see cref="EnableFileLog"/> adds the project's file log.
 /// </summary>
 /// <remarks>
-/// Gating has two independent switches: <see cref="MinLevel"/> (severity) and
-/// <see cref="Application.LogSetting"/>. There deliberately is no <c>Log.Enable(category)</c> API now.
+/// Output follows the tModLoader style: <c>[HH:mm:ss] [Thread/LEVEL] [Category] message</c>. The category is the
+/// caller's source file, so the line stays short while still identifying the subsystem.
 /// </remarks>
 public static class Log
 {
-    private static ILogSink _sink = new ConsoleLogSink();
-    private static FileLogSink? _fileSink;
+    private const string DefaultCategory = "SilkEngine";
 
-    /// <summary>Minimum level that is written; records below it are dropped.</summary>
-    public static LogLevel MinLevel { get; set; } = LogLevel.Debug;
-
-    /// <summary>Replaces the log sink.</summary>
-    /// <param name="sink">New sink, or <c>null</c> to restore the default console sink.</param>
-    /// <remarks>
-    /// The installed sink is replaced as a whole, including the console+file pair that
-    /// <see cref="EnableFileLog"/> installs; the file sink itself keeps running until
-    /// <see cref="DisableFileLog"/> or the next <see cref="EnableFileLog"/>. The previous sink is
-    /// flushed (best effort through its own implementation) before the swap.
-    /// </remarks>
-    public static void SetSink(ILogSink? sink)
+    private static readonly ILoggerRepository s_repository = LogManager.GetRepository(
+        typeof(Log).Assembly
+    );
+    private static readonly Hierarchy s_hierarchy = (Hierarchy)s_repository;
+    private static readonly ConcurrentDictionary<string, ILog> s_loggers = new();
+    private static readonly PatternLayout s_layout = new()
     {
-        var next = sink ?? new ConsoleLogSink();
-        var previous = Interlocked.Exchange(ref _sink, next);
-        previous.Flush();
+        ConversionPattern = "[%date{HH:mm:ss}] [%thread/%level] [%logger] %message%newline",
+    };
+
+    private static LogLevel s_minLevel = LogLevel.Debug;
+
+    static Log()
+    {
+        s_layout.ActivateOptions();
+        ConfigureConsole();
     }
 
-    /// <summary>
-    /// Writes records to the console and to a file; returns the file receiving them.
-    /// <br/> Will create default Log directory if no other dir is in.
-    /// </summary>
+    /// <summary>Minimum level that is written; records below it are dropped.</summary>
+    public static LogLevel MinLevel
+    {
+        get => s_minLevel;
+        set
+        {
+            s_minLevel = value;
+            s_hierarchy.Root.Level = ToLevel(value);
+        }
+    }
+
+    /// <summary>Replaces the log destination with a custom sink.</summary>
+    /// <param name="sink">New sink, or <c>null</c> to restore the default console log.</param>
+    public static void SetSink(ILogSink? sink)
+    {
+        if (sink is null)
+        {
+            ConfigureConsole();
+            return;
+        }
+
+        ApplyAppenders(new LogSinkAppender(sink));
+    }
+
+    /// <summary>Writes records to the console and to the dated file log; returns the file receiving them.</summary>
+    /// <param name="directory">Log directory; the application's <c>Log</c> folder is used when omitted.</param>
     /// <returns>Absolute path of the log file that receives new records.</returns>
     public static string EnableFileLog(string? directory = null)
     {
-        // Pending lines belong to the current file: write them before the sink is replaced.
-        _fileSink?.DrainOnOwnerThread(int.MaxValue);
+        string path = string.IsNullOrEmpty(directory) ? LogPaths.GetLogPath() : directory;
+        Directory.CreateDirectory(path);
 
-        var path = string.IsNullOrEmpty(directory) ? LogPaths.GetLogPath() : directory!;
-        var sink = new FileLogSink(path);
-        var previous = Interlocked.Exchange(ref _fileSink, sink);
+        var file = new RollingFileAppender
+        {
+            File = Path.Combine(path, "Log.log"),
+            AppendToFile = true,
+            RollingStyle = RollingFileAppender.RollingMode.Date,
+            DatePattern = "yyyy-MM-dd",
+            StaticLogFileName = false,
+            PreserveLogFileNameExtension = true,
+            ImmediateFlush = true,
+            Layout = s_layout,
+        };
+        file.ActivateOptions();
 
-        // Fan out instead of replacing: the console keeps the records visible while the file keeps
-        // them durable.
-        SetSink(new CompositeLogSink(new ConsoleLogSink(), sink));
-        previous?.Dispose();
-        return sink.LogFile;
+        ApplyAppenders(CreateConsoleAppender(), file);
+        return Path.Combine(path, $"Log{DateTime.Now:yyyy-MM-dd}.log");
     }
 
-    /// <summary>Stops file logging: flushes and disposes the file sink and restores the console sink.</summary>
-    public static void DisableFileLog()
+    /// <summary>Stops file logging and restores the console destination.</summary>
+    public static void DisableFileLog() => ConfigureConsole();
+
+    /// <summary>Writes buffered records to their destination.</summary>
+    public static void Flush()
     {
-        var previous = Interlocked.Exchange(ref _fileSink, null);
-        if (previous is null)
-            return;
-
-        SetSink(null);
-        previous.Dispose();
+        foreach (IAppender appender in s_hierarchy.Root.Appenders)
+        {
+            switch (appender)
+            {
+                case BufferingAppenderSkeleton buffered:
+                    buffered.Flush();
+                    break;
+                case LogSinkAppender custom:
+                    custom.FlushSink();
+                    break;
+            }
+        }
     }
-
-    /// <summary>Flushes the installed sink (waits for buffered records to reach their destination).</summary>
-    public static void Flush() => Volatile.Read(ref _sink).Flush();
-
-    /// <summary>Makes the calling thread the owner of file IO; called by the asset worker when it starts.</summary>
-    internal static void AttachIoOwner() => LogIoQueue.AttachOwner();
-
-    /// <summary>Releases file IO ownership so later records fall back to direct writes.</summary>
-    internal static void DetachIoOwner() => LogIoQueue.DetachOwner();
-
-    /// <summary>Writes queued file records on the IO owner thread, bounded so a burst cannot delay its work.</summary>
-    internal static void PumpFileIo(int maxLines = LogIoQueue.DrainBudget) =>
-        _fileSink?.DrainOnOwnerThread(maxLines);
 
     /*
-    * The APIs below deliberately carry no XML documentation: their behaviour is the agreed contract.
-    *
-    */
+     * The APIs below deliberately carry no XML documentation: their behaviour is the agreed contract.
+     *
+     */
     public static void Debug(
         object message,
         [CallerMemberName] string callerName = "",
@@ -128,42 +157,99 @@ public static class Log
         Exception exception,
         [CallerMemberName] string callerName = "",
         [CallerFilePath] string callerFile = ""
-    ) => WriteWithException(LogLevel.Error, exception, callerName, callerFile);
+    ) => Write(LogLevel.Error, exception?.ToString() ?? "null", callerName, callerFile);
 
-    /// <summary>Formats an exception plus the calling stack and writes it at <paramref name="level"/>.</summary>
-    private static void WriteWithException(
-        LogLevel level,
-        Exception exception,
-        string callerName = "",
-        string callerFile = ""
-    )
-    {
-        var sb = new StringBuilder(exception?.ToString() ?? "null").AppendLine();
-        var frames = new StackTrace(1, true).GetFrames();
-        if (frames != null)
+    internal static Level ToLevel(LogLevel level) =>
+        level switch
         {
-            foreach (var f in frames)
+            LogLevel.Debug => Level.Debug,
+            LogLevel.Info => Level.Info,
+            LogLevel.Warning => Level.Warn,
+            _ => Level.Error,
+        };
+
+    internal static LogLevel FromLevel(Level level)
+    {
+        if (level == Level.Debug)
+            return LogLevel.Debug;
+        if (level == Level.Warn)
+            return LogLevel.Warning;
+        if (level == Level.Error || level == Level.Fatal)
+            return LogLevel.Error;
+        return LogLevel.Info;
+    }
+
+    private static void Write(LogLevel level, object? message, string callerName, string callerFile)
+    {
+        if (level < s_minLevel)
+            return;
+
+        ThreadContext.Properties["Caller"] = callerName;
+        ThreadContext.Properties["CallerFile"] = callerFile;
+        ILog logger = GetLogger(callerFile);
+        string text = message?.ToString() ?? "null";
+
+        switch (level)
+        {
+            case LogLevel.Debug:
+                logger.Debug(text);
+                break;
+            case LogLevel.Info:
+                logger.Info(text);
+                break;
+            case LogLevel.Warning:
+                logger.Warn(text);
+                break;
+            default:
+                logger.Error(text);
+                break;
+        }
+    }
+
+    private static ILog GetLogger(string callerFile)
+    {
+        string category = string.IsNullOrEmpty(callerFile)
+            ? DefaultCategory
+            : Path.GetFileNameWithoutExtension(callerFile);
+
+        return s_loggers.GetOrAdd(
+            category,
+            static name => LogManager.GetLogger(typeof(Log).Assembly, name)
+        );
+    }
+
+    private static void ConfigureConsole()
+    {
+        ApplyAppenders(CreateConsoleAppender());
+    }
+
+    private static ConsoleAppender CreateConsoleAppender()
+    {
+        var appender = new ConsoleAppender { Layout = s_layout };
+        appender.ActivateOptions();
+        return appender;
+    }
+
+    private static void ApplyAppenders(params IAppender[] appenders)
+    {
+        // Replace as a whole: a replaced file appender must close its writer before the new one opens.
+        foreach (IAppender existing in s_hierarchy.Root.Appenders)
+        {
+            try
             {
-                sb.AppendLine($"  at {f}");
+                existing.Close();
+            }
+            catch
+            {
+                // Logging is best effort; a failing close must not block the new destination.
             }
         }
 
-        Write(level, sb.ToString().TrimEnd(), callerName, callerFile);
-    }
+        s_hierarchy.Root.RemoveAllAppenders();
+        foreach (IAppender appender in appenders)
+            s_hierarchy.Root.AddAppender(appender);
 
-    private static void Write(LogLevel level, object message, string callerName, string callerFile)
-    {
-        if (level < MinLevel)
-            return;
-
-        var record = new LogRecord(
-            level,
-            message?.ToString() ?? "null",
-            callerName,
-            callerFile,
-            DateTime.Now
-        );
-
-        Volatile.Read(ref _sink).Write(in record);
+        s_hierarchy.Root.Level = ToLevel(s_minLevel);
+        s_hierarchy.Configured = true;
     }
 }
